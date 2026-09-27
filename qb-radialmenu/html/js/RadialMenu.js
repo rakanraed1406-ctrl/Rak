@@ -10,7 +10,6 @@
 
 var MIN_SECTORS = 3;
 var SVGNS = 'http://www.w3.org/2000/svg';
-var XLINK = 'http://www.w3.org/1999/xlink';
 
 // ---------------------------------------------------------------------------
 // Sound identity: every cue is built from the same D-minor pentatonic set and
@@ -23,8 +22,19 @@ var WheelSfx = {
     master: null,
     notes: [293.66, 349.23, 392.0, 440.0, 523.25], // D4 F4 G4 A4 C5
     lastTick: 0,
+    idleTimer: null,
+
+    // the audio thread costs CPU while running, so it sleeps when the wheel is idle
+    sleepSoon: function () {
+        var self = this;
+        clearTimeout(self.idleTimer);
+        self.idleTimer = setTimeout(function () {
+            if (self.ctx && self.ctx.state === 'running') self.ctx.suspend();
+        }, 2000);
+    },
 
     init: function () {
+        clearTimeout(this.idleTimer);
         if (this.ctx) {
             if (this.ctx.state === 'suspended') this.ctx.resume();
             return this.ctx;
@@ -113,6 +123,7 @@ var WheelSfx = {
                 this.tone(150, t, 0.09, 'square', 0.05, 110);
                 break;
         }
+        this.sleepSoon();
     }
 };
 
@@ -207,25 +218,23 @@ RadialMenu.prototype.build = function () {
 
     var defs = rmEl('defs', {}, svg);
     var g1 = rmEl('radialGradient', { id: 'rmSector', cx: '0', cy: '0', r: '40', gradientUnits: 'userSpaceOnUse' }, defs);
-    rmEl('stop', { offset: '0.35', 'stop-color': '#050c20', 'stop-opacity': '0.9' }, g1);
-    rmEl('stop', { offset: '1', 'stop-color': '#0b1a3d', 'stop-opacity': '0.88' }, g1);
+    rmEl('stop', { offset: '0.35', 'stop-color': '#0c0e12', 'stop-opacity': '0.9' }, g1);
+    rmEl('stop', { offset: '1', 'stop-color': '#2a2f3b', 'stop-opacity': '0.9' }, g1);
     var g2 = rmEl('radialGradient', { id: 'rmSectorHot', cx: '0', cy: '0', r: '40', gradientUnits: 'userSpaceOnUse' }, defs);
-    rmEl('stop', { offset: '0.35', 'stop-color': '#0a1f5c', 'stop-opacity': '0.95' }, g2);
-    rmEl('stop', { offset: '1', 'stop-color': '#1a4bd6', 'stop-opacity': '0.95' }, g2);
+    rmEl('stop', { offset: '0.35', 'stop-color': '#0e1219', 'stop-opacity': '0.94' }, g2);
+    rmEl('stop', { offset: '1', 'stop-color': '#1f3450', 'stop-opacity': '0.94' }, g2);
     var g3 = rmEl('radialGradient', { id: 'rmCore', cx: '0', cy: '-4', r: '16', gradientUnits: 'userSpaceOnUse' }, defs);
-    rmEl('stop', { offset: '0', 'stop-color': '#10275e' }, g3);
-    rmEl('stop', { offset: '1', 'stop-color': '#040a1b' }, g3);
-    var glow = rmEl('filter', { id: 'rmGlow', x: '-50%', y: '-50%', width: '200%', height: '200%' }, defs);
-    rmEl('feGaussianBlur', { stdDeviation: '1.1', result: 'b' }, glow);
-    var merge = rmEl('feMerge', {}, glow);
-    rmEl('feMergeNode', { 'in': 'b' }, merge);
-    rmEl('feMergeNode', { 'in': 'SourceGraphic' }, merge);
+    rmEl('stop', { offset: '0', 'stop-color': '#2a2f3b', 'stop-opacity': '0.96' }, g3);
+    rmEl('stop', { offset: '1', 'stop-color': '#0a0b0e', 'stop-opacity': '0.96' }, g3);
 
     // decorative rings (the "instrument" around the wheel)
     var deco = rmEl('g', { 'class': 'rm-deco' }, svg);
     rmEl('circle', { 'class': 'rm-ring-ticks', cx: 0, cy: 0, r: 46.2 }, deco);
     rmEl('circle', { 'class': 'rm-ring-thin', cx: 0, cy: 0, r: 43.4 }, deco);
-    rmEl('circle', { 'class': 'rm-ring-scan', cx: 0, cy: 0, r: 44.8 }, deco);
+    // four short blue edge marks (static detail, nothing spins)
+    for (var k = 0; k < 4; k++) {
+        rmEl('path', { 'class': 'rm-edge-mark', d: rmArcPath(k * 90 - 10, k * 90 + 10, 44.5, 45.1) }, deco);
+    }
 
     // indicator arc that follows the selected sector
     self.indicator = rmEl('g', { 'class': 'rm-indicator' }, svg);
@@ -306,21 +315,47 @@ RadialMenu.prototype.buildLevel = function (items) {
 // Falls back to <use> if the symbol isn't generated yet.
 RadialMenu.prototype.drawIcon = function (parent, ref, cx, cy, size) {
     var wrap = rmEl('g', { 'class': 'rm-icon' }, parent);
-    var id = String(ref || '').replace(/^#/, '');
-    var sym = id ? document.getElementById(id) : null;
-    if (sym && sym.tagName.toLowerCase() === 'symbol') {
-        var inner = rmEl('svg', {
-            x: rmN(cx - size / 2), y: rmN(cy - size / 2), width: size, height: size,
-            viewBox: sym.getAttribute('viewBox') || '0 0 512 512',
-            overflow: 'visible'
-        }, wrap);
-        inner.innerHTML = sym.innerHTML;
-    } else {
-        var use = rmEl('use', { x: rmN(cx - size / 2), y: rmN(cy - size / 2), width: size, height: size, style: 'font-size:' + size + 'px' }, wrap);
-        use.setAttributeNS(XLINK, 'xlink:href', ref);
-        use.setAttribute('href', ref);
+    if (!RadialMenu.fillIcon(wrap, ref, cx, cy, size)) {
+        // not in the pre-built sprite: load Font Awesome once and fill it in later
+        wrap._icon = [ref, cx, cy, size];
+        wrap.classList.add('rm-icon-pending');
+        RadialMenu.loadFontAwesome();
     }
     return wrap;
+};
+
+RadialMenu.fillIcon = function (wrap, ref, cx, cy, size) {
+    var id = String(ref || '').replace(/^#/, '');
+    var sym = id ? document.getElementById(id) : null;
+    if (!sym || sym.tagName.toLowerCase() !== 'symbol') return false;
+    var inner = rmEl('svg', {
+        x: rmN(cx - size / 2), y: rmN(cy - size / 2), width: size, height: size,
+        viewBox: sym.getAttribute('viewBox') || '0 0 512 512',
+        overflow: 'visible'
+    }, wrap);
+    inner.innerHTML = sym.innerHTML;
+    return true;
+};
+
+// Fallback only: the 12 MB Font Awesome script is loaded the first time an
+// icon is missing from the sprite in ui.html, never otherwise.
+RadialMenu.faState = 0; // 0 = not loaded, 1 = loading, 2 = loaded
+RadialMenu.loadFontAwesome = function () {
+    if (RadialMenu.faState !== 0) return;
+    RadialMenu.faState = 1;
+    var s = document.createElement('script');
+    s.src = 'js/all.min.js';
+    s.onload = function () {
+        setTimeout(function () {
+            RadialMenu.faState = 2;
+            document.querySelectorAll('.rm-icon-pending').forEach(function (w) {
+                if (w._icon && RadialMenu.fillIcon(w, w._icon[0], w._icon[1], w._icon[2], w._icon[3])) {
+                    w.classList.remove('rm-icon-pending');
+                }
+            });
+        }, 400);
+    };
+    document.head.appendChild(s);
 };
 
 RadialMenu.prototype.showLevel = function (items, direction) {

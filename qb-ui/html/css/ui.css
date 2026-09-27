@@ -1,7 +1,7 @@
 /* ============================================================================
    Command UI — qb-ui (DrawText, notifications, info overlay, lockpick)
-   Shared identity with qb-menu and qb-input: transparent black glass, a muted
-   steel-blue accent, soft white text. The --cm-* tokens are the same values in
+   Shared identity with the MDT tablet, qb-radialmenu, qb-menu and qb-input:
+   graphite gradients, mostly black, the MDT blue only on edges. The --cm-* tokens are the same values in
    all three resources.
    Performance (FiveM CEF): plain rgba transparency (no backdrop-filter), no
    infinite animations, only transform/opacity animate, hidden parts are
@@ -9,22 +9,29 @@
    ============================================================================ */
 
 :root {
-    --cm-panel: rgba(9, 10, 13, 0.80);
-    --cm-head: rgba(255, 255, 255, 0.03);
-    --cm-row: rgba(255, 255, 255, 0.045);
-    --cm-row-hot: rgba(120, 146, 204, 0.16);
-    --cm-chip: rgba(255, 255, 255, 0.06);
-    --cm-line: rgba(255, 255, 255, 0.08);
-    --cm-line-mid: rgba(255, 255, 255, 0.14);
-    --cm-line-hot: rgba(138, 162, 214, 0.55);
-    --cm-accent: #8aa2d6;
-    --cm-accent-deep: #5c74a8;
-    --cm-accent-soft: rgba(138, 162, 214, 0.18);
+    /* MDT palette: graphite gradients, mostly black, blue only on edges */
+    --cm-panel: linear-gradient(160deg, rgba(42, 47, 59, 0.90) 0%, rgba(17, 20, 27, 0.94) 55%, rgba(10, 11, 14, 0.95) 100%);
+    --cm-glow: radial-gradient(circle at 0% 0%, rgba(59, 157, 251, 0.10), transparent 42%), radial-gradient(circle at 100% 100%, rgba(124, 92, 255, 0.05), transparent 50%);
+    --cm-head: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0));
+    --cm-row: linear-gradient(160deg, rgba(58, 65, 80, 0.42), rgba(26, 30, 38, 0.62) 78%);
+    --cm-row-hover: linear-gradient(160deg, rgba(66, 74, 90, 0.5), rgba(30, 34, 43, 0.66) 78%);
+    --cm-row-hot: linear-gradient(90deg, rgba(59, 157, 251, 0.10) 0%, rgba(30, 34, 43, 0.66) 60%);
+    --cm-chip: linear-gradient(160deg, #3a4150, #1a1e26 78%);
+    --cm-hi: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --cm-line: rgba(255, 255, 255, 0.07);
+    --cm-line-mid: rgba(255, 255, 255, 0.12);
+    --cm-line-hot: rgba(59, 157, 251, 0.45);     /* the one blue: edges only, same strength everywhere */
+    --cm-accent: #3b9dfb;
+    --cm-accent-deep: #1c5fa8;
+    --cm-accent-soft: rgba(59, 157, 251, 0.14);
+    --cm-accent-text: #8cc4ff;
     --cm-text: #eef1f6;
-    --cm-text-dim: #9ba3b4;
-    --cm-text-mute: #6b7282;
+    --cm-text-dim: #9aa3b2;
+    --cm-text-mute: #6b7280;
+    --cm-bad: #ef6b6b;
     --cm-ease: cubic-bezier(0.2, 0.9, 0.25, 1.15);
     --cm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -52,7 +59,7 @@ body.paused #root { opacity: 0; }
 }
 
 /* GTA color codes (~r~ ~g~ ...) rendered in the muted palette */
-.gc-r { color: #d9707c; } .gc-g { color: #7cc79a; } .gc-b { color: #8aa2d6; }
+.gc-r { color: #d9707c; } .gc-g { color: #7cc79a; } .gc-b { color: #8cc4ff; }
 .gc-y { color: #e2c079; } .gc-o { color: #e0a070; } .gc-p { color: #b39ad8; }
 .gc-c { color: #7fc4cf; } .gc-m { color: #a8adb8; } .gc-w { color: #ffffff; }
 .gc-h { font-weight: 800; }
@@ -64,9 +71,9 @@ body.paused #root { opacity: 0; }
     align-items: stretch;
     max-width: 60vw;
     border-radius: 10px;
-    background: var(--cm-panel);
+    background: var(--cm-glow), var(--cm-panel);
     border: 1px solid var(--cm-line);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.45), var(--cm-hi);
     overflow: hidden;
     --dx: -50%; --dy: 0px;     /* resting offset */
     --fx: 0px;  --fy: 14px;    /* where it slides in from */
@@ -94,8 +101,9 @@ body.paused #root { opacity: 0; }
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--cm-accent-soft);
-    border-right: 1px solid var(--cm-line);
+    background: var(--cm-chip);
+    border-right: 1px solid var(--cm-line-hot);
+    box-shadow: var(--cm-hi);
     color: var(--cm-text);
     font-size: 16px;
     transition: transform 0.15s var(--cm-ease), background-color 0.15s ease;
@@ -119,7 +127,7 @@ body.paused #root { opacity: 0; }
 #dtText.swap { animation: dtSwap 0.22s ease; }
 @keyframes dtSwap { from { opacity: 0.2; } to { opacity: 1; } }
 
-#dt.pressed #dtKey { animation: dtPress 0.35s var(--cm-ease); background: rgba(138, 162, 214, 0.4); }
+#dt.pressed #dtKey { animation: dtPress 0.35s var(--cm-ease); background: linear-gradient(160deg, #2c4a70, #1a1e26 80%); }
 @keyframes dtPress { 30% { transform: scale(0.82); } 100% { transform: none; } }
 
 /* ============================ Notifications ============================ */
@@ -149,7 +157,7 @@ body.paused #root { opacity: 0; }
     border-radius: 10px;
     background: var(--cm-panel);
     border: 1px solid var(--cm-line);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.4), var(--cm-hi);
     overflow: hidden;
     animation: noteIn 0.4s var(--cm-ease) both;
 }
@@ -177,7 +185,9 @@ body.paused #root { opacity: 0; }
     align-items: center;
     justify-content: center;
     border-radius: 8px;
-    background: var(--c-soft);
+    background: var(--cm-chip);
+    border: 1px solid var(--c-soft);
+    box-shadow: var(--cm-hi);
     color: var(--c);
     font-size: 14px;
 }
@@ -240,7 +250,9 @@ body.paused #root { opacity: 0; }
     position: fixed;
     inset: 0;
     display: none;
-    background: radial-gradient(ellipse at 50% 55%, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.78) 100%);
+    background:
+        radial-gradient(circle at 50% -10%, rgba(59, 157, 251, 0.07), transparent 45%),
+        radial-gradient(ellipse at 50% 55%, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.82) 100%);
     opacity: 0;
     transition: opacity 0.6s ease;
 }
@@ -257,19 +269,34 @@ body.paused #root { opacity: 0; }
     max-width: 50vw;
     padding: 12px 22px;
     border-radius: 12px;
-    background: var(--cm-panel);
+    background: var(--cm-glow), var(--cm-panel);
     border: 1px solid var(--cm-line);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), var(--cm-hi);
     transform: translate(-50%, -14px);
     transition: transform 0.6s var(--cm-ease-out);
 }
+/* corner brackets in the edge blue (MDT-style detail, static) */
 #infoBox::after {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    pointer-events: none;
+    background:
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top left / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top left / 1px 12px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top right / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top right / 1px 12px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom left / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom left / 1px 12px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom right / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom right / 1px 12px no-repeat;
+}
+#infoBox::before {
     content: "";
     position: absolute;
     left: 22px; right: 22px; bottom: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, var(--cm-accent) 50%, transparent);
-    opacity: 0.6;
+    background: linear-gradient(90deg, transparent, var(--cm-line-hot) 50%, transparent);
 }
 #info.show #infoBox { transform: translate(-50%, 0); }
 #infoText {
@@ -281,7 +308,7 @@ body.paused #root { opacity: 0; }
     letter-spacing: 0.6px;
     color: var(--cm-text);
 }
-#infoText .num { display: inline-block; min-width: 1.4em; color: var(--cm-accent); }
+#infoText .num { display: inline-block; min-width: 1.4em; color: var(--cm-accent-text); }
 #infoText .num.tick { animation: infoTick 0.3s var(--cm-ease); }
 @keyframes infoTick { from { opacity: 0.3; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
@@ -318,20 +345,27 @@ body.paused #root { opacity: 0; }
     border: 1px solid var(--cm-line-mid);
     transition: background-color 0.2s ease, transform 0.2s var(--cm-ease);
 }
-#lpDots i.done { background: var(--cm-accent); border-color: var(--cm-accent); transform: scale(1.15); }
+#lpDots i.done { background: var(--cm-accent-deep); border-color: var(--cm-line-hot); transform: scale(1.15); }
 
 #lpHint {
     padding: 5px 12px;
     border-radius: 8px;
     background: var(--cm-panel);
     border: 1px solid var(--cm-line);
+    box-shadow: var(--cm-hi);
     font-family: 'Oxanium', sans-serif;
     font-size: 9.5px;
     font-weight: 600;
     letter-spacing: 0.8px;
     color: var(--cm-text-mute);
 }
-#lpHint b { color: var(--cm-text-dim); }
+#lpHint b {
+    display: inline-block;
+    padding: 0 4px;
+    border-radius: 3px;
+    border: 1px solid var(--cm-line-mid);
+    color: var(--cm-text-dim);
+}
 
 /* ---------- 4K ---------- */
 @media (min-width: 3000px) {

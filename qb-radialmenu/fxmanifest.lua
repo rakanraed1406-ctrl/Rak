@@ -27,7 +27,6 @@ files {
     "html/ui.html",
     "html/css/RadialMenu.css",
     "html/js/RadialMenu.js",
-    'html/css/all.min.css',
     'html/js/all.min.js',
 }
 

@@ -1,7 +1,7 @@
 /* ============================================================================
    Command Panel — qb-menu
-   Shared identity with qb-input and qb-ui: transparent black glass, a muted
-   steel-blue accent, soft white text. The --cm-* tokens are the same values in
+   Shared identity with the MDT tablet, qb-radialmenu, qb-input and qb-ui:
+   graphite gradients, mostly black, the MDT blue only on edges. The --cm-* tokens are the same values in
    all three resources — change them here and there the same way.
 
    Performance notes (FiveM CEF):
@@ -12,30 +12,31 @@
    ============================================================================ */
 
 :root {
-    /* surfaces */
-    --cm-panel: rgba(9, 10, 13, 0.80);
-    --cm-head: rgba(255, 255, 255, 0.03);
-    --cm-row: rgba(255, 255, 255, 0.045);
-    --cm-row-hover: rgba(255, 255, 255, 0.07);
-    --cm-row-hot: rgba(120, 146, 204, 0.16);
-    --cm-chip: rgba(255, 255, 255, 0.06);
-    /* lines */
-    --cm-line: rgba(255, 255, 255, 0.08);
-    --cm-line-mid: rgba(255, 255, 255, 0.14);
-    --cm-line-hot: rgba(138, 162, 214, 0.55);
-    /* accent (muted steel blue) */
-    --cm-accent: #8aa2d6;
-    --cm-accent-deep: #5c74a8;
-    --cm-accent-soft: rgba(138, 162, 214, 0.18);
-    /* text */
+    /* MDT palette: graphite gradients, mostly black, blue only on edges */
+    --cm-panel: linear-gradient(160deg, rgba(42, 47, 59, 0.90) 0%, rgba(17, 20, 27, 0.94) 55%, rgba(10, 11, 14, 0.95) 100%);
+    --cm-glow: radial-gradient(circle at 0% 0%, rgba(59, 157, 251, 0.10), transparent 42%), radial-gradient(circle at 100% 100%, rgba(124, 92, 255, 0.05), transparent 50%);
+    --cm-head: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0));
+    --cm-row: linear-gradient(160deg, rgba(58, 65, 80, 0.42), rgba(26, 30, 38, 0.62) 78%);
+    --cm-row-hover: linear-gradient(160deg, rgba(66, 74, 90, 0.5), rgba(30, 34, 43, 0.66) 78%);
+    --cm-row-hot: linear-gradient(90deg, rgba(59, 157, 251, 0.10) 0%, rgba(30, 34, 43, 0.66) 60%);
+    --cm-chip: linear-gradient(160deg, #3a4150, #1a1e26 78%);
+    --cm-hi: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --cm-line: rgba(255, 255, 255, 0.07);
+    --cm-line-mid: rgba(255, 255, 255, 0.12);
+    --cm-line-hot: rgba(59, 157, 251, 0.45);     /* the one blue: edges only, same strength everywhere */
+    --cm-accent: #3b9dfb;
+    --cm-accent-deep: #1c5fa8;
+    --cm-accent-soft: rgba(59, 157, 251, 0.14);
+    --cm-accent-text: #8cc4ff;
     --cm-text: #eef1f6;
-    --cm-text-dim: #9ba3b4;
-    --cm-text-mute: #6b7282;
-    /* motion */
+    --cm-text-dim: #9aa3b2;
+    --cm-text-mute: #6b7280;
+    --cm-bad: #ef6b6b;
     --cm-ease: cubic-bezier(0.2, 0.9, 0.25, 1.15);
     --cm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
     --qm-width: 350px;
+
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -68,12 +69,29 @@ body.qm-closing #menu { pointer-events: none; }
     position: relative;
     width: var(--qm-width);
     border-radius: 12px;
-    background: var(--cm-panel);
+    background: var(--cm-glow), var(--cm-panel);
     border: 1px solid var(--cm-line);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45), var(--cm-hi);
     overflow: hidden;
     will-change: transform, opacity;
 }
+/* corner brackets in the edge blue (MDT-style detail, static) */
+#panel::after {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    pointer-events: none;
+    background:
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top left / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top left / 1px 12px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top right / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top right / 1px 12px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom left / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom left / 1px 12px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom right / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom right / 1px 12px no-repeat;
+}
+
 body.qm-visible #panel { animation: qmPanelIn 0.4s var(--cm-ease-out) both; }
 body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
 @keyframes qmPanelIn {
@@ -110,6 +128,13 @@ body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
+}
+.qm-kicker::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    margin-left: 4px;
+    background: linear-gradient(90deg, var(--cm-line-mid), transparent);
 }
 .qm-dot {
     width: 5px; height: 5px;
@@ -183,6 +208,7 @@ body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
     border-radius: 9px;
     border: 1px solid var(--cm-line);
     background: var(--cm-row);
+    box-shadow: var(--cm-hi);
     cursor: pointer;
     overflow: hidden;
     transition: transform 0.18s var(--cm-ease), border-color 0.18s ease, background-color 0.18s ease;
@@ -208,7 +234,7 @@ body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
     color: var(--cm-text-mute);
     text-align: center;
 }
-.qm-item.selected .qm-num { color: var(--cm-accent); }
+.qm-item.selected .qm-num { color: var(--cm-accent-text); }
 
 .qm-icon {
     flex: 0 0 auto;
@@ -220,6 +246,7 @@ body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
     border-radius: 8px;
     background: var(--cm-chip);
     border: 1px solid var(--cm-line);
+    box-shadow: var(--cm-hi);
     color: var(--cm-text-dim);
     font-size: 14px;
     transition: color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
@@ -227,7 +254,6 @@ body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
 .qm-icon img { max-width: 26px; max-height: 26px; object-fit: contain; }
 .qm-item.selected .qm-icon {
     color: var(--cm-text);
-    background: var(--cm-accent-soft);
     border-color: var(--cm-line-hot);
 }
 
@@ -248,7 +274,7 @@ body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
     line-height: 1.4;
     overflow-wrap: anywhere;
 }
-.qm-item.selected .qm-text { color: #c4cbd9; }
+.qm-item.selected .qm-text { color: #c3cad6; }
 
 .qm-arrow {
     flex: 0 0 auto;
@@ -280,7 +306,7 @@ body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
 /* disabled */
 .qm-item.disabled {
     cursor: not-allowed;
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(10, 11, 14, 0.45);
     border-style: dashed;
     border-color: var(--cm-line);
 }
@@ -325,8 +351,8 @@ body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
 /* activation flash + ripple */
 .qm-item.qm-flash { animation: qmFlash 0.3s ease-out; }
 @keyframes qmFlash {
-    0% { background-color: rgba(138, 162, 214, 0.35); }
-    100% { background-color: var(--cm-row-hot); }
+    0% { box-shadow: inset 0 0 0 100px rgba(59, 157, 251, 0.18); }
+    100% { box-shadow: inset 0 0 0 100px rgba(59, 157, 251, 0); }
 }
 .qm-ripple {
     position: absolute;
@@ -334,7 +360,7 @@ body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
     height: 12px;
     margin: -6px 0 0 -6px;
     border-radius: 50%;
-    border: 1.5px solid rgba(200, 212, 240, 0.7);
+    border: 1.5px solid var(--cm-line-hot);
     pointer-events: none;
     animation: qmRipple 0.45s ease-out forwards;
 }
@@ -361,7 +387,16 @@ body.qm-closing #panel { animation: qmPanelOut 0.2s ease-in forwards; }
     letter-spacing: 0.8px;
     color: var(--cm-text-mute);
 }
-#foot b { color: var(--cm-text-dim); font-weight: 700; margin-right: 3px; }
+#foot b {
+    display: inline-block;
+    margin-right: 4px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid var(--cm-line-mid);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--cm-text-dim);
+    font-weight: 700;
+}
 body.qm-nofocus #foot { display: none; }
 
 /* ---------- image preview ---------- */
@@ -374,8 +409,8 @@ body.qm-nofocus #foot { display: none; }
     padding: 12px;
     border-radius: 12px;
     border: 1px solid var(--cm-line);
-    background: var(--cm-panel);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+    background: var(--cm-glow), var(--cm-panel);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45), var(--cm-hi);
 }
 #preview.on { display: flex; animation: qmPreviewIn 0.25s var(--cm-ease) both; }
 @keyframes qmPreviewIn { from { opacity: 0; transform: translateX(14px) scale(0.95); } to { opacity: 1; transform: none; } }

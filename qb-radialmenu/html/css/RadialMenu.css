@@ -1,203 +1,182 @@
 /* ============================================================================
    Command Wheel — visual identity
-   Deep navy glass + royal-blue signal light. Every state (open, hover, enter
-   sub-menu, back, activate, close) uses the same motion curve and the same
-   blue, so the menu reads as one designed object.
+   Same palette as the MDT tablet and qb-menu / qb-input / qb-ui: graphite
+   gradients (#2a2f3b -> #0a0b0e), mostly black, and the MDT blue (#3b9dfb)
+   only on edges, thin and always at the same strength.
+
+   Performance: no infinite animations, no SVG/CSS blur filters, icons come
+   from a pre-built sprite (no 12 MB Font Awesome script at start).
    ============================================================================ */
 
 :root {
-    --rm-void: #030813;
-    --rm-deep: #050c20;
-    --rm-navy: #0b1a3d;
-    --rm-blue: #1a4bd6;          /* main signal blue (dark royal) */
-    --rm-blue-hi: #3a6cff;       /* highlight edge */
-    --rm-blue-glow: rgba(38, 92, 255, 0.55);
-    --rm-line: rgba(92, 130, 255, 0.28);
-    --rm-line-dim: rgba(92, 130, 255, 0.12);
-    --rm-text: #e8eeff;
-    --rm-text-dim: #8d9bc4;
-    --rm-ease: cubic-bezier(0.2, 0.9, 0.25, 1.15);   /* slight overshoot = "snap" */
-    --rm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --cm-ink: #eef1f6;
+    --cm-ink-dim: #9aa3b2;
+    --cm-ink-faint: #6b7280;
+    --cm-line: rgba(255, 255, 255, 0.07);
+    --cm-line-mid: rgba(255, 255, 255, 0.12);
+    --cm-edge: rgba(59, 157, 251, 0.45);      /* the one blue, used on edges only */
+    --cm-edge-soft: rgba(59, 157, 251, 0.16);
+    --cm-accent: #3b9dfb;
+    --cm-accent-text: #8cc4ff;
+    --cm-ease: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+    --cm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .rm-holder {
     position: relative;
     user-select: none;
-    font-family: 'Oxanium', 'Rajdhani', 'Segoe UI', sans-serif;
+    font-family: 'Oxanium', 'Cairo', 'Segoe UI', sans-serif;
 }
 
-/* soft navy haze behind the wheel so it reads on any background */
+/* dark haze behind the wheel so it reads on any background (static) */
 .rm-halo {
     position: absolute;
-    inset: -22%;
+    inset: -20%;
     border-radius: 50%;
-    background:
-        radial-gradient(circle, rgba(10, 30, 90, 0.55) 0%, rgba(5, 14, 40, 0.35) 38%, rgba(3, 8, 19, 0) 68%);
+    background: radial-gradient(circle, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.3) 42%, rgba(0, 0, 0, 0) 68%);
     opacity: 0;
-    transform: scale(0.8);
-    transition: opacity 0.35s ease, transform 0.5s var(--rm-ease-out);
+    transform: scale(0.85);
+    transition: opacity 0.3s ease, transform 0.45s var(--cm-ease-out);
     pointer-events: none;
 }
 .rm-open .rm-halo { opacity: 1; transform: scale(1); }
-.rm-closing .rm-halo { opacity: 0; transform: scale(0.85); transition-duration: 0.2s; }
+.rm-closing .rm-halo { opacity: 0; transform: scale(0.88); transition-duration: 0.2s; }
 
-.rm-svg {
-    position: relative;
-    overflow: visible;
-    filter: drop-shadow(0 18px 40px rgba(0, 4, 20, 0.65));
-}
-.rm-svg * { transform-box: view-box; transform-origin: 0px 0px; } /* view-box origin = (0,0) = wheel center */
+.rm-svg { position: relative; overflow: visible; }
+.rm-svg * { transform-box: view-box; transform-origin: 0px 0px; } /* view-box origin = wheel center */
 
-/* ---------- decorative instrument rings ---------- */
+/* ---------- decorative rings (static) ---------- */
 .rm-deco circle { fill: none; }
 .rm-ring-ticks {
-    stroke: var(--rm-line);
+    stroke: rgba(255, 255, 255, 0.14);
     stroke-width: 1.1;
-    stroke-dasharray: 0.35 1.45;
-    animation: rmSpin 60s linear infinite;
+    stroke-dasharray: 0.3 1.5;
 }
-.rm-ring-thin { stroke: var(--rm-line-dim); stroke-width: 0.25; }
-.rm-ring-scan {
-    stroke: var(--rm-blue-hi);
-    stroke-width: 0.35;
-    stroke-dasharray: 10 60 4 30 18 160;
-    opacity: 0.55;
-    animation: rmSpin 9s linear infinite reverse;
-}
-.rm-deco { opacity: 0; transform: scale(0.86) rotate(-40deg); transition: opacity 0.35s ease, transform 0.6s var(--rm-ease-out); }
+.rm-ring-thin { stroke: var(--cm-line-mid); stroke-width: 0.22; }
+.rm-edge-mark { fill: var(--cm-edge); }
+.rm-deco { opacity: 0; transform: scale(0.9) rotate(-25deg); transition: opacity 0.3s ease, transform 0.5s var(--cm-ease-out); }
 .rm-open .rm-deco { opacity: 1; transform: none; }
-.rm-closing .rm-deco { opacity: 0; transform: scale(0.9) rotate(30deg); transition-duration: 0.2s; }
-
-@keyframes rmSpin { to { transform: rotate(360deg); } }
+.rm-closing .rm-deco { opacity: 0; transform: scale(0.92) rotate(20deg); transition-duration: 0.2s; }
 
 /* ---------- selection indicator (follows the hovered sector) ---------- */
 .rm-indicator {
     opacity: 0;
-    transition: transform 0.22s var(--rm-ease), opacity 0.2s ease;
-    filter: url(#rmGlow);
+    transition: transform 0.22s var(--cm-ease), opacity 0.2s ease;
 }
 .rm-indicator.on { opacity: 1; }
-.rm-indicator path { fill: var(--rm-blue-hi); }
+.rm-indicator path { fill: var(--cm-accent); opacity: 0.7; }
 .rm-closing .rm-indicator { opacity: 0; }
 
 /* ---------- sectors ---------- */
-.rm-sw { animation: rmSectorIn 0.42s var(--rm-ease) backwards; }
+.rm-sw { animation: rmSectorIn 0.4s var(--cm-ease) backwards; }
 @keyframes rmSectorIn {
-    from { opacity: 0; transform: scale(0.55) rotate(-18deg); }
+    from { opacity: 0; transform: scale(0.6) rotate(-16deg); }
     to   { opacity: 1; transform: none; }
 }
 
-.rm-sector { cursor: pointer; transition: transform 0.2s var(--rm-ease); }
+.rm-sector { cursor: pointer; transition: transform 0.2s var(--cm-ease); }
 .rm-face {
     fill: url(#rmSector);
-    stroke: var(--rm-line);
-    stroke-width: 0.28;
+    stroke: var(--cm-line-mid);
+    stroke-width: 0.22;
     transition: stroke 0.2s ease;
 }
-.rm-rim { fill: rgba(92, 130, 255, 0.10); transition: fill 0.2s ease; }
+.rm-rim { fill: rgba(255, 255, 255, 0.06); transition: fill 0.2s ease; }
 .rm-icon {
     transform-box: fill-box;
     transform-origin: center;
-    color: var(--rm-text-dim);
-    fill: var(--rm-text-dim);
-    transition: transform 0.2s var(--rm-ease), color 0.2s ease, fill 0.2s ease;
+    color: var(--cm-ink-dim);
+    fill: var(--cm-ink-dim);
+    transition: transform 0.2s var(--cm-ease), color 0.2s ease, fill 0.2s ease;
 }
+.rm-icon .fa-secondary { opacity: 0.4; }
 .rm-label {
-    fill: var(--rm-text-dim);
-    font-weight: 600;
-    letter-spacing: 0.08px;
+    fill: var(--cm-ink-dim);
+    font-weight: 700;
+    letter-spacing: 0.06px;
     transition: fill 0.2s ease;
     pointer-events: none;
 }
-.rm-sub-dot { fill: var(--rm-blue-hi); opacity: 0.8; }
+.rm-sub-dot { fill: var(--cm-accent); opacity: 0.7; }
 
-/* selected = pushed outward, lit royal blue */
+/* selected = pushed out, blue only on its edge */
 .rm-sector.selected { transform: translate(var(--dx), var(--dy)); }
-.rm-sector.selected .rm-face { fill: url(#rmSectorHot); stroke: var(--rm-blue-hi); stroke-width: 0.4; }
-.rm-sector.selected .rm-rim { fill: var(--rm-blue-hi); }
-.rm-sector.selected .rm-icon { color: #fff; fill: #fff; transform: scale(1.12); filter: drop-shadow(0 0 1.2px rgba(120, 160, 255, 0.9)); }
-.rm-sector.selected .rm-label { fill: #fff; }
+.rm-sector.selected .rm-face { fill: url(#rmSectorHot); stroke: var(--cm-edge); stroke-width: 0.32; }
+.rm-sector.selected .rm-rim { fill: var(--cm-accent); }
+.rm-sector.selected .rm-icon { color: var(--cm-ink); fill: var(--cm-ink); transform: scale(1.1); }
+.rm-sector.selected .rm-label { fill: var(--cm-ink); }
 
 .rm-dummy { cursor: default; }
-.rm-dummy .rm-face { fill: rgba(5, 12, 32, 0.45); stroke: var(--rm-line-dim); stroke-dasharray: 0.6 0.8; }
+.rm-dummy .rm-face { fill: rgba(10, 11, 14, 0.55); stroke: var(--cm-line); stroke-dasharray: 0.6 0.8; }
 .rm-dummy .rm-rim { fill: none; }
 
 /* activation flash */
-.rm-sector.rm-flash .rm-face { animation: rmFlash 0.35s ease-out; }
+.rm-sector.rm-flash .rm-face { animation: rmFlash 0.3s ease-out; }
 @keyframes rmFlash {
-    0% { fill: #5b8cff; }
+    0% { fill: #2c4a70; }
     100% { fill: url(#rmSectorHot); }
 }
 
 /* ---------- level transitions ---------- */
 .rm-level.rm-from-center { animation: none; }
-.rm-level.rm-from-in { animation: rmLevelIn 0.34s var(--rm-ease-out); }       /* diving into a sub-menu */
-.rm-level.rm-from-out { animation: rmLevelBack 0.34s var(--rm-ease-out); }    /* coming back up */
-.rm-level.rm-leave-in { animation: rmLevelOutIn 0.26s ease forwards; }
-.rm-level.rm-leave-out { animation: rmLevelOutBack 0.26s ease forwards; }
-.rm-level.rm-from-in .rm-sw, .rm-level.rm-from-out .rm-sw { animation-duration: 0.36s; }
+.rm-level.rm-from-in { animation: rmLevelIn 0.32s var(--cm-ease-out); }
+.rm-level.rm-from-out { animation: rmLevelBack 0.32s var(--cm-ease-out); }
+.rm-level.rm-leave-in { animation: rmLevelOutIn 0.24s ease forwards; }
+.rm-level.rm-leave-out { animation: rmLevelOutBack 0.24s ease forwards; }
+.rm-level.rm-from-in .rm-sw, .rm-level.rm-from-out .rm-sw { animation-duration: 0.34s; }
 
-@keyframes rmLevelIn { from { transform: scale(1.18) rotate(14deg); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes rmLevelBack { from { transform: scale(0.82) rotate(-14deg); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes rmLevelOutIn { to { transform: scale(0.72) rotate(-24deg); opacity: 0; } }
-@keyframes rmLevelOutBack { to { transform: scale(1.22) rotate(24deg); opacity: 0; } }
+@keyframes rmLevelIn { from { transform: scale(1.16) rotate(12deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes rmLevelBack { from { transform: scale(0.84) rotate(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes rmLevelOutIn { to { transform: scale(0.74) rotate(-22deg); opacity: 0; } }
+@keyframes rmLevelOutBack { to { transform: scale(1.2) rotate(22deg); opacity: 0; } }
 
 /* ---------- center core ---------- */
-.rm-center { cursor: pointer; transform: scale(0.4); opacity: 0; transition: transform 0.45s var(--rm-ease), opacity 0.25s ease; }
+.rm-center { cursor: pointer; transform: scale(0.45); opacity: 0; transition: transform 0.4s var(--cm-ease), opacity 0.25s ease; }
 .rm-open .rm-center { transform: none; opacity: 1; }
 .rm-closing .rm-center { transform: scale(0.6); opacity: 0; transition-duration: 0.18s; }
 .rm-core { fill: url(#rmCore); }
-.rm-core-edge { fill: none; stroke: var(--rm-line); stroke-width: 0.35; transition: stroke 0.2s ease, stroke-width 0.2s ease; }
+.rm-core-edge { fill: none; stroke: var(--cm-line-mid); stroke-width: 0.3; transition: stroke 0.2s ease; }
 .rm-core-spin {
     fill: none;
-    stroke: var(--rm-blue);
-    stroke-width: 0.5;
-    stroke-dasharray: 3 2.2;
-    opacity: 0.7;
-    animation: rmSpin 14s linear infinite;
+    stroke: var(--cm-edge-soft);
+    stroke-width: 0.4;
+    stroke-dasharray: 2.4 2.2;
+    transition: transform 0.5s var(--cm-ease-out), stroke 0.2s ease;
 }
-.rm-center.hover .rm-core-edge { stroke: var(--rm-blue-hi); stroke-width: 0.6; }
-.rm-center.hover .rm-core-spin { animation-duration: 3s; opacity: 1; }
+.rm-center.hover .rm-core-edge { stroke: var(--cm-edge); }
+.rm-center.hover .rm-core-spin { stroke: var(--cm-edge); transform: rotate(45deg); }
 
 .rm-kicker {
-    fill: var(--rm-blue-hi);
-    font-size: 1.9px;
+    fill: var(--cm-accent-text);
+    font-size: 1.8px;
     font-weight: 700;
-    letter-spacing: 0.45px;
+    letter-spacing: 0.42px;
 }
 .rm-title {
-    fill: var(--rm-text);
-    font-size: 3.1px;
+    fill: var(--cm-ink);
+    font-size: 3px;
     font-weight: 800;
-    letter-spacing: 0.1px;
+    letter-spacing: 0.08px;
 }
 .rm-hint text {
-    fill: var(--rm-text-dim);
-    font-size: 1.55px;
-    font-weight: 600;
+    fill: var(--cm-ink-faint);
+    font-size: 1.5px;
+    font-weight: 700;
     letter-spacing: 0.3px;
-    opacity: 0.8;
 }
 
 .rm-pulse {
     fill: none;
-    stroke: var(--rm-blue-hi);
-    stroke-width: 0.6;
-    animation: rmPulse 0.5s ease-out forwards;
+    stroke: var(--cm-edge);
+    stroke-width: 0.5;
+    animation: rmPulse 0.45s ease-out forwards;
     pointer-events: none;
 }
 @keyframes rmPulse {
     from { transform: scale(1); opacity: 0.9; }
-    to   { transform: scale(2.9); opacity: 0; stroke-width: 0.1; }
+    to   { transform: scale(2.8); opacity: 0; stroke-width: 0.1; }
 }
 
 /* ---------- close: everything folds back into the core ---------- */
 .rm-closing .rm-level { animation: rmFold 0.2s ease-in forwards; }
 @keyframes rmFold { to { transform: scale(0.45) rotate(-20deg); opacity: 0; } }
-
-/* the hidden Font Awesome symbol sheet */
-svg.icons { display: none; }
-
-@media (prefers-reduced-motion: reduce) {
-    .rm-ring-ticks, .rm-ring-scan, .rm-core-spin { animation: none; }
-}

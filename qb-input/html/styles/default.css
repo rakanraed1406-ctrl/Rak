@@ -1,33 +1,38 @@
 /* ============================================================================
    Command Form — qb-input (default style)
-   Shared identity with qb-menu and qb-ui: transparent black glass, a muted
-   steel-blue accent, soft white text. The --cm-* tokens are the same values in
+   Shared identity with the MDT tablet, qb-radialmenu, qb-menu and qb-ui:
+   graphite gradients, mostly black, the MDT blue only on edges. The --cm-* tokens are the same values in
    all three resources.
    Performance (FiveM CEF): plain rgba transparency (no backdrop-filter), no
    full-screen layers, no infinite animations, hidden = display:none.
    ============================================================================ */
 
 :root {
-    --cm-panel: rgba(9, 10, 13, 0.80);
-    --cm-head: rgba(255, 255, 255, 0.03);
-    --cm-row: rgba(255, 255, 255, 0.045);
-    --cm-row-hover: rgba(255, 255, 255, 0.07);
-    --cm-row-hot: rgba(120, 146, 204, 0.16);
-    --cm-chip: rgba(255, 255, 255, 0.06);
-    --cm-line: rgba(255, 255, 255, 0.08);
-    --cm-line-mid: rgba(255, 255, 255, 0.14);
-    --cm-line-hot: rgba(138, 162, 214, 0.55);
-    --cm-accent: #8aa2d6;
-    --cm-accent-deep: #5c74a8;
-    --cm-accent-soft: rgba(138, 162, 214, 0.18);
+    /* MDT palette: graphite gradients, mostly black, blue only on edges */
+    --cm-panel: linear-gradient(160deg, rgba(42, 47, 59, 0.90) 0%, rgba(17, 20, 27, 0.94) 55%, rgba(10, 11, 14, 0.95) 100%);
+    --cm-glow: radial-gradient(circle at 0% 0%, rgba(59, 157, 251, 0.10), transparent 42%), radial-gradient(circle at 100% 100%, rgba(124, 92, 255, 0.05), transparent 50%);
+    --cm-head: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0));
+    --cm-row: linear-gradient(160deg, rgba(58, 65, 80, 0.42), rgba(26, 30, 38, 0.62) 78%);
+    --cm-row-hover: linear-gradient(160deg, rgba(66, 74, 90, 0.5), rgba(30, 34, 43, 0.66) 78%);
+    --cm-row-hot: linear-gradient(90deg, rgba(59, 157, 251, 0.10) 0%, rgba(30, 34, 43, 0.66) 60%);
+    --cm-chip: linear-gradient(160deg, #3a4150, #1a1e26 78%);
+    --cm-hi: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    --cm-line: rgba(255, 255, 255, 0.07);
+    --cm-line-mid: rgba(255, 255, 255, 0.12);
+    --cm-line-hot: rgba(59, 157, 251, 0.45);     /* the one blue: edges only, same strength everywhere */
+    --cm-accent: #3b9dfb;
+    --cm-accent-deep: #1c5fa8;
+    --cm-accent-soft: rgba(59, 157, 251, 0.14);
+    --cm-accent-text: #8cc4ff;
     --cm-text: #eef1f6;
-    --cm-text-dim: #9ba3b4;
-    --cm-text-mute: #6b7282;
-    --cm-bad: #d9707c;
+    --cm-text-dim: #9aa3b2;
+    --cm-text-mute: #6b7280;
+    --cm-bad: #ef6b6b;
     --cm-ease: cubic-bezier(0.2, 0.9, 0.25, 1.15);
     --cm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
     --qi-width: 350px;
+
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -50,12 +55,29 @@ html, body {
     width: var(--qi-width);
     display: none;
     border-radius: 12px;
-    background: var(--cm-panel);
+    background: var(--cm-glow), var(--cm-panel);
     border: 1px solid var(--cm-line);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45), var(--cm-hi);
     overflow: hidden;
     will-change: transform, opacity;
 }
+/* corner brackets in the edge blue (MDT-style detail, static) */
+#panel::after {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    pointer-events: none;
+    background:
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top left / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top left / 1px 12px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top right / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) top right / 1px 12px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom left / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom left / 1px 12px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom right / 12px 1px no-repeat,
+        linear-gradient(var(--cm-line-hot), var(--cm-line-hot)) bottom right / 1px 12px no-repeat;
+}
+
 body.qi-visible #panel { display: block; animation: qiIn 0.4s var(--cm-ease-out) both; }
 body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events: none; }
 @keyframes qiIn { from { opacity: 0; transform: translateX(32px) scale(0.97); } to { opacity: 1; transform: none; } }
@@ -84,6 +106,13 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 2px;
+}
+.qi-kicker::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    margin-left: 4px;
+    background: linear-gradient(90deg, var(--cm-line-mid), transparent);
 }
 .qi-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cm-accent); }
 #title {
@@ -130,7 +159,8 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     padding: 0 14px;
     border-radius: 9px;
     border: 1px solid var(--cm-line);
-    background: var(--cm-row);
+    background: rgba(6, 7, 9, 0.55);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45);
     color: var(--cm-text);
     font-family: inherit;
     font-size: 14.5px;
@@ -140,11 +170,11 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
 }
 .qi-input::placeholder { color: var(--cm-text-mute); font-weight: 600; }
 .qi-input:hover,
-.qi-select select:hover { background: var(--cm-row-hover); }
+.qi-select select:hover { border-color: var(--cm-line-mid); }
 .qi-input:focus,
 .qi-select select:focus {
     border-color: var(--cm-line-hot);
-    background: var(--cm-row-hot);
+    background: rgba(6, 7, 9, 0.7);
 }
 .qi-input[type="number"]::-webkit-outer-spin-button,
 .qi-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -164,7 +194,7 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     transform: rotate(45deg);
     pointer-events: none;
 }
-.qi-select option { background: #15171c; color: var(--cm-text); }
+.qi-select option { background: #14161c; color: var(--cm-text); }
 
 /* radio = segmented chips */
 .qi-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -177,6 +207,7 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     border-radius: 9px;
     border: 1px solid var(--cm-line);
     background: var(--cm-row);
+    box-shadow: var(--cm-hi);
     color: var(--cm-text-dim);
     font-size: 13.5px;
     font-weight: 700;
@@ -204,6 +235,7 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     border-radius: 9px;
     border: 1px solid var(--cm-line);
     background: var(--cm-row);
+    box-shadow: var(--cm-hi);
     cursor: pointer;
     font-size: 13.5px;
     font-weight: 700;
@@ -218,8 +250,9 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     width: 34px;
     height: 18px;
     border-radius: 18px;
-    background: rgba(255, 255, 255, 0.1);
-    transition: background-color 0.2s ease;
+    background: rgba(0, 0, 0, 0.45);
+    box-shadow: inset 0 0 0 1px var(--cm-line-mid);
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 .qi-switch::after {
     content: "";
@@ -230,7 +263,7 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     background: var(--cm-text-mute);
     transition: transform 0.22s var(--cm-ease), background-color 0.2s ease;
 }
-.qi-check input:checked ~ .qi-switch { background: var(--cm-accent-deep); }
+.qi-check input:checked ~ .qi-switch { background: rgba(59, 157, 251, 0.22); box-shadow: inset 0 0 0 1px var(--cm-line-hot); }
 .qi-check input:checked ~ .qi-switch::after { transform: translateX(16px); background: var(--cm-text); }
 .qi-check input:focus-visible ~ .qi-switch { box-shadow: 0 0 0 2px var(--cm-line-hot); }
 
@@ -243,7 +276,7 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     padding: 0 8px;
     border-radius: 9px;
     border: 1px solid var(--cm-line);
-    background: var(--cm-row);
+    background: rgba(6, 7, 9, 0.55);
 }
 .qi-color input { width: 52px; height: 28px; border: none; background: none; cursor: pointer; }
 .qi-color input::-webkit-color-swatch-wrapper { padding: 0; }
@@ -256,7 +289,7 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     padding: 10px 12px;
     border-radius: 9px;
     border: 1px solid var(--cm-line);
-    border-left: 2px solid var(--cm-accent);
+    border-left: 2px solid var(--cm-line-hot);
     background: var(--cm-row);
     font-size: 13.5px;
     font-weight: 600;
@@ -297,19 +330,20 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
 .qi-btn-main {
     flex: 1 1 auto;
     color: var(--cm-text);
-    background: var(--cm-row-hot);
+    background: var(--cm-chip);
     border: 1px solid var(--cm-line-hot);
+    box-shadow: var(--cm-hi);
 }
-.qi-btn-main:hover, .qi-btn-main:focus-visible { background: rgba(138, 162, 214, 0.26); }
+.qi-btn-main:hover, .qi-btn-main:focus-visible { background: var(--cm-glow), var(--cm-chip); }
 .qi-btn-ghost {
     flex: 0 0 92px;
     color: var(--cm-text-dim);
-    background: var(--cm-row);
+    background: rgba(6, 7, 9, 0.45);
     border: 1px solid var(--cm-line);
 }
-.qi-btn-ghost:hover, .qi-btn-ghost:focus-visible { color: var(--cm-text); background: var(--cm-row-hover); }
+.qi-btn-ghost:hover, .qi-btn-ghost:focus-visible { color: var(--cm-text); border-color: var(--cm-line-mid); }
 .qi-flash { animation: qiFlash 0.3s ease-out; }
-@keyframes qiFlash { 0% { background-color: rgba(138, 162, 214, 0.45); } 100% { background-color: var(--cm-row-hot); } }
+@keyframes qiFlash { 0% { box-shadow: inset 0 0 0 100px rgba(59, 157, 251, 0.22); } 100% { box-shadow: inset 0 0 0 100px rgba(59, 157, 251, 0); } }
 
 /* ---------- hints ---------- */
 #hints {
@@ -323,7 +357,16 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     letter-spacing: 0.8px;
     color: var(--cm-text-mute);
 }
-#hints b { color: var(--cm-text-dim); font-weight: 700; margin-right: 3px; }
+#hints b {
+    display: inline-block;
+    margin-right: 4px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid var(--cm-line-mid);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--cm-text-dim);
+    font-weight: 700;
+}
 
 /* ---------- 4K ---------- */
 @media (min-width: 3000px) {

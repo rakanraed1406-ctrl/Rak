@@ -38,185 +38,81 @@ end)
 
 -- Code
 
-local function RunLoop()
-    MenuOpend = true
-    Citizen.CreateThread(function()
-        while MenuOpend do
-            Wait(3)
-            if IsControlPressed(1, Config.Keys['F1']) and GetLastInputMethod(2) and showMenu then
-                showMenu = false
-                MenuOpend = false
-                SetNuiFocus(false, false)
-            end
-            if IsControlPressed(1, Config.Keys['F1']) and GetLastInputMethod(2) then
-                showMenu = true
-                if showMenu == true then
-                    DisableControlAction(0, 289, true)  
-                    DisableControlAction(0, 288, true)  
-                end
-                local enabledMenus = {}
-                if showMenu then 
-                    for _, menuConfig in ipairs(Config.Menu) do
-                        if menuConfig:enableMenu() then
-                            local dataElements = {}
-                            local hasSubMenus = false
-                            if menuConfig.subMenus ~= nil and #menuConfig.subMenus > 0 then
-                                hasSubMenus = true
-                                local previousMenu = dataElements
-                                local currentElement = {}
-                                for i = 1, #menuConfig.subMenus do
-                                    currentElement[#currentElement+1] = Config.SubMenus[menuConfig.subMenus[i]]
-                                    currentElement[#currentElement].id = menuConfig.subMenus[i]
-                                    currentElement[#currentElement].enableMenu = nil
-        
-                                    if i % MAX_MENU_ITEMS == 0 and i < (#menuConfig.subMenus - 1) then
-                                        previousMenu[MAX_MENU_ITEMS + 1] = {
-                                            id = "_more",
-                                            title = "More",
-                                            icon = "#more",
-                                            items = currentElement
-                                        }
-                                        previousMenu = currentElement
-                                        currentElement = {}
-                                    end
-                                end
-                                if #currentElement > 0 then
-                                    previousMenu[MAX_MENU_ITEMS + 1] = {
-                                        id = "_more",
-                                        title = "More",
-                                        icon = "#more",
-                                        items = currentElement
-                                    }
-                                end
-                                dataElements = dataElements[MAX_MENU_ITEMS + 1].items
-        
-                            end
-                            enabledMenus[#enabledMenus+1] = {
-                                id = menuConfig.id,
-                                title = menuConfig.displayName,
-                                close = menuConfig.close,
-                                functiontype = menuConfig.functiontype,
-                                functionParameters = menuConfig.functionParameters,
-                                functionName = menuConfig.functionName,
-                                icon = menuConfig.icon,
-                            }
-                            if hasSubMenus then
-                                enabledMenus[#enabledMenus].items = dataElements
-                            end
-                        end
-                    end
-                    SendNUIMessage({
-                        state = "show",
-                        data = enabledMenus,
-                        menuKeyBind = 'F1'
-                    })
-                    SetCursorLocation(0.5, 0.5)
-                    SetNuiFocus(true, true)
-                    if Config.GameSounds then PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1) end
-                    while showMenu == true do Citizen.Wait(100) end
-                    Citizen.Wait(100)
-                    while IsControlPressed(1, Config.Keys['F1']) and GetLastInputMethod(2) do Citizen.Wait(100) end
-                end
-           end
-        end
-    end)
-end
+-- Builds the wheel from Config.Menu (same structure as before: sub menus are
+-- split into pages of MAX_MENU_ITEMS with a "More" entry).
+local function buildMenus()
+    local enabledMenus = {}
+    for _, menuConfig in ipairs(Config.Menu) do
+        if menuConfig:enableMenu() then
+            local dataElements = {}
+            local hasSubMenus = false
+            if menuConfig.subMenus ~= nil and #menuConfig.subMenus > 0 then
+                hasSubMenus = true
+                local previousMenu = dataElements
+                local currentElement = {}
+                for i = 1, #menuConfig.subMenus do
+                    currentElement[#currentElement+1] = Config.SubMenus[menuConfig.subMenus[i]]
+                    currentElement[#currentElement].id = menuConfig.subMenus[i]
+                    currentElement[#currentElement].enableMenu = nil
 
--- RegisterCommand('radialmenu', function()
---     PlayerData = QBCore.Functions.GetPlayerData()
---     if not MenuOpend then
---         if not PlayerData.metadata['ishandcuffed'] and not PlayerData.metadata['inlaststand'] and not PlayerData.metadata['isdead'] and not IsPauseMenuActive() then
---             RunLoop()
---         else
---             QBCore.Functions.Notify("Action not available at the moment..", "error")
---         end
---     end
--- end) RegisterKeyMapping('radialmenu', 'Open radialmenu', 'keyboard', 'F1')
-
-Citizen.CreateThread(function()
-    isLoggedIn = true
-    while true do
-        Wait(3)
-        if isLoggedIn then
-            if IsControlPressed(1, Config.Keys['F1']) and GetLastInputMethod(2) and showMenu then
-                showMenu = false
-                SetNuiFocus(false, false)
-            end
-            if IsControlPressed(1, Config.Keys['F1']) and GetLastInputMethod(2) then
-                showMenu = true
-                if showMenu == true then
-                    DisableControlAction(0, 289, true)  
-                    DisableControlAction(0, 288, true)  
-                end
-                local enabledMenus = {}
-                if showMenu then 
-                    for _, menuConfig in ipairs(Config.Menu) do
-                        if menuConfig:enableMenu() then
-                            local dataElements = {}
-                            local hasSubMenus = false
-                            if menuConfig.subMenus ~= nil and #menuConfig.subMenus > 0 then
-                                hasSubMenus = true
-                                local previousMenu = dataElements
-                                local currentElement = {}
-                                for i = 1, #menuConfig.subMenus do
-                                    currentElement[#currentElement+1] = Config.SubMenus[menuConfig.subMenus[i]]
-                                    currentElement[#currentElement].id = menuConfig.subMenus[i]
-                                    currentElement[#currentElement].enableMenu = nil
-        
-                                    if i % MAX_MENU_ITEMS == 0 and i < (#menuConfig.subMenus - 1) then
-                                        previousMenu[MAX_MENU_ITEMS + 1] = {
-                                            id = "_more",
-                                            title = "More",
-                                            icon = "#more",
-                                            items = currentElement
-                                        }
-                                        previousMenu = currentElement
-                                        currentElement = {}
-                                    end
-                                end
-                                if #currentElement > 0 then
-                                    previousMenu[MAX_MENU_ITEMS + 1] = {
-                                        id = "_more",
-                                        title = "More",
-                                        icon = "#more",
-                                        items = currentElement
-                                    }
-                                end
-                                dataElements = dataElements[MAX_MENU_ITEMS + 1].items
-        
-                            end
-                            enabledMenus[#enabledMenus+1] = {
-                                id = menuConfig.id,
-                                title = menuConfig.displayName,
-                                close = menuConfig.close,
-                                functiontype = menuConfig.functiontype,
-                                functionParameters = menuConfig.functionParameters,
-                                functionName = menuConfig.functionName,
-                                icon = menuConfig.icon,
-                            }
-                            if hasSubMenus then
-                                enabledMenus[#enabledMenus].items = dataElements
-                            end
-                        end
+                    if i % MAX_MENU_ITEMS == 0 and i < (#menuConfig.subMenus - 1) then
+                        previousMenu[MAX_MENU_ITEMS + 1] = {
+                            id = "_more",
+                            title = "More",
+                            icon = "#more",
+                            items = currentElement
+                        }
+                        previousMenu = currentElement
+                        currentElement = {}
                     end
-                    SendNUIMessage({
-                        state = "show",
-                        data = enabledMenus,
-                        menuKeyBind = 'F1'
-                    })
-                    SetCursorLocation(0.5, 0.5)
-                    SetNuiFocus(true, true)
-                    if Config.GameSounds then PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1) end
-                    while showMenu == true do Citizen.Wait(100) end
-                    Citizen.Wait(100)
-                    while IsControlPressed(1, Config.Keys['F1']) and GetLastInputMethod(2) do Citizen.Wait(100) end
                 end
-           end
-        else
-            Citizen.Wait(150)
+                if #currentElement > 0 then
+                    previousMenu[MAX_MENU_ITEMS + 1] = {
+                        id = "_more",
+                        title = "More",
+                        icon = "#more",
+                        items = currentElement
+                    }
+                end
+                dataElements = dataElements[MAX_MENU_ITEMS + 1].items
+            end
+            enabledMenus[#enabledMenus+1] = {
+                id = menuConfig.id,
+                title = menuConfig.displayName,
+                close = menuConfig.close,
+                functiontype = menuConfig.functiontype,
+                functionParameters = menuConfig.functionParameters,
+                functionName = menuConfig.functionName,
+                icon = menuConfig.icon,
+            }
+            if hasSubMenus then
+                enabledMenus[#enabledMenus].items = dataElements
+            end
         end
     end
-end)
+    return enabledMenus
+end
+
+local function openRadial()
+    if showMenu or IsPauseMenuActive() or IsNuiFocused() then return end
+    showMenu = true
+    MenuOpend = true
+    SendNUIMessage({
+        state = "show",
+        data = buildMenus(),
+        menuKeyBind = Config.MenuKey or 'F1'
+    })
+    SetCursorLocation(0.5, 0.5)
+    SetNuiFocus(true, true)
+    if Config.GameSounds then PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1) end
+end
+
+-- Key mapping instead of a loop checking F1 every 3 ms: zero cost while the
+-- wheel is closed. Players can rebind it in Settings > Key Bindings > FiveM.
+-- Releasing the key closes the wheel (handled in the NUI, like before).
+RegisterCommand('+radialmenu', openRadial, false)
+RegisterCommand('-radialmenu', function() end, false)
+RegisterKeyMapping('+radialmenu', 'Open radial menu', 'keyboard', Config.MenuKey or 'F1')
 
 RegisterNetEvent('qb-radialmenu:client:force:close')
 AddEventHandler('qb-radialmenu:client:force:close', function()

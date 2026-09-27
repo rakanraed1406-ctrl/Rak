@@ -8,6 +8,9 @@ Config = Config or {}
 Config.GameSounds = false
 
 Config.Keys = {["F1"] = 288}
+-- Key that opens the wheel (hold it, release to close). This is the default for
+-- the key mapping; players can change it in Settings > Key Bindings > FiveM.
+Config.MenuKey = 'F1'
 Config.Locale = "en"
 Config.Menu = {}
 Config.isPlayerDead = function()

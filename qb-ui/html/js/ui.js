@@ -252,14 +252,14 @@ function dtPressed() {
 // Notifications
 // ---------------------------------------------------------------------------
 var NOTE_TYPES = {
-    primary:   { color: '#8aa2d6', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
-    inform:    { color: '#8aa2d6', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
-    info:      { color: '#8aa2d6', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
-    success:   { color: '#7cc79a', icon: 'fa-solid fa-circle-check',         label: 'SUCCESS',   sound: 'success' },
-    error:     { color: '#d9707c', icon: 'fa-solid fa-circle-xmark',         label: 'ERROR',     sound: 'deny' },
-    warning:   { color: '#e2c079', icon: 'fa-solid fa-triangle-exclamation', label: 'WARNING',   sound: 'warn' },
-    police:    { color: '#8aa2d6', icon: 'fa-solid fa-shield-halved',        label: 'POLICE',    sound: 'warn' },
-    ambulance: { color: '#d9707c', icon: 'fa-solid fa-truck-medical',        label: 'EMS',       sound: 'warn' }
+    primary:   { color: '#3b9dfb', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
+    inform:    { color: '#3b9dfb', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
+    info:      { color: '#3b9dfb', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
+    success:   { color: '#22c55e', icon: 'fa-solid fa-circle-check',         label: 'SUCCESS',   sound: 'success' },
+    error:     { color: '#ef4444', icon: 'fa-solid fa-circle-xmark',         label: 'ERROR',     sound: 'deny' },
+    warning:   { color: '#f59e0b', icon: 'fa-solid fa-triangle-exclamation', label: 'WARNING',   sound: 'warn' },
+    police:    { color: '#3b9dfb', icon: 'fa-solid fa-shield-halved',        label: 'POLICE',    sound: 'warn' },
+    ambulance: { color: '#ef4444', icon: 'fa-solid fa-truck-medical',        label: 'EMS',       sound: 'warn' }
 };
 
 function hexToRgba(hex, a) {
@@ -315,7 +315,7 @@ function notify(data) {
     node.className = 'note';
     node._key = key;
     node.style.setProperty('--c', def.color);
-    node.style.setProperty('--c-soft', hexToRgba(def.color, 0.16));
+    node.style.setProperty('--c-soft', hexToRgba(def.color, 0.35));
     node.innerHTML =
         '<div class="note-icon"><i class="' + uiAttr(data.icon || def.icon) + '"></i></div>' +
         '<div class="note-body">' +
@@ -450,9 +450,9 @@ function lpDraw(now) {
     // zone
     var flash = now < LP.flashUntil;
     ctx.beginPath();
-    ctx.strokeStyle = LP.failed ? '#d9707c' : (flash ? '#eef1f6' : '#8aa2d6');
+    ctx.strokeStyle = LP.failed ? '#ef4444' : (flash ? '#eef1f6' : '#3b9dfb');
     ctx.lineWidth = 16;
-    ctx.shadowColor = LP.failed ? 'rgba(217,112,124,0.5)' : 'rgba(138,162,214,0.45)';
+    ctx.shadowColor = LP.failed ? 'rgba(239,68,68,0.45)' : 'rgba(59,157,251,0.45)';
     ctx.shadowBlur = 8;
     ctx.arc(cx, cy, R, rad(LP.zoneStart), rad(LP.zoneEnd));
     ctx.stroke();
@@ -473,17 +473,17 @@ function lpDraw(now) {
 
     // core
     ctx.beginPath();
-    ctx.fillStyle = 'rgba(9,10,13,0.85)';
+    ctx.fillStyle = 'rgba(17,20,27,0.92)';
     ctx.arc(cx, cy, 58, 0, Math.PI * 2);
     ctx.fill();
     ctx.lineWidth = 1.2;
-    ctx.strokeStyle = inZone ? 'rgba(138,162,214,0.8)' : 'rgba(255,255,255,0.1)';
+    ctx.strokeStyle = inZone ? 'rgba(59,157,251,0.6)' : 'rgba(255,255,255,0.1)';
     ctx.stroke();
 
     // time left in this turn (thin inner ring that empties)
     var left = Math.max(0, 1 - deg / 360);
     ctx.beginPath();
-    ctx.strokeStyle = left < 0.25 ? 'rgba(217,112,124,0.8)' : 'rgba(138,162,214,0.55)';
+    ctx.strokeStyle = left < 0.25 ? 'rgba(239,68,68,0.75)' : 'rgba(59,157,251,0.45)';
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.arc(cx, cy, 66, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left);
@@ -497,7 +497,7 @@ function lpDraw(now) {
     ctx.textBaseline = 'middle';
     ctx.fillText(LP.key, cx, cy + 3);
     ctx.font = '700 10px Oxanium, "Segoe UI", sans-serif';
-    ctx.fillStyle = '#9ba3b4';
+    ctx.fillStyle = '#9aa3b2';
     ctx.fillText(LP.streak + ' / ' + LP.needed, cx, cy + 38);
 }
 
