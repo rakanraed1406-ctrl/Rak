@@ -3,6 +3,10 @@ HasHandCuffs = false
 
 Config = Config or {}
 
+-- false = the wheel uses its own sound set (html/js/RadialMenu.js, WheelSfx in html/ui.html).
+-- true  = also play the old GTA "NAV" frontend sound on open/close/select.
+Config.GameSounds = false
+
 Config.Keys = {["F1"] = 288}
 Config.Locale = "en"
 Config.Menu = {}

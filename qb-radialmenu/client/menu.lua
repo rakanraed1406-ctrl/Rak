@@ -112,7 +112,7 @@ local function RunLoop()
                     })
                     SetCursorLocation(0.5, 0.5)
                     SetNuiFocus(true, true)
-                    PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1)
+                    if Config.GameSounds then PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1) end
                     while showMenu == true do Citizen.Wait(100) end
                     Citizen.Wait(100)
                     while IsControlPressed(1, Config.Keys['F1']) and GetLastInputMethod(2) do Citizen.Wait(100) end
@@ -206,7 +206,7 @@ Citizen.CreateThread(function()
                     })
                     SetCursorLocation(0.5, 0.5)
                     SetNuiFocus(true, true)
-                    PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1)
+                    if Config.GameSounds then PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1) end
                     while showMenu == true do Citizen.Wait(100) end
                     Citizen.Wait(100)
                     while IsControlPressed(1, Config.Keys['F1']) and GetLastInputMethod(2) do Citizen.Wait(100) end
@@ -313,12 +313,12 @@ RegisterNUICallback('closemenu', function(data, cb)
  SendNUIMessage({
      state = 'destroy'
  })
- PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1)
+ if Config.GameSounds then PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1) end
  cb('ok')
 end)
 
 RegisterNUICallback('triggerAction', function(data, cb)
- PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1)
+ if Config.GameSounds then PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1) end
  if data.type == 'client' then
      TriggerEvent(data.action, data.parameters)
  elseif data.type == 'server' then 

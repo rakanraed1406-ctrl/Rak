@@ -1,79 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
-        <title>FrameWork Menu</title>
-        <!-- <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.1/css/all.css" integrity="rx5u3IdaOCszi7Jb18XD9HSn8bNiEgAqWJbdBvIYYyU=" crossorigin="anonymous"> -->
-        <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,400i,500,500i,700,700i" rel="stylesheet">
-        <link rel="stylesheet" href="https://kit-pro.fontawesome.com/releases/v6.5.1/css/pro.min.css" rel="stylesheet">
-        <script type="text/javascript" src="nui://game/ui/jquery.js"></script>
-        <script type="text/javascript" src="js/RadialMenu.js"></script>
-        <script type="text/javascript" src="js/all.min.js"></script>
-        <link type="text/css" rel="stylesheet" href="css/RadialMenu.css">
+        <meta charset="UTF-8">
+        <title>Command Wheel</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@500;600;700;800&display=swap" rel="stylesheet">
         <link type="text/css" rel="stylesheet" href="css/all.min.css">
-        <script type="text/javascript">
-            $(document).ready(function () {
-                let menuKeybind = ""
-                let menu = null;
-                window.addEventListener('message', function (event) {
-                    let eventData = event.data;
-                    menuKeybind = eventData.menuKeyBind;
-                    if (eventData.state === "show") {
-                        $('#container').append(`<div id="navMenu"></div>`);
-                        let style = eventData.rootStyle;
-                        menu = new RadialMenu({
-                            parent: document.getElementById('navMenu'),
-                            size: 450,
-                            closeOnClick: false,
-                            menuItems: eventData.data,
-                            onClick: function (item) {
-                                if(item.functionName !== 'undefined') {
-                                    $.post('https://qb-radialmenu/triggerAction', JSON.stringify({action: item.functionName, type: item.functiontype, parameters: item.functionParameters}));
-                                    if (item.close) {
-                                        $.post(`https://qb-radialmenu/closemenu`, JSON.stringify({}));
-                                    }
-                                }
-                            }
-                        });
-                        menu.open();
-                    } else if (eventData.state === 'destroy') {
-                        $("#navMenu").remove();
-                        menu.destroy();
-                    }
-                });
-                window.addEventListener("keyup", function onEvent(event) {
-                    // Close menu when key is released
-                    if (event.key === menuKeybind) {
-                        $.post(`https://qb-radialmenu/closemenu`, JSON.stringify({}));
-                    }
-                });
-            });
-    
-        </script>
+        <link type="text/css" rel="stylesheet" href="css/RadialMenu.css">
+        <script type="text/javascript" src="js/all.min.js"></script>
+        <script type="text/javascript" src="js/RadialMenu.js"></script>
         <style>
-            html,
-            body {
+            html, body {
                 width: 100%;
                 height: 100%;
-                overflow-x: hidden;
-                overflow-y: hidden;
-                font-family: "Tektur", sans-serif;
+                margin: 0;
+                overflow: hidden;
+                background: transparent;
             }
-    
             #container {
                 width: 100%;
                 height: 100%;
                 display: flex;
                 justify-content: center;
-                align-items: center;            
-            }
-    
-            .menuHolder {
-                font-size: 10px;  
-            }
-    
-            #icons {
-                display: none;
-                filter:url(#drop-shadow);
+                align-items: center;
             }
         </style>
     </head>
@@ -296,8 +245,64 @@
 	<i data-fa-symbol="garages-depot" class="fas fa-car"></i>
 	<i data-fa-symbol="citizen-action-vehicle" class="fas fa-car-alt"></i>
     <!-- HTML code -->
-    <div id="container">
-        <div id="navMenu"></div>
-    </div>
+    <div id="container"></div>
+
+    <script type="text/javascript">
+        (function () {
+            // ---- Sound settings for the wheel (change here) ----
+            WheelSfx.enabled = true;
+            WheelSfx.volume = 0.35;
+
+            var resource = RadialMenu.resource();
+            var menuKeybind = '';
+            var menu = null;
+
+            function post(name, data) {
+                return fetch('https://' + resource + '/' + name, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data || {})
+                }).catch(function () {});
+            }
+
+            window.addEventListener('message', function (event) {
+                var eventData = event.data || {};
+                if (eventData.menuKeyBind) menuKeybind = eventData.menuKeyBind;
+
+                if (eventData.state === 'show') {
+                    if (menu) { menu.destroy(); menu = null; }
+                    var navMenu = document.createElement('div');
+                    navMenu.className = 'navMenu';
+                    document.getElementById('container').appendChild(navMenu);
+                    menu = new RadialMenu({
+                        parent: navMenu,
+                        size: 470,
+                        closeOnClick: false,
+                        menuItems: eventData.data || [],
+                        onClick: function (item) {
+                            if (item.functionName !== 'undefined') {
+                                post('triggerAction', { action: item.functionName, type: item.functiontype, parameters: item.functionParameters });
+                                if (item.close) post('closemenu', {});
+                            }
+                        }
+                    });
+                    menu.open();
+                } else if (eventData.state === 'destroy') {
+                    if (menu) {
+                        var old = menu;
+                        menu = null;
+                        old.destroy();
+                        var holder = old.parent;
+                        setTimeout(function () { if (holder && holder.parentNode) holder.parentNode.removeChild(holder); }, 280);
+                    }
+                }
+            });
+
+            // Close when the menu key is released (hold-to-use, same as before)
+            window.addEventListener('keyup', function (event) {
+                if (menuKeybind && event.key === menuKeybind) post('closemenu', {});
+            });
+        })();
+    </script>
 </body>
 </html>

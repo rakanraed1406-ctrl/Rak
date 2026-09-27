@@ -1,72 +1,203 @@
-div.menuHolder {
-    user-select: none;
-    -moz-user-select: none;
+/* ============================================================================
+   Command Wheel — visual identity
+   Deep navy glass + royal-blue signal light. Every state (open, hover, enter
+   sub-menu, back, activate, close) uses the same motion curve and the same
+   blue, so the menu reads as one designed object.
+   ============================================================================ */
+
+:root {
+    --rm-void: #030813;
+    --rm-deep: #050c20;
+    --rm-navy: #0b1a3d;
+    --rm-blue: #1a4bd6;          /* main signal blue (dark royal) */
+    --rm-blue-hi: #3a6cff;       /* highlight edge */
+    --rm-blue-glow: rgba(38, 92, 255, 0.55);
+    --rm-line: rgba(92, 130, 255, 0.28);
+    --rm-line-dim: rgba(92, 130, 255, 0.12);
+    --rm-text: #e8eeff;
+    --rm-text-dim: #8d9bc4;
+    --rm-ease: cubic-bezier(0.2, 0.9, 0.25, 1.15);   /* slight overshoot = "snap" */
+    --rm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rm-holder {
     position: relative;
-    margin: 10px;
+    user-select: none;
+    font-family: 'Oxanium', 'Rajdhani', 'Segoe UI', sans-serif;
 }
 
-svg.icons {
-    display: none;
-}
-
-svg.menu {
+/* soft navy haze behind the wheel so it reads on any background */
+.rm-halo {
     position: absolute;
+    inset: -22%;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle, rgba(10, 30, 90, 0.55) 0%, rgba(5, 14, 40, 0.35) 38%, rgba(3, 8, 19, 0) 68%);
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.35s ease, transform 0.5s var(--rm-ease-out);
+    pointer-events: none;
+}
+.rm-open .rm-halo { opacity: 1; transform: scale(1); }
+.rm-closing .rm-halo { opacity: 0; transform: scale(0.85); transition-duration: 0.2s; }
+
+.rm-svg {
+    position: relative;
     overflow: visible;
-    transition: 0.1s;
-    transition-timing-function: ease-out;
+    filter: drop-shadow(0 18px 40px rgba(0, 4, 20, 0.65));
 }
+.rm-svg * { transform-box: view-box; transform-origin: 0px 0px; } /* view-box origin = (0,0) = wheel center */
 
-svg.menu.inner {
-    transform: scale(0.66) rotate(-10deg);
+/* ---------- decorative instrument rings ---------- */
+.rm-deco circle { fill: none; }
+.rm-ring-ticks {
+    stroke: var(--rm-line);
+    stroke-width: 1.1;
+    stroke-dasharray: 0.35 1.45;
+    animation: rmSpin 60s linear infinite;
+}
+.rm-ring-thin { stroke: var(--rm-line-dim); stroke-width: 0.25; }
+.rm-ring-scan {
+    stroke: var(--rm-blue-hi);
+    stroke-width: 0.35;
+    stroke-dasharray: 10 60 4 30 18 160;
+    opacity: 0.55;
+    animation: rmSpin 9s linear infinite reverse;
+}
+.rm-deco { opacity: 0; transform: scale(0.86) rotate(-40deg); transition: opacity 0.35s ease, transform 0.6s var(--rm-ease-out); }
+.rm-open .rm-deco { opacity: 1; transform: none; }
+.rm-closing .rm-deco { opacity: 0; transform: scale(0.9) rotate(30deg); transition-duration: 0.2s; }
+
+@keyframes rmSpin { to { transform: rotate(360deg); } }
+
+/* ---------- selection indicator (follows the hovered sector) ---------- */
+.rm-indicator {
     opacity: 0;
-    visibility: hidden;
+    transition: transform 0.22s var(--rm-ease), opacity 0.2s ease;
+    filter: url(#rmGlow);
+}
+.rm-indicator.on { opacity: 1; }
+.rm-indicator path { fill: var(--rm-blue-hi); }
+.rm-closing .rm-indicator { opacity: 0; }
+
+/* ---------- sectors ---------- */
+.rm-sw { animation: rmSectorIn 0.42s var(--rm-ease) backwards; }
+@keyframes rmSectorIn {
+    from { opacity: 0; transform: scale(0.55) rotate(-18deg); }
+    to   { opacity: 1; transform: none; }
 }
 
-svg.menu.outer {
-    opacity: 0;
-    visibility: hidden;
+.rm-sector { cursor: pointer; transition: transform 0.2s var(--rm-ease); }
+.rm-face {
+    fill: url(#rmSector);
+    stroke: var(--rm-line);
+    stroke-width: 0.28;
+    transition: stroke 0.2s ease;
+}
+.rm-rim { fill: rgba(92, 130, 255, 0.10); transition: fill 0.2s ease; }
+.rm-icon {
+    transform-box: fill-box;
+    transform-origin: center;
+    color: var(--rm-text-dim);
+    fill: var(--rm-text-dim);
+    transition: transform 0.2s var(--rm-ease), color 0.2s ease, fill 0.2s ease;
+}
+.rm-label {
+    fill: var(--rm-text-dim);
+    font-weight: 600;
+    letter-spacing: 0.08px;
+    transition: fill 0.2s ease;
+    pointer-events: none;
+}
+.rm-sub-dot { fill: var(--rm-blue-hi); opacity: 0.8; }
+
+/* selected = pushed outward, lit royal blue */
+.rm-sector.selected { transform: translate(var(--dx), var(--dy)); }
+.rm-sector.selected .rm-face { fill: url(#rmSectorHot); stroke: var(--rm-blue-hi); stroke-width: 0.4; }
+.rm-sector.selected .rm-rim { fill: var(--rm-blue-hi); }
+.rm-sector.selected .rm-icon { color: #fff; fill: #fff; transform: scale(1.12); filter: drop-shadow(0 0 1.2px rgba(120, 160, 255, 0.9)); }
+.rm-sector.selected .rm-label { fill: #fff; }
+
+.rm-dummy { cursor: default; }
+.rm-dummy .rm-face { fill: rgba(5, 12, 32, 0.45); stroke: var(--rm-line-dim); stroke-dasharray: 0.6 0.8; }
+.rm-dummy .rm-rim { fill: none; }
+
+/* activation flash */
+.rm-sector.rm-flash .rm-face { animation: rmFlash 0.35s ease-out; }
+@keyframes rmFlash {
+    0% { fill: #5b8cff; }
+    100% { fill: url(#rmSectorHot); }
 }
 
-svg.menu > g > path {
-    fill-opacity: 0.4;
-    fill: rgba(19, 19, 19, 0.89);
-    border-style: solid;
-    border-width: 5px;
-    border-color: rgba(48, 48, 48, 0.658);
+/* ---------- level transitions ---------- */
+.rm-level.rm-from-center { animation: none; }
+.rm-level.rm-from-in { animation: rmLevelIn 0.34s var(--rm-ease-out); }       /* diving into a sub-menu */
+.rm-level.rm-from-out { animation: rmLevelBack 0.34s var(--rm-ease-out); }    /* coming back up */
+.rm-level.rm-leave-in { animation: rmLevelOutIn 0.26s ease forwards; }
+.rm-level.rm-leave-out { animation: rmLevelOutBack 0.26s ease forwards; }
+.rm-level.rm-from-in .rm-sw, .rm-level.rm-from-out .rm-sw { animation-duration: 0.36s; }
+
+@keyframes rmLevelIn { from { transform: scale(1.18) rotate(14deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes rmLevelBack { from { transform: scale(0.82) rotate(-14deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes rmLevelOutIn { to { transform: scale(0.72) rotate(-24deg); opacity: 0; } }
+@keyframes rmLevelOutBack { to { transform: scale(1.22) rotate(24deg); opacity: 0; } }
+
+/* ---------- center core ---------- */
+.rm-center { cursor: pointer; transform: scale(0.4); opacity: 0; transition: transform 0.45s var(--rm-ease), opacity 0.25s ease; }
+.rm-open .rm-center { transform: none; opacity: 1; }
+.rm-closing .rm-center { transform: scale(0.6); opacity: 0; transition-duration: 0.18s; }
+.rm-core { fill: url(#rmCore); }
+.rm-core-edge { fill: none; stroke: var(--rm-line); stroke-width: 0.35; transition: stroke 0.2s ease, stroke-width 0.2s ease; }
+.rm-core-spin {
+    fill: none;
+    stroke: var(--rm-blue);
+    stroke-width: 0.5;
+    stroke-dasharray: 3 2.2;
+    opacity: 0.7;
+    animation: rmSpin 14s linear infinite;
+}
+.rm-center.hover .rm-core-edge { stroke: var(--rm-blue-hi); stroke-width: 0.6; }
+.rm-center.hover .rm-core-spin { animation-duration: 3s; opacity: 1; }
+
+.rm-kicker {
+    fill: var(--rm-blue-hi);
+    font-size: 1.9px;
+    font-weight: 700;
+    letter-spacing: 0.45px;
+}
+.rm-title {
+    fill: var(--rm-text);
+    font-size: 3.1px;
+    font-weight: 800;
+    letter-spacing: 0.1px;
+}
+.rm-hint text {
+    fill: var(--rm-text-dim);
+    font-size: 1.55px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    opacity: 0.8;
 }
 
-svg.menu > g.sector > path {
-    cursor: pointer;
-    /* transition: 0.1s; */
+.rm-pulse {
+    fill: none;
+    stroke: var(--rm-blue-hi);
+    stroke-width: 0.6;
+    animation: rmPulse 0.5s ease-out forwards;
+    pointer-events: none;
+}
+@keyframes rmPulse {
+    from { transform: scale(1); opacity: 0.9; }
+    to   { transform: scale(2.9); opacity: 0; stroke-width: 0.1; }
 }
 
-svg.menu > g.sector > text,
-svg.menu > g.sector > use {
-    cursor: pointer;
-    fill: white;
-}
+/* ---------- close: everything folds back into the core ---------- */
+.rm-closing .rm-level { animation: rmFold 0.2s ease-in forwards; }
+@keyframes rmFold { to { transform: scale(0.45) rotate(-20deg); opacity: 0; } }
 
-svg.menu > g.sector.selected > path {
-    fill: rgba(12, 149, 229, 0.589);
-    fill-opacity: 0.6;
-}
+/* the hidden Font Awesome symbol sheet */
+svg.icons { display: none; }
 
-svg.menu > g.center:hover > circle {
-    fill: rgba(12, 160, 229, 0.589);
-    fill-opacity: 0.25;
-}
-
-svg.menu > g.center > circle {
-    cursor: pointer;
-    fill: rgba(19, 19, 19, 0.89);
-    fill-opacity: 0.4;
-    border-style: solid;
-    border-width: 5px;
-    border-color: rgba(48, 48, 48, 0.658);
-}
-
-svg.menu > g.center > text,
-svg.menu > g.center > use {
-    cursor: pointer;
-    fill: white;
+@media (prefers-reduced-motion: reduce) {
+    .rm-ring-ticks, .rm-ring-scan, .rm-core-spin { animation: none; }
 }
