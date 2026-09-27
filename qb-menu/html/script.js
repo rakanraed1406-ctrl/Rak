@@ -22,8 +22,19 @@ var MenuSfx = {
     master: null,
     notes: [293.66, 349.23, 392.0, 440.0, 523.25], // D4 F4 G4 A4 C5
     lastTick: 0,
+    idleTimer: null,
+
+    // the audio thread costs CPU while running, so it sleeps when the panel is closed
+    sleep: function () {
+        var self = this;
+        clearTimeout(self.idleTimer);
+        self.idleTimer = setTimeout(function () {
+            if (self.ctx && self.ctx.state === 'running') self.ctx.suspend();
+        }, 1500);
+    },
 
     init: function () {
+        clearTimeout(this.idleTimer);
         if (this.ctx) {
             if (this.ctx.state === 'suspended') this.ctx.resume();
             this.master.gain.value = this.volume;
@@ -218,7 +229,8 @@ function qmRender(data) {
     // animate progress bars from zero
     requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-            document.querySelectorAll('.qm-bar i').forEach(function (b) { b.style.width = b.getAttribute('data-w') + '%'; });
+            el.list.querySelectorAll('.qm-bar i').forEach(function (b) { b.style.transform = 'scaleX(' + (b.getAttribute('data-w') / 100) + ')'; });
+            el.titleWrap.querySelectorAll('.qm-bar i').forEach(function (b) { b.style.transform = 'scaleX(' + (b.getAttribute('data-w') / 100) + ')'; });
         });
     });
 
@@ -347,10 +359,10 @@ function qmShow(data, focus) {
         return;
     }
 
-    qmRender(data);
     if (wasClosing) body.classList.remove('qm-visible');
     void body.offsetWidth; // restart the entry animation
     body.classList.add('qm-visible');
+    qmRender(data); // after the panel is displayed, so the indicator can measure rows
     MenuSfx.play('open');
 }
 
@@ -364,6 +376,7 @@ function qmHide(withSound) {
 
     QM.el.preview.classList.remove('on');
     body.classList.add('qm-closing');
+    MenuSfx.sleep();
     QM.closeTimer = setTimeout(function () {
         QM.closeTimer = null;
         body.classList.remove('qm-visible', 'qm-closing');
