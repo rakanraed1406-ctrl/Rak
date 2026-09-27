@@ -5,7 +5,15 @@
 ## ⚠️ قبل التشغيل
 1. **شيل `sk1-hub` من server.cfg** (أو احذف مجلده) — الأوامر `/911` والإكسبورت صارت داخل التابلت، ولو خليته شغال بيصير تكرار.
 2. السكربتات الثانية اللي تنادي `exports['sk1-hub']:CreateDispatchCall(...)` تبقى شغالة بدون أي تعديل (`Config.Dispatch.Sk1HubCompat = true`).
-3. أيتم `mdt` لازم يكون موجود بـ `qb-core/shared/items.lua`.
+3. أيتم `mdt` لازم يكون موجود — الصورة جاهزة بـ `install/mdt.png` (512×512 خلفية شفافة):
+   - **qb-inventory**: انسخ الصورة لـ `qb-inventory/html/images/mdt.png` وضيف في `qb-core/shared/items.lua`:
+     ```lua
+     mdt = { name = 'mdt', label = 'Police MDT', weight = 1000, type = 'item', image = 'mdt.png', unique = true, useable = true, shouldClose = true, description = 'Police Mobile Data Terminal' },
+     ```
+   - **ox_inventory**: انسخ الصورة لـ `ox_inventory/web/images/mdt.png` وضيف في `ox_inventory/data/items.lua`:
+     ```lua
+     ['mdt'] = { label = 'Police MDT', weight = 1000, stack = false, close = true, description = 'Police Mobile Data Terminal' },
+     ```
 
 ## وش الجديد
 ### 🛡️ تطبيق Command Hub (قائمة الشرطة داخل التابلت)
