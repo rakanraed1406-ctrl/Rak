@@ -132,12 +132,37 @@ var QM = {
     focus: true,
     data: [],
     order: [],          // data indexes of selectable rows, in display order
+    nav: [],            // same, minus rows hidden by the search filter
+    rows: {},           // data index -> row element (no DOM lookups on hover)
     selected: -1,       // data index
     closeTimer: null,
     pendingClose: null, // short grace window after a click (next menu may arrive)
     swapTimer: null,
+    faLoaded: false,
+    raf: 0,
     el: {}
 };
+
+// Settings (index.html can override these)
+var MenuConfig = {
+    searchFrom: 8,   // show the search box when a menu has more options than this (0 = never)
+    fontAwesome: 'https://kit-pro.fontawesome.com/releases/v6.5.0/css/pro.min.css'
+};
+
+// Font Awesome is a big stylesheet: it is only added the first time a menu
+// actually uses an icon class, never at resource start.
+function qmNeedFontAwesome() {
+    if (QM.faLoaded || !MenuConfig.fontAwesome) return;
+    QM.faLoaded = true;
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = MenuConfig.fontAwesome;
+    document.head.appendChild(link);
+}
+
+function qmPlain(html) {
+    return String(html == null ? '' : html).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+}
 
 function qmResource() {
     return typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'qb-menu';
@@ -162,7 +187,9 @@ function qmIsImage(icon) {
 function qmIcon(icon) {
     if (icon === undefined || icon === null || icon === '' || icon === false) return '';
     icon = String(icon);
-    var inner = qmIsImage(icon)
+    var isImg = qmIsImage(icon);
+    if (!isImg) qmNeedFontAwesome();
+    var inner = isImg
         ? '<img src="' + qmAttr(icon) + '" onerror="this.remove()">'
         : '<i class="' + qmAttr(icon) + '"></i>';
     return '<div class="qm-icon">' + inner + '</div>';
@@ -180,7 +207,8 @@ function qmRow(item, index, num, delay) {
     var message = item.txt || item.text;
     var isTitle = !!item.isMenuHeader;
     var cls = 'qm-item' + (isTitle ? ' qm-title-row' : '') + (item.disabled ? ' disabled' : '');
-    return '<div class="' + cls + '" data-index="' + index + '" style="animation-delay:' + delay + 'ms">' +
+    var search = isTitle ? '' : ' data-search="' + qmAttr(qmPlain((item.header || '') + ' ' + (message || ''))) + '"';
+    return '<div class="' + cls + '" data-index="' + index + '"' + search + ' style="animation-delay:' + delay + 'ms">' +
         (isTitle ? '' : '<div class="qm-num">' + (num > 0 && num < 10 ? num : '') + '</div>') +
         qmIcon(item.icon) +
         '<div class="qm-body">' +
@@ -222,8 +250,17 @@ function qmRender(data) {
         html += qmRow(item, index, item.isMenuHeader ? 0 : num, delay);
         delay = Math.min(delay + 32, 380);
     });
-    el.list.innerHTML = html;
+    el.list.innerHTML = html + '<div class="qm-empty" style="display:none">No results</div>';
     el.list.scrollTop = 0;
+    QM.rows = {};
+    Array.prototype.forEach.call(el.list.querySelectorAll('.qm-item'), function (row) {
+        QM.rows[row.getAttribute('data-index')] = row;
+    });
+    QM.nav = QM.order.slice();
+
+    var useSearch = QM.focus && MenuConfig.searchFrom > 0 && QM.order.length > MenuConfig.searchFrom;
+    el.search.classList.toggle('on', useSearch);
+    el.searchInput.value = '';
     el.kicker.textContent = QM.order.length ? 'MENU · ' + QM.order.length + (QM.order.length === 1 ? ' OPTION' : ' OPTIONS') : 'MENU';
 
     // animate progress bars from zero
@@ -240,7 +277,28 @@ function qmRender(data) {
 }
 
 function qmRowEl(index) {
-    return QM.el.list.querySelector('.qm-item[data-index="' + index + '"]');
+    return QM.rows[index] || null;
+}
+
+// one indicator update per frame at most while scrolling
+function qmPlaceIndicatorSoon() {
+    if (QM.raf) return;
+    QM.raf = requestAnimationFrame(function () { QM.raf = 0; qmPlaceIndicator(); });
+}
+
+function qmFilter(query) {
+    var q = qmPlain(query);
+    var rows = QM.el.list.querySelectorAll('.qm-item');
+    Array.prototype.forEach.call(rows, function (row) {
+        var text = row.getAttribute('data-search');
+        var hide = q !== '' && (text === null || text.indexOf(q) === -1); // section rows hide while searching
+        row.classList.toggle('hide', hide);
+    });
+    QM.nav = QM.order.filter(function (i) { var r = QM.rows[i]; return r && !r.classList.contains('hide'); });
+    QM.el.list.querySelector('.qm-empty').style.display = QM.nav.length ? 'none' : '';
+    QM.el.list.scrollTop = 0;
+    if (QM.nav.length && QM.nav.indexOf(QM.selected) === -1) qmSelect(QM.nav[0], true);
+    qmPlaceIndicator();
 }
 
 function qmPlaceIndicator() {
@@ -281,11 +339,11 @@ function qmSelect(index, silent) {
 }
 
 function qmSelectDelta(delta) {
-    var n = QM.order.length;
+    var n = QM.nav.length;
     if (!n) return;
-    var pos = QM.order.indexOf(QM.selected);
+    var pos = QM.nav.indexOf(QM.selected);
     pos = pos < 0 ? 0 : ((pos + delta) % n + n) % n;
-    qmSelect(QM.order[pos]);
+    qmSelect(QM.nav[pos]);
 }
 
 function qmRipple(row, x, y) {
@@ -383,8 +441,13 @@ function qmHide(withSound) {
         QM.el.list.innerHTML = '';
         QM.el.titleWrap.innerHTML = '';
         QM.el.list.classList.remove('qm-swap-out');
+        QM.el.search.classList.remove('on');
+        QM.el.searchInput.value = '';
+        QM.el.searchInput.blur();
         QM.data = [];
         QM.order = [];
+        QM.nav = [];
+        QM.rows = {};
         QM.selected = -1;
     }, 230);
 }
@@ -399,7 +462,7 @@ function qmCancel() {
 // Wiring
 // ---------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', function () {
-    ['list', 'kicker', 'titleWrap', 'indicator', 'preview', 'previewImg', 'head'].forEach(function (id) {
+    ['list', 'kicker', 'titleWrap', 'indicator', 'preview', 'previewImg', 'head', 'search', 'searchInput'].forEach(function (id) {
         QM.el[id] = document.getElementById(id);
     });
 
@@ -416,8 +479,9 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     QM.el.previewImg.addEventListener('error', function () { QM.el.preview.classList.remove('on'); });
-    QM.el.list.addEventListener('scroll', qmPlaceIndicator, { passive: true });
-    window.addEventListener('resize', qmPlaceIndicator);
+    QM.el.list.addEventListener('scroll', qmPlaceIndicatorSoon, { passive: true });
+    window.addEventListener('resize', qmPlaceIndicatorSoon);
+    QM.el.searchInput.addEventListener('input', function () { qmFilter(QM.el.searchInput.value); });
 });
 
 window.addEventListener('message', function (event) {
@@ -432,19 +496,31 @@ window.addEventListener('message', function (event) {
     }
 });
 
+function qmSearching() {
+    return document.activeElement === QM.el.searchInput;
+}
+
 document.addEventListener('keydown', function (e) {
     if (!QM.visible) return;
+    // typing a letter jumps into the search box (long menus only)
+    if (!qmSearching() && QM.el.search.classList.contains('on') && e.key.length === 1 && /[^\s0-9]/.test(e.key) && !e.ctrlKey && !e.altKey) {
+        QM.el.searchInput.focus();
+        return; // the key lands in the box
+    }
     switch (e.key) {
         case 'ArrowDown':
         case 'Tab':
             qmSelectDelta(e.shiftKey && e.key === 'Tab' ? -1 : 1); e.preventDefault(); return;
         case 'ArrowUp':
             qmSelectDelta(-1); e.preventDefault(); return;
-        case 'Enter':
         case ' ':
+            if (qmSearching()) return; // a space in the search box
+            // falls through
+        case 'Enter':
             if (QM.selected >= 0) qmActivate(QM.selected);
             e.preventDefault(); return;
     }
+    if (qmSearching()) return; // digits etc. are typed into the search box
     // 1-9: jump straight to (and trigger) that option
     if (/^[1-9]$/.test(e.key)) {
         var idx = QM.order[parseInt(e.key, 10) - 1];
@@ -453,5 +529,16 @@ document.addEventListener('keydown', function (e) {
 });
 
 document.addEventListener('keyup', function (e) {
-    if (e.key === 'Escape' || e.key === 'Backspace') qmCancel();
+    if (e.key === 'Escape') {
+        // first Esc clears an active search, the next one closes
+        if (QM.el.searchInput.value !== '' || qmSearching()) {
+            QM.el.searchInput.value = '';
+            QM.el.searchInput.blur();
+            qmFilter('');
+            return;
+        }
+        qmCancel();
+    } else if (e.key === 'Backspace' && !qmSearching()) {
+        qmCancel();
+    }
 });

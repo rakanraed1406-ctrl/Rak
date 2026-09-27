@@ -145,6 +145,10 @@ function qiAttr(s) {
         .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function qiEsc(s) {
+    return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function qiRequired(item) {
     return item.isRequired === true || item.isRequired === 'true';
 }
@@ -157,15 +161,43 @@ function qiField(item, i) {
     var def = item.default !== undefined && item.default !== null ? item.default : '';
     var delay = 'style="animation-delay:' + Math.min(i * 40, 360) + 'ms"';
 
+    var id = 'qi_' + i;
+    var ph = qiAttr(text.replace(/<[^>]*>/g, ''));
+    var max = Number(item.maxLength || item.maxlength) || 0;           // optional: character limit + counter
+    var common = ' id="' + id + '" name="' + name + '" placeholder="' + ph + '"' +
+        (req ? ' data-required="1"' : '') + (max ? ' maxlength="' + max + '"' : '');
+    var label = '<label class="qi-label" for="' + id + '">' + text + (req ? ' <em>*</em>' : '') + '</label>';
+    var counter = max ? '<b class="qi-count" data-for="' + id + '">' + String(def).length + '/' + max + '</b>' : '';
+
     switch (item.type) {
         case 'text':
+            return '<div class="qi-field" ' + delay + '>' + label +
+                '<span class="qi-wrap"><input class="qi-input" type="text"' + common + ' value="' + qiAttr(def) + '">' + counter + '</span>' +
+            '</div>';
+
         case 'password':
-        case 'number':
-            return '<label class="qi-field" ' + delay + '>' +
-                '<span class="qi-label">' + text + (req ? ' <em>*</em>' : '') + '</span>' +
-                '<input class="qi-input" type="' + item.type + '" name="' + name + '" placeholder="' + qiAttr(text.replace(/<[^>]*>/g, '')) + '"' +
-                ' value="' + qiAttr(def) + '"' + (req ? ' data-required="1"' : '') + (item.type === 'number' ? ' inputmode="numeric"' : '') + '>' +
-            '</label>';
+            // eye button to show / hide what was typed
+            return '<div class="qi-field" ' + delay + '>' + label +
+                '<span class="qi-wrap"><input class="qi-input qi-has-btn" type="password"' + common + ' value="' + qiAttr(def) + '">' +
+                '<button type="button" class="qi-eye" tabindex="-1" data-eye="' + id + '" aria-label="Show"><i></i></button></span>' +
+            '</div>';
+
+        case 'number': {
+            // optional min / max / step on the item; - and + buttons
+            var lim = (item.min !== undefined ? ' min="' + qiAttr(item.min) + '"' : '') +
+                (item.max !== undefined ? ' max="' + qiAttr(item.max) + '"' : '') +
+                (item.step !== undefined ? ' step="' + qiAttr(item.step) + '"' : '');
+            return '<div class="qi-field" ' + delay + '>' + label +
+                '<span class="qi-stepper"><button type="button" tabindex="-1" data-step="-1" data-for="' + id + '">−</button>' +
+                '<input class="qi-input" type="number" inputmode="numeric"' + common + lim + ' value="' + qiAttr(def) + '">' +
+                '<button type="button" tabindex="-1" data-step="1" data-for="' + id + '">+</button></span>' +
+            '</div>';
+        }
+
+        case 'textarea': // new type: multi-line text
+            return '<div class="qi-field" ' + delay + '>' + label +
+                '<span class="qi-wrap"><textarea class="qi-input qi-area" rows="3"' + common + '>' + qiEsc(def) + '</textarea>' + counter + '</span>' +
+            '</div>';
 
         case 'color':
             return '<label class="qi-field" ' + delay + '>' +
@@ -213,6 +245,7 @@ function qiCollect() {
             case 'text':
             case 'password':
             case 'number':
+            case 'textarea':
             case 'color':
             case 'select': {
                 var el = form.querySelector('[name="' + CSS.escape(String(item.name)) + '"]');
@@ -235,13 +268,22 @@ function qiCollect() {
     return data;
 }
 
+function qiNumberBad(inp) {
+    if (inp.type !== 'number' || inp.value === '') return false;
+    var v = Number(inp.value);
+    if (isNaN(v)) return true;
+    if (inp.min !== '' && v < Number(inp.min)) return true;
+    if (inp.max !== '' && v > Number(inp.max)) return true;
+    return false;
+}
+
 function qiValidate() {
     var bad = null;
-    QI.el.form.querySelectorAll('input[data-required]').forEach(function (inp) {
+    QI.el.form.querySelectorAll('.qi-input').forEach(function (inp) {
         var field = inp.closest('.qi-field');
-        var empty = String(inp.value).trim() === '';
-        field.classList.toggle('qi-invalid', empty);
-        if (empty && !bad) bad = inp;
+        var wrong = (inp.hasAttribute('data-required') && String(inp.value).trim() === '') || qiNumberBad(inp);
+        field.classList.toggle('qi-invalid', wrong);
+        if (wrong && !bad) bad = inp;
     });
     if (bad) {
         var f = bad.closest('.qi-field');
@@ -336,10 +378,38 @@ document.addEventListener('DOMContentLoaded', function () {
         FormSfx.play('tick', all);
     });
 
+    // password eye / number - + buttons
+    QI.el.fields.addEventListener('click', function (e) {
+        var eye = e.target.closest('[data-eye]');
+        if (eye) {
+            var pw = document.getElementById(eye.getAttribute('data-eye'));
+            var show = pw.type === 'password';
+            pw.type = show ? 'text' : 'password';
+            eye.classList.toggle('on', show);
+            FormSfx.play('tick', show ? 3 : 0);
+            return;
+        }
+        var btn = e.target.closest('[data-step]');
+        if (btn) {
+            var inp = document.getElementById(btn.getAttribute('data-for'));
+            var step = Number(inp.step) || 1;
+            var v = (Number(inp.value) || 0) + step * Number(btn.getAttribute('data-step'));
+            if (inp.min !== '') v = Math.max(Number(inp.min), v);
+            if (inp.max !== '') v = Math.min(Number(inp.max), v);
+            inp.value = Math.round(v * 1000) / 1000;
+            inp.closest('.qi-field').classList.remove('qi-invalid');
+            FormSfx.play('tick', btn.getAttribute('data-step') === '1' ? 3 : 1);
+        }
+    });
+
     QI.el.fields.addEventListener('input', function (e) {
         var t = e.target;
+        if (t.maxLength > 0) {
+            var c = QI.el.fields.querySelector('.qi-count[data-for="' + t.id + '"]');
+            if (c) c.textContent = t.value.length + '/' + t.maxLength;
+        }
         var field = t.closest('.qi-field');
-        if (field && field.classList.contains('qi-invalid') && String(t.value).trim() !== '') field.classList.remove('qi-invalid');
+        if (field && field.classList.contains('qi-invalid') && String(t.value).trim() !== '' && !qiNumberBad(t)) field.classList.remove('qi-invalid');
         if (t.type === 'color') {
             var b = t.parentNode.querySelector('b');
             if (b) b.textContent = t.value;
