@@ -1,0 +1,324 @@
+/* ============================================================================
+   Command Form — qb-input (default style)
+   Same identity as the qb-radialmenu Command Wheel and the qb-menu Command
+   Panel: the --rm-* tokens are the same values in all three.
+   Performance (FiveM CEF): no backdrop-filter, no full-screen layers, no
+   infinite animations, only transform/opacity animate, hidden = display:none.
+   ============================================================================ */
+
+:root {
+    --rm-deep: #050c20;
+    --rm-navy: #0b1a3d;
+    --rm-blue: #1a4bd6;
+    --rm-blue-hi: #3a6cff;
+    --rm-line: rgba(92, 130, 255, 0.35);
+    --rm-line-dim: rgba(92, 130, 255, 0.16);
+    --rm-text: #ffffff;
+    --rm-text-dim: #b4c1e6;
+    --rm-ease: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+    --rm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+    --qi-width: 360px;
+    --qi-panel: #070f26;
+    --qi-row: #0c1834;
+    --qi-row-hot: #13307f;
+    --qi-bad: #ff5a6e;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent !important;
+    font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+    color: var(--rm-text);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- panel ---------- */
+#panel {
+    position: fixed;
+    top: 18%;
+    right: 6%;
+    width: var(--qi-width);
+    display: none;
+    border-radius: 12px;
+    background: var(--qi-panel);
+    border: 1px solid var(--rm-line);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    will-change: transform, opacity;
+}
+body.qi-visible #panel { display: block; animation: qiIn 0.4s var(--rm-ease-out) both; }
+body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events: none; }
+@keyframes qiIn { from { opacity: 0; transform: translateX(36px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes qiOut { to { opacity: 0; transform: translateX(28px) scale(0.96); } }
+
+.qi-deco {
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--rm-blue-hi) 30%, var(--rm-blue-hi) 70%, transparent);
+    opacity: 0.8;
+}
+
+/* ---------- header ---------- */
+#head {
+    padding: 14px 18px 12px;
+    background: linear-gradient(180deg, #0d1e4a 0%, var(--qi-panel) 100%);
+    border-bottom: 1px solid var(--rm-line-dim);
+}
+.qi-kicker {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: 'Oxanium', 'Segoe UI', sans-serif;
+    color: #6f95ff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.2px;
+}
+.qi-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--rm-blue-hi); }
+#title {
+    margin-top: 6px;
+    font-family: 'Oxanium', 'Cairo', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--rm-text);
+    overflow-wrap: anywhere;
+}
+
+/* ---------- fields ---------- */
+#fields {
+    max-height: 56vh;
+    overflow-y: auto;
+    padding: 12px 14px 4px;
+}
+#fields::-webkit-scrollbar { width: 4px; }
+#fields::-webkit-scrollbar-track { background: var(--rm-line-dim); border-radius: 4px; }
+#fields::-webkit-scrollbar-thumb { background: var(--rm-blue); border-radius: 4px; }
+
+.qi-field {
+    display: block;
+    margin-bottom: 12px;
+    animation: qiFieldIn 0.35s var(--rm-ease) backwards;
+}
+@keyframes qiFieldIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+
+.qi-label {
+    display: block;
+    margin: 0 0 5px 2px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--rm-text-dim);
+    overflow-wrap: anywhere;
+}
+.qi-label em { color: #6f95ff; font-style: normal; }
+
+.qi-input,
+.qi-select select {
+    width: 100%;
+    height: 44px;
+    padding: 0 14px;
+    border-radius: 9px;
+    border: 1px solid var(--rm-line-dim);
+    background: var(--qi-row);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    outline: none;
+    transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+.qi-input::placeholder { color: #6f7fae; font-weight: 600; }
+.qi-input:focus,
+.qi-select select:focus {
+    border-color: var(--rm-blue-hi);
+    background: #0f2150;
+}
+.qi-input[type="number"]::-webkit-outer-spin-button,
+.qi-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.qi-select { position: relative; display: block; }
+.qi-select select { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 36px; }
+.qi-select::after {
+    content: "";
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    margin-top: -6px;
+    border-right: 2px solid #9fb4ff;
+    border-bottom: 2px solid #9fb4ff;
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+.qi-select option { background: #0c1834; color: #ffffff; }
+
+/* radio = segmented chips */
+.qi-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.qi-chip { flex: 1 1 0; min-width: 72px; cursor: pointer; }
+.qi-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.qi-chip span {
+    display: block;
+    padding: 9px 10px;
+    text-align: center;
+    border-radius: 9px;
+    border: 1px solid var(--rm-line-dim);
+    background: var(--qi-row);
+    color: var(--rm-text-dim);
+    font-size: 14px;
+    font-weight: 700;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s var(--rm-ease);
+}
+.qi-chip:hover span { border-color: var(--rm-line); color: #ffffff; }
+.qi-chip input:checked + span {
+    background: var(--qi-row-hot);
+    border-color: var(--rm-blue-hi);
+    color: #ffffff;
+}
+.qi-chip input:focus-visible + span { border-color: #7fa0ff; }
+.qi-chip input:checked + span { animation: qiPop 0.25s var(--rm-ease); }
+@keyframes qiPop { 50% { transform: scale(1.05); } }
+
+/* checkbox = switch rows */
+.qi-checks { display: flex; flex-direction: column; gap: 6px; }
+.qi-check {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--rm-line-dim);
+    background: var(--qi-row);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+    transition: border-color 0.18s ease;
+}
+.qi-check:hover { border-color: var(--rm-line); }
+.qi-check input { position: absolute; opacity: 0; pointer-events: none; }
+.qi-switch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 36px;
+    height: 20px;
+    border-radius: 20px;
+    background: #1a2750;
+    transition: background-color 0.2s ease;
+}
+.qi-switch::after {
+    content: "";
+    position: absolute;
+    left: 3px; top: 3px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #8d9bc4;
+    transition: transform 0.22s var(--rm-ease), background-color 0.2s ease;
+}
+.qi-check input:checked ~ .qi-switch { background: var(--rm-blue); }
+.qi-check input:checked ~ .qi-switch::after { transform: translateX(16px); background: #ffffff; }
+.qi-check input:focus-visible ~ .qi-switch { box-shadow: 0 0 0 2px #7fa0ff; }
+
+/* color */
+.qi-color {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 8px;
+    border-radius: 9px;
+    border: 1px solid var(--rm-line-dim);
+    background: var(--qi-row);
+}
+.qi-color input { width: 56px; height: 30px; border: none; background: none; cursor: pointer; }
+.qi-color input::-webkit-color-swatch-wrapper { padding: 0; }
+.qi-color input::-webkit-color-swatch { border: 1px solid var(--rm-line); border-radius: 6px; }
+.qi-color b { font-family: 'Oxanium', monospace; font-size: 13px; color: var(--rm-text-dim); text-transform: uppercase; }
+
+/* plain text rows (unknown type) */
+.qi-note {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--rm-line);
+    border-left: 3px solid var(--rm-blue-hi);
+    background: #0b1a44;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: #e1e8ff;
+    animation: qiFieldIn 0.35s var(--rm-ease) backwards;
+}
+
+/* validation */
+.qi-invalid .qi-input { border-color: var(--qi-bad); }
+.qi-invalid .qi-label { color: var(--qi-bad); }
+.qi-shake { animation: qiShake 0.3s ease; }
+@keyframes qiShake {
+    20% { transform: translateX(-5px); }
+    45% { transform: translateX(5px); }
+    70% { transform: translateX(-2px); }
+    100% { transform: none; }
+}
+
+/* ---------- buttons ---------- */
+#foot {
+    display: flex;
+    gap: 8px;
+    padding: 6px 14px 12px;
+}
+.qi-btn {
+    height: 44px;
+    border-radius: 9px;
+    font-family: 'Oxanium', 'Cairo', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    outline: none;
+    transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.15s var(--rm-ease);
+}
+.qi-btn:active { transform: scale(0.97); }
+.qi-btn-main {
+    flex: 1 1 auto;
+    color: #ffffff;
+    background: var(--rm-blue);
+    border: 1px solid #5b84ff;
+}
+.qi-btn-main:hover, .qi-btn-main:focus-visible { background: #2458ea; border-color: #9fb8ff; }
+.qi-btn-ghost {
+    flex: 0 0 96px;
+    color: var(--rm-text-dim);
+    background: var(--qi-row);
+    border: 1px solid var(--rm-line-dim);
+}
+.qi-btn-ghost:hover, .qi-btn-ghost:focus-visible { color: #ffffff; border-color: var(--rm-line); }
+.qi-flash { animation: qiFlash 0.3s ease-out; }
+@keyframes qiFlash { 0% { background-color: #6f95ff; } 100% { background-color: var(--rm-blue); } }
+
+/* ---------- hints ---------- */
+#hints {
+    display: flex;
+    justify-content: space-between;
+    padding: 9px 16px 10px;
+    border-top: 1px solid var(--rm-line-dim);
+    font-family: 'Oxanium', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    color: #8d9bc4;
+}
+#hints b { color: #ffffff; font-weight: 700; margin-right: 3px; }
+
+/* ---------- 4K ---------- */
+@media (min-width: 3000px) {
+    #panel { zoom: 1.7; }
+}
