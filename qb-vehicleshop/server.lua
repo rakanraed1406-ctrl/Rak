@@ -21,6 +21,7 @@ local function GetVehicleTypeByModel(model)
 end
 
 QBCore.Functions.CreateCallback('qb-vehicleshop:server:spawnvehicle', function(source, cb, plate, vehicle, coords)
+    if not Config.OldShowroom then return cb(nil) end -- only used by the old showroom
     local vehType = QBCore.Shared.Vehicles[vehicle] and QBCore.Shared.Vehicles[vehicle].type or GetVehicleTypeByModel(vehicle)
     local veh = CreateVehicleServerSetter(GetHashKey(vehicle), vehType, coords.x, coords.y, coords.z, coords.w)
     local netId = NetworkGetNetworkIdFromEntity(veh)
@@ -141,6 +142,7 @@ end)
 
 -- Sync vehicle for other players
 RegisterNetEvent('qb-vehicleshop:server:swapVehicle', function(data)
+    if not Config.OldShowroom then return end -- old showroom disabled (stock showroom in use)
     local src = source
     TriggerClientEvent('qb-vehicleshop:client:swapVehicle', -1, data)
     Wait(1500)                                                -- let new car spawn
@@ -149,6 +151,7 @@ end)
 
 -- Send customer for test drive
 RegisterNetEvent('qb-vehicleshop:server:customTestDrive', function(vehicle, playerid)
+    if not Config.OldShowroom then return end -- old showroom disabled (stock showroom in use)
     local src = source
     local target = tonumber(playerid)
     if not QBCore.Functions.GetPlayer(target) then
@@ -218,6 +221,7 @@ end)
 
 -- Buy public vehicle outright
 RegisterNetEvent('qb-vehicleshop:server:buyShowroomVehicle', function(vehicle)
+    if not Config.OldShowroom then return end -- old showroom disabled (stock showroom in use)
     local src = source
     vehicle = vehicle.buyVehicle
     local pData = QBCore.Functions.GetPlayer(src)
@@ -261,6 +265,7 @@ end)
 
 -- Finance public vehicle
 RegisterNetEvent('qb-vehicleshop:server:financeVehicle', function(downPayment, paymentAmount, vehicle)
+    if not Config.OldShowroom then return end -- old showroom disabled (stock showroom in use)
     local src = source
     downPayment = tonumber(downPayment)
     paymentAmount = tonumber(paymentAmount)
@@ -319,6 +324,7 @@ end)
 
 -- Sell vehicle to customer
 RegisterNetEvent('qb-vehicleshop:server:sellShowroomVehicle', function(data, playerid)
+    if not Config.OldShowroom then return end -- old showroom disabled (stock showroom in use)
     local src = source
     local player = QBCore.Functions.GetPlayer(src)
     local target = QBCore.Functions.GetPlayer(tonumber(playerid))
@@ -380,6 +386,7 @@ end)
 
 -- Finance vehicle to customer
 RegisterNetEvent('qb-vehicleshop:server:sellfinanceVehicle', function(downPayment, paymentAmount, vehicle, playerid)
+    if not Config.OldShowroom then return end -- old showroom disabled (stock showroom in use)
     local src = source
     local player = QBCore.Functions.GetPlayer(src)
     local target = QBCore.Functions.GetPlayer(tonumber(playerid))

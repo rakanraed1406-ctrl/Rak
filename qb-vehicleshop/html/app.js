@@ -18,6 +18,24 @@ function mmss(ms) {
 }
 
 // ---------------------------------------------------------------------------
+// Buy confirm
+// ---------------------------------------------------------------------------
+function openBuy(msg) {
+    const v = msg.vehicle || {};
+    $('buy-store').textContent = msg.store || 'المعرض';
+    $('buy-label').textContent = v.label || v.model || '—';
+    $('buy-category').textContent = v.category || '—';
+    $('buy-model').textContent = v.model || '';
+    $('buy-price').textContent = money(v.price);
+    show('buy');
+}
+function closeBuy(confirm) {
+    if ($('buy').classList.contains('hidden')) return;
+    hide('buy');
+    post('buyConfirm', { confirm: !!confirm });
+}
+
+// ---------------------------------------------------------------------------
 // Invite (auto "no" when the timer runs out)
 // ---------------------------------------------------------------------------
 let inviteTimer = null;
@@ -182,6 +200,7 @@ function showResult(r, me) {
 window.addEventListener('message', (e) => {
     const m = e.data || {};
     switch (m.action) {
+        case 'buyConfirm': openBuy(m); break;
         case 'auctionInvite': openInvite(m.data || {}); break;
         case 'auctionInviteClose': clearTimeout(inviteTimer); hide('invite'); break;
         case 'auctionAdmin': openAdmin(m); break;
@@ -192,7 +211,7 @@ window.addEventListener('message', (e) => {
             break;
         case 'auctionBid': bidToast(m.bid || {}, m.me); break;
         case 'auctionResult': showResult(m.result || {}, m.me); break;
-        case 'closeAll': hide('invite'); hide('admin'); break;
+        case 'closeAll': hide('buy'); hide('invite'); hide('admin'); break;
     }
 });
 
@@ -200,6 +219,8 @@ document.addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]');
     if (!act) return;
     switch (act.dataset.act) {
+        case 'buy-yes': closeBuy(true); break;
+        case 'buy-no': closeBuy(false); break;
         case 'inv-yes': answerInvite(true); break;
         case 'inv-no': answerInvite(false); break;
         case 'ad-cancel': closeAdmin(); break;
@@ -208,6 +229,7 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (!$('invite').classList.contains('hidden')) answerInvite(false);
+    if (!$('buy').classList.contains('hidden')) closeBuy(false);
+    else if (!$('invite').classList.contains('hidden')) answerInvite(false);
     else if (!$('admin').classList.contains('hidden')) closeAdmin();
 });

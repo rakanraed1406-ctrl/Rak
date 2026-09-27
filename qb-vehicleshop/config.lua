@@ -1,4 +1,8 @@
 Config = {}
+-- false = المعرض القديم (تغيير السيارة / التجربة / منيو الشراء) طافي، والمعرض صار
+--         بنظام الستوك (stock/config.lua). أقساط السيارات المقسطة و /transfervehicle تبقى شغالة.
+-- true  = يرجع المعرض الأصلي حق qb-vehicleshop.
+Config.OldShowroom = false
 Config.UsingTarget = GetConvar('UseTarget', 'false') == 'true'
 Config.Commission = 0.10                              -- Percent that goes to sales person from a full car sale 10%
 Config.FinanceCommission = 0.05                       -- Percent that goes to sales person from a finance sale 5%

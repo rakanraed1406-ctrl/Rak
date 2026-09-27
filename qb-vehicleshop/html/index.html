@@ -2,11 +2,26 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Vehicle Auction</title>
+    <title>Vehicle Shop</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- شراء سيارة من المعرض -->
+    <div id="buy" class="overlay hidden">
+        <div class="modal">
+            <div class="modal-kicker" id="buy-store">المعرض</div>
+            <div class="modal-title" id="buy-label">—</div>
+            <div class="chip-row"><span class="chip" id="buy-category">—</span><span class="chip mono" id="buy-model">—</span></div>
+            <div class="price-big" id="buy-price">$0</div>
+            <div class="hint">شراء مباشر — بدون تجربة. السيارة تطلع برا والمفتاح يوصلك.</div>
+            <div class="actions">
+                <button class="btn btn-ghost" data-act="buy-no">إلغاء</button>
+                <button class="btn btn-gold" data-act="buy-yes">شراء</button>
+            </div>
+        </div>
+    </div>
+
     <!-- دعوة المزاد -->
     <div id="invite" class="overlay hidden">
         <div class="modal invite">

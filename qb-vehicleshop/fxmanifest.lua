@@ -2,13 +2,14 @@ fx_version 'cerulean'
 game 'gta5'
 lua54 'yes'
 author '! TMX'
-description 'QB Vehicle Shop + admin vehicle auctions'
+description 'QB Vehicle Shop — random-stock showroom + admin vehicle auctions'
 version '2.1.0'
 
 ui_page 'html/index.html'
 
 shared_script {
     'config.lua',
+    'stock/config.lua',
     'auction/config.lua',
     '@qb-core/shared/locale.lua',
     'locales/en.lua',
@@ -22,12 +23,14 @@ client_scripts {
     '@PolyZone/CircleZone.lua',
     '@PolyZone/ComboZone.lua',
     'client.lua',
+    'stock/client.lua',
     'auction/client.lua'
 }
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server.lua',
+    'stock/server.lua',
     'auction/server.lua'
 }
 

@@ -409,15 +409,19 @@ function Init()
     Initialized = true
     CreateThread(function()
         for name, shop in pairs(Config.Shops) do
-            if shop['Type'] == 'free-use' then
-                createFreeUseShop(shop['Zone']['Shape'], name)
-            elseif shop['Type'] == 'managed' then
-                createManagedShop(shop['Zone']['Shape'], name)
+            if Config.OldShowroom then
+                if shop['Type'] == 'free-use' then
+                    createFreeUseShop(shop['Zone']['Shape'], name)
+                elseif shop['Type'] == 'managed' then
+                    createManagedShop(shop['Zone']['Shape'], name)
+                end
             end
+            -- finance payments stay available for already-financed vehicles
             if shop['FinanceZone'] then createFinanceZone(shop['FinanceZone'], name) end
         end
     end)
     CreateThread(function()
+        if not Config.OldShowroom then return end -- stock showroom (stock/client.lua) handles display cars
         for k in pairs(Config.Shops) do
             for i = 1, #Config.Shops[k]['ShowroomVehicles'] do
                 local model = GetHashKey(Config.Shops[k]['ShowroomVehicles'][i].defaultVehicle)
@@ -907,6 +911,7 @@ end)
 
 -- Threads
 CreateThread(function()
+    if not Config.OldShowroom then return end -- stock showroom draws its own blips
     for k, v in pairs(Config.Shops) do
         if v.showBlip then
             local Dealer = AddBlipForCoord(Config.Shops[k]['Location'])
