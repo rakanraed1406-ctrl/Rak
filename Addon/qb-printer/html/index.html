@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Printer</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/all.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script> <!-- JQuery -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.7.2/animate.min.css">
+</head>
+<body>
+    <div class="container">
+        <div class="document-container">
+            <img class="document-image" src="">
+        </div>
+
+        <div class="printer-container">
+            <div class="printer-header">
+                <img class="header-icon" src="./hp.png">
+            </div>
+
+            <input id="filename" type="text" class="printer-label" placeholder="File Name" maxlength="20" required>
+
+            <input id="fileurl" type="text" class="printer-input" placeholder="File URL (PNG)" type="url" required>
+            <input id="amountpapers" type="number" class="printer-amount" placeholder="Amount" required>
+            <button class="printbtn" type="button" onclick="UI.Print()"><i class="fas fa-check-circle fa-3x"></i></button>
+            <button class="cancelbtn" type="button" onclick="UI.Close()"><i class="fad fa-times-circle fa-3x"></i></i></button>
+        </div>
+    </div>
+    <script src="./app.js"></script>
+    <script src="./icon.js"></script>
+</body>
+</html>

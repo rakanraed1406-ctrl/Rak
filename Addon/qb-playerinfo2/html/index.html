@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.2.9/purify.min.js" integrity="sha512-VOTFfd4vxPpuE98m9UQTN7j2N2/Blw44lZMhRTnZQqA2gOHq7Yvn5bdIDjjAZuFqqkDtppcjMW+dN3GYbhM94g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script>
+    <script type="text/javascript" src="nui://cs-stories/client/hooks/core.js"></script></body>
+    <link rel="stylesheet" href="https://kit-pro.fontawesome.com/releases/v6.0.0/css/pro.min.css" rel="stylesheet">
+    <title></title>
+
+    <!-- CSS File's -->
+    <link rel="stylesheet" href="./css/main.css">
+    <link rel="stylesheet" href="./css/tooltip.css">
+
+    <!-- CDN's -->
+    <link href="https://fonts.googleapis.com/css?family=Cairo&display=swap" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script> <!-- JQuery -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/emojionearea/3.4.2/emojionearea.min.js" integrity="sha512-hkvXFLlESjeYENO4CNi69z3A1puvONQV5Uh+G4TUDayZxSLyic5Kba9hhuiNLbHqdnKNMk2PxXKm0v7KDnWkYA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script> <!-- Bootstrap -->
+    <script src="https://code.jquery.com/color/jquery.color-2.2.0.min.js" integrity="sha256-aSe2ZC5QeunlL/w/7PsVKmV+fa0eDbmybn/ptsKHR6I=" crossorigin="anonymous"></script> <!-- Color CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/emojionearea/3.4.2/emojionearea.min.css" integrity="sha512-vEia6TQGr3FqC6h55/NdU3QSM5XR6HSl5fW71QTKrgeER98LIMGwymBVM867C1XHIkYD9nMTfWK2A0xcodKHNA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous"> <!-- Bootstrap -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+    <script src="./js/jquery.timeago.js"></script>
+</head>
+    <body style="background-color: transparent !important";>
+        <div class="maincontainer">
+            <div class="header">
+                <p class="playername">Welcome to player info panel</p>
+                <i class="fa-solid fa-circle-xmark" id="exitvendors"></i>
+            </div>
+            <div class="playermaininfo">
+                <h4 class="playermaininfo-lable">Main Info</h4>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Cash Balance">
+                    <div class="details-icon-class"><i style="color: #b1d18e;"  class="fas fa-wallet"></i></div>
+                    <div class="details-text-class details-cashmoney">$0901</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Bank Balance">
+                    <div class="details-icon-class"><i style="color: #b3b3b3;" class="fa-solid fa-building-columns"></i></div>
+                    <div class="details-text-class details-bankmoney">$0901</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="State ID Number">
+                    <div class="details-icon-class"><i style="color: #e0d361;" class="fas fa-id-card"></i></div>
+                    <div class="details-text-class details-stateid" >CLM21795</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Company">
+                    <div class="details-icon-class details-company-icon"><i style="color: #adaca1;"></i></div>
+                    <div class="details-text-class details-company" >NONE</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Job">
+                    <div class="details-icon-class details-job-icon"><i style="color: #adaca1;"></i></div>
+                    <div class="details-text-class details-job" >NONE</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Grade">
+                    <div class="details-icon-class"><i style="color: #e0d361;" class="fa-solid fa-bars-progress"></i></div>
+                    <div class="details-text-class details-grade" >NONE</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="On Duty">
+                    <div class="details-icon-class details-onduty-class"><i style="color: #9ce7fc;" class="fa-solid fa-clipboard-check"></i></div>
+                    <div class="details-text-class details-onduty" >NONE</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Is Dispatch">
+                    <div class="details-icon-class details-isdispatch-class"><i style="color: #f3f3f3;" class="fa-solid fa-bullhorn"></i></div>
+                    <div class="details-text-class details-isdispatch" >NONE</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Duty Hours">
+                    <div class="details-icon-class details-dutyh-class"><i style="color: #cbcbcb;" class="fa-solid fa-clock"></i></div>
+                    <div class="details-text-class details-dutyh" >0</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Dispatch Hours">
+                    <div class="details-icon-class details-dispatchhors-class"><i style="color: #9ce7fc;" class="fa-solid fa-tower-control"></i></div>
+                    <div class="details-text-class details-dispatchhors" >0</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Call Sign">
+                    <div class="details-icon-class details-callsign-class"><i style="color: #e0d361;" class="fa-solid fa-signature"></i></div>
+                    <div class="details-text-class details-callsign" >0</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Daily Salary">
+                    <div class="details-icon-class"><i style="color: #ffffff;" class="fa-solid fa-money-bill-wave"></i></div>
+                    <div class="details-text-class details-payment" >0</div> 
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Total Salary">
+                    <div class="details-icon-class"><i style="color: #e0d361;" class="fa-solid fa-money-bill-1-wave"></i></div>
+                    <div class="details-text-class details-paycheck" >0</div>
+                </div>
+                <div class="details-moneys-body-main" data-toggle="tooltip" title="Time Played In This Character">
+                    <div class="details-icon-class"><i style="color: #76aecc;" class="fa-solid fa-clock"></i></div>
+                    <div class="details-text-class details-timeplayed" >0</div>
+                </div>
+            </div>
+
+            <div class="jobsinfo-app">
+                <h4 class="jobsinfo-lable">Jobs Info</h4>
+                <div class="jobsinfo-header">
+                    <span class="jobsinfo-header-name"><span style="font-size: 1vh; color: rgba(255, 255, 255, 0.6);">Job</span><br><span id="jobsinfo-tow">Jay Yay</span></span>
+                    <div class="jobsinfo-header-progress">
+                        <div class="jobsinfo-header-progress-fill-tow"></div>
+                        <span class="jobsinfo-header-progress-text" id="jobsinfo-header-progress-tow" style="float: left;">Current: 100 REP</span>
+                    </div>
+                    <span class="jobsinfo-header-description"><br><span id="jobsinfo-header-tier-tow">Tier 1</span></span>
+                </div>
+                
+                <div class="jobsinfo-header">
+                    <span class="jobsinfo-header-name"><span style="font-size: 1vh; color: rgba(255, 255, 255, 0.6);">Job</span><br><span id="jobsinfo-taxi">Jay Yay</span></span>
+                    <div class="jobsinfo-header-progress">
+                        <div class="jobsinfo-header-progress-fill-taxi"></div>
+                        <span class="jobsinfo-header-progress-text" id="jobsinfo-header-progress-taxi" style="float: left;">Current: 100 REP</span>
+                    </div>
+                    <span class="jobsinfo-header-description"><br><span id="jobsinfo-header-tier-taxi">Tier 1</span></span>
+                </div>
+                
+                <div class="jobsinfo-header">
+                    <span class="jobsinfo-header-name"><span style="font-size: 1vh; color: rgba(255, 255, 255, 0.6);">Job</span><br><span id="jobsinfo-garbage">Jay Yay</span></span>
+                    <div class="jobsinfo-header-progress">
+                        <div class="jobsinfo-header-progress-fill-garbage"></div>
+                        <span class="jobsinfo-header-progress-text" id="jobsinfo-header-progress-garbage" style="float: left;">Current: 100 REP</span>
+                    </div>
+                    <span class="jobsinfo-header-description"><br><span id="jobsinfo-header-tier-garbage">Tier 1</span></span>
+                </div>
+
+                <div class="jobsinfo-header">
+                    <span class="jobsinfo-header-name"><span style="font-size: 1vh; color: rgba(255, 255, 255, 0.6);">Job</span><br><span id="jobsinfo-recycle">Jay Yay</span></span>
+                    <div class="jobsinfo-header-progress">
+                        <div class="jobsinfo-header-progress-fill-recycle"></div>
+                        <span class="jobsinfo-header-progress-text" id="jobsinfo-header-progress-recycle" style="float: left;">Current: 100 REP</span>
+                    </div>
+                    <span class="jobsinfo-header-description"><br><span id="jobsinfo-header-tier-recycle">Tier 1</span></span>
+                </div>
+            </div>
+
+            <div class="lester-app">
+                <h4 class="lester-lable">Other Info</h4>
+                <div class="lester-app-container">
+                    <div class="lester-header">
+                        <span class="lester-header-name"><span style="font-size: 1vh; color: rgba(255, 255, 255, 0.6);"><i class="fa-regular fa-store"></i></span><br><span id="lester-storerobbery"></span></span>
+                        <div class="lester-header-progress">
+                            <div class="lester-header-progress-fill-storerobbery"></div>
+                            <span class="lester-header-progress-text" id="lester-header-progress-storerobbery" style="float: left;">Current: 100 REP</span>
+                        </div>
+                        <span class="lester-header-description"><br><span id="lester-header-tier-storerobbery">Tier 1</span></span>
+                    </div>
+
+                    <div class="lester-header">
+                        <span class="lester-header-name"><span style="font-size: 1vh; color: rgba(255, 255, 255, 0.6);"><i class="fa-duotone fa-washing-machine"></i></span><br><span id="lester-moneywash"></span></span>
+                        <div class="lester-header-progress">
+                            <div class="lester-header-progress-fill-moneywash"></div>
+                            <span class="lester-header-progress-text" id="lester-header-progress-moneywash" style="float: left;">Current: 100 REP</span>
+                        </div>
+                        <span class="lester-header-description"><br><span id="lester-header-tier-moneywash">Tier 1</span></span>
+                    </div>
+
+                    <div class="lester-header">
+                        <span class="lester-header-name"><span style="font-size: 1vh; color: rgba(255, 255, 255, 0.6);"><i class="fa-light fa-tornado"></i></span><br><span id="lester-moneystorm"></span></span>
+                        <div class="lester-header-progress">
+                            <div class="lester-header-progress-fill-moneystorm"></div>
+                            <span class="lester-header-progress-text" id="lester-header-progress-moneystorm" style="float: left;">Current: 100 REP</span>
+                        </div>
+                        <span class="lester-header-description"><br><span id="lester-header-tier-moneystorm">Tier 1</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="locations">
+                <h4 class="locations-lable">General Locations</h4>
+                <div class="locations-container">
+                    <li id="icon" data="recycle"><i class="fas fa-recycle" data-toggle="tooltip" title="recycle"></i></li>
+                    <li id="icon" data="tow"><i class="fa-light fa-truck-tow" data-toggle="tooltip" title="Tow Company"></i></li>
+                    <li id="icon" data="taxi"><i class="fa-regular fa-taxi" data-toggle="tooltip" title="Taxi Company"></i></li>
+                    <li id="icon" data="garbage"><i class="fa-duotone fa-trash-can-list" data-toggle="tooltip" title="Trash Collector"></i></li>
+                    <li id="icon" data="mining"><i class="fa-duotone fa-person-digging" data-toggle="tooltip" title="Mining"></i></li>
+                </div>
+            </div>
+        </div>
+        <script src="./js/app.js"></script>
+    </body>
+</html>

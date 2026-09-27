@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cfx-nui-qb-core/client/html/FontAwesome.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://kit-pro.fontawesome.com/releases/v6.2.0/css/pro.min.css">
+    <link href="./style.css" rel="stylesheet" type="text/css">
+    <title>Progressbar</title>
+</head>
+<body>
+    <div class="progress-container">
+        <div class="progress-top">
+            <div class="progress-label-wrap">
+                <div class="progress-icon" id="progress-icon">
+                    <i class="fa-solid fa-utensils"></i>
+                </div>
+                <div id="progress-label">Eating...</div>
+            </div>
+
+            <div class="progress-info">
+                <span id="progress-percentage">0%</span>
+                <span id="progress-seconds">0s</span>
+            </div>
+        </div>
+
+        <div class="progress-track">
+            <div id="progress-bar"></div>
+            <div id="progress-dot"></div>
+        </div>
+
+        <div class="progress-cancel">Press <b>ESC</b> to Cancel</div>
+    </div>
+
+    <script src="./script.js" type="text/javascript"></script>
+</body>
+</html>
