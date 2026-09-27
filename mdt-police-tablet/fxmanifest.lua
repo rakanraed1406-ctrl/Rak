@@ -40,6 +40,7 @@ server_scripts {
     'server/tactical.lua',
     'server/hub.lua',
     'server/dispatch.lua',
+    'server/alerts.lua',
     'server/wanted.lua',
     'server/citations.lua'
 }
@@ -58,6 +59,7 @@ client_scripts {
     'client/tactical.lua',
     'client/hub.lua',
     'client/dispatch.lua',
+    'client/alerts.lua',
     'client/recruitment.lua',
     'client/wanted.lua',
     'client/citations.lua'

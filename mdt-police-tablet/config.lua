@@ -29,6 +29,10 @@ Config.Dispatch = {
 
     -- أوامر البلاغات للمواطنين
     Commands911 = { '911', '919' },
+    -- بلاغ مجهول (ما يطلع اسم المتصل ولا رقمه)
+    CommandsAnonymous = { '911a' },
+    -- الشرطي يرد على المتصل: /reply C1001 الرسالة
+    ReplyCommand = 'reply',
 
     -- الإشعارات توصل بس للي معه أيتم التابلت بالانفنتوري
     RequireItemForAlerts = true,
@@ -73,6 +77,9 @@ Config.Dispatch = {
         ['10-90'] = 'high',     -- Robbery / alarm
         ['MOST-WANTED'] = 'high',
         ['10-35'] = 'medium',   -- Carjacking
+        ['10-16'] = 'medium',   -- Stolen vehicle
+        ['SPEEDING'] = 'low',   -- Speed trap
+        ['911-ANON'] = 'medium',
         ['911-CALL'] = 'medium',
         ['BOLO'] = 'medium',
         ['10-14'] = 'medium',
@@ -196,6 +203,72 @@ Config.BodycamExitKeyLabel = 'BACKSPACE'
 -- ==========================================================================
 Config.RadioResource = ''
 Config.RadioOpenCommand = 'radio'
+
+-- ==========================================================================
+-- البلاغات التلقائية (شوت فاير / سرقة سيارة / رادار السرعة)
+-- تطلع للشرطة داخل التابلت بنفس نظام الأولويات والأصوات.
+-- ==========================================================================
+Config.Alerts = {
+    Enabled = true,
+    -- هالوظائف (وهم على الدوام) ما يطلّعون بلاغات تلقائية
+    IgnoreJobs = { 'police', 'ambulance' },
+
+    -- سرقة سيارة / كارجاك (يحاول يفتح سيارة مقفلة أو يسحب أحد من سيارته)
+    StolenCar = {
+        enabled = true,
+        cooldown = 25, -- ثواني لكل لاعب
+    },
+
+    -- إطلاق نار
+    Gunshots = {
+        enabled = true,
+        cooldown = 15, -- ثواني لكل لاعب
+        ignoreSilenced = true, -- السلاح بكاتم ما يطلّع بلاغ
+        -- أماكن ما يطلع فيها بلاغ (ميدان رماية مثلًا)
+        WhitelistedZones = {
+            { coords = vector3(13.5, -1097.5, 29.8), radius = 25.0 },   -- Ammu-Nation (ميدان الرماية)
+            { coords = vector3(821.5, -2163.6, 29.6), radius = 25.0 },  -- Ammu-Nation Cypress Flats
+        },
+        WhitelistedWeapons = {
+            [`WEAPON_FLARE`] = true, [`WEAPON_FLAREGUN`] = true, [`WEAPON_FIREEXTINGUISHER`] = true,
+            [`WEAPON_PETROLCAN`] = true, [`WEAPON_STUNGUN`] = true, [`WEAPON_SNOWBALL`] = true,
+            [`WEAPON_BALL`] = true, [`WEAPON_HAZARDCAN`] = true,
+        },
+        -- أسماء الأسلحة اللي تطلع بالبلاغ (اللي مو موجود يطلع "Firearm")
+        WeaponLabels = {
+            [`WEAPON_PISTOL`] = 'Pistol', [`WEAPON_PISTOL_MK2`] = 'Pistol MK2', [`WEAPON_COMBATPISTOL`] = 'Combat Pistol',
+            [`WEAPON_HEAVYPISTOL`] = 'Heavy Pistol', [`WEAPON_PISTOL50`] = '.50 Pistol', [`WEAPON_SNSPISTOL`] = 'SNS Pistol',
+            [`WEAPON_REVOLVER`] = 'Revolver', [`WEAPON_MICROSMG`] = 'Micro SMG', [`WEAPON_SMG`] = 'SMG',
+            [`WEAPON_ASSAULTRIFLE`] = 'Assault Rifle', [`WEAPON_CARBINERIFLE`] = 'Carbine Rifle',
+            [`WEAPON_CARBINERIFLE_MK2`] = 'Carbine Rifle MK2', [`WEAPON_SPECIALCARBINE`] = 'Special Carbine',
+            [`WEAPON_BULLPUPRIFLE`] = 'Bullpup Rifle', [`WEAPON_PUMPSHOTGUN`] = 'Pump Shotgun',
+            [`WEAPON_SAWNOFFSHOTGUN`] = 'Sawed-off Shotgun', [`WEAPON_MUSKET`] = 'Musket',
+            [`WEAPON_SNIPERRIFLE`] = 'Sniper Rifle', [`WEAPON_MG`] = 'Machine Gun',
+        },
+    },
+
+    -- رادار السرعة (طافي افتراضيًا)
+    SpeedTrap = {
+        enabled = false,
+        cooldown = 10,         -- ثواني لكل لاعب
+        unit = 'kmh',          -- 'kmh' أو 'mph'
+        checkOwner = false,    -- true = يغرّم بس لو السيارة ملكه (السيارات المسروقة ما تنغرّم)
+        fineAccount = 'bank',
+        alertPolice = true,    -- بلاغ أزرق للشرطة مع الغرامة
+        blip = { enabled = true, sprite = 184, color = 1, scale = 0.6, display = 5, name = 'Speed Camera' },
+        Locations = {
+            { coords = vector3(1051.42, 331.11, 84.00), radius = 9.0, limit = 150, fine = 500 },   -- LS Freeway
+            { coords = vector3(544.43, -373.24, 33.14), radius = 9.0, limit = 130, fine = 1000 },  -- Legion
+            { coords = vector3(287.94, -517.44, 42.89), radius = 15.0, limit = 100, fine = 500 },  -- Pillbox
+            { coords = vector3(2792.73, 4407.68, 48.44), radius = 24.0, limit = 150, fine = 1000 }, -- Sandy Freeway
+        },
+    },
+
+    -- وحدات الشرطة: البلب يومض لما السيارين شغال
+    FlashBlipOnSiren = true,
+    -- صوت البانيك يسمعه اللي قريبين (بالأمتار، 0 = طافي)
+    PanicSoundRadius = 40.0,
+}
 
 -- كولداون بين كل رسمة/دبوس على الخريطة من نفس الضابط (مللي ثانية)
 Config.MapMarkerCooldownMs = 1000

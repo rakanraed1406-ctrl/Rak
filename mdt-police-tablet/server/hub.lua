@@ -109,6 +109,7 @@ function MDT.Hub.BuildRoster()
                 vehicleType = onDuty and (m.vehicleType or 'person') or 'person',
                 coords = coords,
                 isPanic = (m.panicUntil or 0) > now,
+                siren = onDuty and m.siren == true,
                 suspended = MDT.IsSuspended(v.PlayerData.citizenid),
             }
         end
@@ -173,6 +174,7 @@ RegisterNetEvent('police:server:HubPresence', function(data)
     if VEHICLE_TYPES[data.vehicleType] then m.vehicleType = data.vehicleType end
     local radio = tonumber(data.radio)
     m.radio = (radio and radio > 0) and radio or false
+    m.siren = data.siren == true
 end)
 
 -- ---------------------------------------------------------------------------
@@ -298,6 +300,8 @@ RegisterNetEvent('police:server:HubPanic', function(data)
         origin = 'panic',
         panicSource = src,
     }, 'police')
+
+    if MDT.PlayPanicNearby then MDT.PlayPanicNearby({ x = c.x, y = c.y, z = c.z }) end
 
     MDT.Dispatch.ForEachEligible(function(targetSrc)
         TriggerClientEvent('police:client:PanicAlert', targetSrc, {

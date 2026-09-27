@@ -63,6 +63,11 @@ CreateThread(function()
                 vehicleType = vType,
                 transport = transport,
                 radio = getRadio(),
+                siren = (function()
+                    local ped = PlayerPedId()
+                    local veh = GetVehiclePedIsIn(ped, false)
+                    return veh ~= 0 and IsVehicleSirenOn(veh) or false
+                end)(),
             })
         elseif next(MDTClient.unitBlips) then
             MDTClient.ClearUnitBlips()
@@ -103,7 +108,8 @@ local function updateUnitBlips(roster, selfId)
             SetBlipSprite(blip, sprite)
             SetBlipScale(blip, HubCfg.UnitBlipScale or 0.8)
             SetBlipColour(blip, m.isPanic and 1 or (HubCfg.UnitBlipColor or 38))
-            SetBlipFlashes(blip, m.isPanic == true)
+            local flash = m.isPanic == true or (Config.Alerts and Config.Alerts.FlashBlipOnSiren and m.siren == true)
+            SetBlipFlashes(blip, flash)
             ShowHeadingIndicatorOnBlip(blip, sprite == 1)
             BeginTextCommandSetBlipName('STRING')
             AddTextComponentSubstringPlayerName(('[%s] %s'):format(m.callsign, m.name))

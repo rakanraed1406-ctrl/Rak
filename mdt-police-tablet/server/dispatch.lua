@@ -111,7 +111,11 @@ function D.ForEachEligible(fn)
 end
 
 local function publicCall(call)
-    return call -- calls hold no secrets; kept as a hook in case you want to strip fields
+    if not call.callerSource then return call end
+    local copy = {}
+    for k, v in pairs(call) do copy[k] = v end
+    copy.callerSource = nil -- keeps anonymous tips anonymous
+    return copy
 end
 
 local function sortedActive()
@@ -131,7 +135,11 @@ function D.SyncTo(src)
     if not MDT.IsEmployee(Player) then return end
     TriggerClientEvent('police:client:DispatchSync', src, {
         calls = sortedActive(),
-        history = D.history,
+        history = (function()
+            local list = {}
+            for i, c in ipairs(D.history) do list[i] = publicCall(c) end
+            return list
+        end)(),
         serverTime = os.time(),
         canManage = MDT.Hub.CanManageDispatch(Player),
         roles = DCfg.UnitRoles or {},
@@ -203,6 +211,8 @@ function D.Create(data, dept)
         channel = tonumber(data.channel) or nil,
         origin = clean(data.origin, 20, 'system'),
         createdBy = clean(data.createdBy, 60, nil),
+        callerSource = tonumber(data.callerSource), -- never sent to clients (see publicCall)
+        canReply = data.callerSource ~= nil,
         createdAt = now,
         updatedAt = now,
     }
@@ -532,7 +542,7 @@ AddEventHandler('playerDropped', function() clientCallCooldown[source] = nil end
 -- 911 / 919 citizen calls
 -- ---------------------------------------------------------------------------
 
-local function handle911(source, args)
+local function handle911(source, args, anonymous)
     local message = table.concat(args or {}, ' ')
     if message:gsub('%s+', '') == '' then
         TriggerClientEvent('QBCore:Notify', source, 'Usage: /911 [what is happening]', 'error')
@@ -544,26 +554,68 @@ local function handle911(source, args)
     end
 
     local Player = QBCore.Functions.GetPlayer(source)
-    local callerName = Player and MDT.GetName(Player) or 'Anonymous'
-    local phone = Player and Player.PlayerData.charinfo and Player.PlayerData.charinfo.phone or 'Hidden'
+    local tags
+    if anonymous then
+        tags = { { icon = 'fa-user-secret', label = 'Anonymous caller' } }
+    else
+        local callerName = Player and MDT.GetName(Player) or 'Unknown'
+        local phone = Player and Player.PlayerData.charinfo and Player.PlayerData.charinfo.phone or 'Hidden'
+        tags = { { icon = 'fa-user', label = callerName }, { icon = 'fa-phone', label = tostring(phone) } }
+    end
 
     clientCallCooldown[source] = nil
     local callId = clientCreate(source, 'police', {
-        code = '911-CALL',
-        title = 'Citizen Emergency Call (911)',
+        code = anonymous and '911-ANON' or '911-CALL',
+        title = anonymous and 'Anonymous Tip (911)' or 'Citizen Emergency Call (911)',
         description = message:sub(1, 300),
         origin = '911',
-        tags = { { icon = 'fa-user', label = callerName }, { icon = 'fa-phone', label = tostring(phone) } },
+        tags = tags,
+        callerSource = source,
     })
     if callId then
-        D.calls[callId].callerSource = source
         TriggerClientEvent('police:client:Request911Street', source, callId)
+        TriggerClientEvent('QBCore:Notify', source,
+            ('Your %s call (%s) has been sent to the police.'):format(anonymous and 'anonymous' or '911', callId), 'success', 7000)
     end
-    TriggerClientEvent('QBCore:Notify', source, 'Your 911 call has been sent to the police.', 'success')
 end
 
 for _, cmd in ipairs(DCfg.Commands911 or { '911' }) do
-    QBCore.Commands.Add(cmd, 'Send an emergency call to the police', { { name = 'message', help = 'What is happening?' } }, false, handle911)
+    QBCore.Commands.Add(cmd, 'Send an emergency call to the police', { { name = 'message', help = 'What is happening?' } }, false,
+        function(source, args) handle911(source, args, false) end)
+end
+for _, cmd in ipairs(DCfg.CommandsAnonymous or {}) do
+    QBCore.Commands.Add(cmd, 'Send an anonymous tip to the police', { { name = 'message', help = 'What is happening?' } }, false,
+        function(source, args) handle911(source, args, true) end)
+end
+
+-- Officer replies to the citizen who made a 911 call: /reply C1001 message
+if DCfg.ReplyCommand and DCfg.ReplyCommand ~= '' then
+    QBCore.Commands.Add(DCfg.ReplyCommand, 'Reply to a 911 caller', {
+        { name = 'call', help = 'Call ID, e.g. C1001' }, { name = 'message', help = 'Your reply' },
+    }, true, function(source, args)
+        local Player = QBCore.Functions.GetPlayer(source)
+        if not MDT.IsEmployee(Player) or not Player.PlayerData.job.onduty then return end
+        local id = tostring(args[1] or ''):upper()
+        local call = D.calls[id]
+        if not call then
+            for _, h in ipairs(D.history) do if h.id == id then call = h break end end
+        end
+        if not call or not call.callerSource then
+            TriggerClientEvent('QBCore:Notify', source, 'No 911 caller found for ' .. id, 'error')
+            return
+        end
+        local text = table.concat(args, ' ', 2):sub(1, 200)
+        if text:gsub('%s+', '') == '' or not MDT.IsCleanText(text) then return end
+        if not QBCore.Functions.GetPlayer(call.callerSource) then
+            TriggerClientEvent('QBCore:Notify', source, 'The caller is no longer in the city.', 'error')
+            return
+        end
+        local from = ('Police %s'):format(MDT.Hub.GetCallsign(Player))
+        TriggerClientEvent('QBCore:Notify', call.callerSource, ('[%s] %s: %s'):format(id, from, text), 'primary', 12000)
+        TriggerClientEvent('chat:addMessage', call.callerSource, { color = { 59, 157, 251 }, args = { from .. ' (' .. id .. ')', text } })
+        TriggerClientEvent('QBCore:Notify', source, 'Reply sent to the caller of ' .. id, 'success')
+        MDT.LogMdtAction(Player, 'Replied to 911 Caller', id .. ': ' .. text)
+    end)
 end
 
 -- The caller's client answers with its street name so the 911 call has a real address.

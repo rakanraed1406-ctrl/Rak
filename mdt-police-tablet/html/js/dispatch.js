@@ -287,6 +287,7 @@ function dspDetailHtml() {
             </div>
             <div class="call-detail-desc">${escapeHtml(call.description)}</div>
             ${(call.tags || []).length ? `<div class="call-tags">${callTagsHtml(call)}</div>` : ''}
+            ${call.canReply ? `<div class="hint-text"><i class="fa-solid fa-reply"></i> Reply to the caller: <b>/reply ${escapeHtml(call.id)} your message</b></div>` : ''}
 
             ${!closed ? `
             <div class="call-actions">
