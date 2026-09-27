@@ -2,7 +2,7 @@
     server/_shared.lua — loaded FIRST. Shared MDT namespace: QBCore object,
     config-derived constants, cooldown tables, department state, permission
     helpers, logging (DB + curated Discord webhook), and dispatch calls
-    (sk1-hub only). Other files:
+    (built-in, server/dispatch.lua). Other files:
       server/dashboard.lua - opening the MDT, main payload, clock out
       server/cameras.lua   - CCTV access
       server/personnel.lua - hire/fire/promote/demote/suspend + history
@@ -15,7 +15,8 @@
       server/bolo.lua      - BOLO board
       server/vehicles.lua  - plate lookup
       server/tactical.lua  - lockdown / GPS toggle / Code 99
-      server/dispatch.lua  - dispatch calls via sk1-hub only
+      server/hub.lua       - Command Hub (roster, duty, callsign, status, panic, chat)
+      server/dispatch.lua  - built-in dispatch / CAD (calls, priorities, notifications)
       server/wanted.lua    - Most Wanted Top 10
 ]]
 
@@ -97,6 +98,7 @@ MDT.DISCORD_ACTIONS = {
     ['Requested Global Backup (Code 99)'] = 15158332,
     ['Sent Emergency Broadcast'] = 15158332, ['Changed Alert Level'] = 15105570,
     ['Sent All-Units Alert'] = 15105570, ['Added Most Wanted Entry'] = 15158332,
+    ['Officer Panic (10-99)'] = 15158332,
 }
 
 function MDT.SendDiscordLog(Player, action, details, color)
@@ -150,16 +152,30 @@ function MDT.CheckCooldown(bucket, citizenid)
     return true
 end
 
---- Sends a call through the configured dispatch resource — sk1-hub ONLY
---- (exports['sk1-hub']:CreateDispatchCall, per the files you sent). No
---- other dispatch script is used anywhere in this resource.
+--- Sends a call through the MDT's own built-in dispatch (server/dispatch.lua).
+--- sk1-hub is no longer needed — the Hub + CAD now live inside this resource.
 function MDT.SendDispatchCall(deptName, callData)
-    local resourceName = Config.DispatchResource
-    if not resourceName or resourceName == '' or GetResourceState(resourceName) ~= 'started' then return end
-    local ok = pcall(function() exports[resourceName]:CreateDispatchCall(deptName, callData) end)
-    if not ok then
-        print(('[MDT] Failed to send a dispatch call via "%s" — check Config.DispatchResource.'):format(resourceName))
+    if MDT.Dispatch and MDT.Dispatch.Create then
+        return MDT.Dispatch.Create(callData, deptName)
     end
+end
+
+function MDT.GetName(Player)
+    local ci = Player and Player.PlayerData.charinfo
+    return ((ci and ci.firstname or 'Unknown') .. ' ' .. (ci and ci.lastname or '')):gsub('%s+$', '')
+end
+
+function MDT.HasTablet(Player)
+    return Player ~= nil and Player.Functions.GetItemByName(MDT.ITEM) ~= nil
+end
+
+function MDT.IsCleanText(text)
+    if type(text) ~= 'string' then return false end
+    local lower = text:lower()
+    for _, pattern in ipairs((Config.Hub and Config.Hub.BlockedPatterns) or {}) do
+        if lower:find(pattern) then return false end
+    end
+    return true
 end
 
 CreateThread(function()

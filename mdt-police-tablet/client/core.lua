@@ -9,6 +9,7 @@ RegisterNetEvent('police:client:OpenBossMenuUI', function(data)
     if not MDTClient.mdtOpen then
         MDTClient.mdtOpen = true
         MDTClient.PlayTabletAnim()
+        TriggerServerEvent('police:server:MdtSession', true)
     end
 
     local cameraList = {}
@@ -20,7 +21,9 @@ RegisterNetEvent('police:client:OpenBossMenuUI', function(data)
         isCommandStaff = data.isCommandStaff, isBoss = data.isBoss, minCommandGrade = data.minCommandGrade,
         isLockdown = data.isLockdown, alertLevel = data.alertLevel, money = data.money,
         employees = data.employees, applications = data.applications or {}, onDutyCount = data.onDutyCount,
-        cameras = cameraList, mapBounds = Config.MapWorldBounds
+        cameras = cameraList, mapBounds = Config.MapWorldBounds,
+        selfServerId = data.selfServerId, selfCallsign = data.selfCallsign, selfStatus = data.selfStatus,
+        canManageDispatch = data.canManageDispatch
     })
 end)
 
@@ -96,6 +99,7 @@ local function CloseMdt()
     if MDTClient.mdtOpen then
         MDTClient.mdtOpen = false
         MDTClient.StopTabletAnim()
+        TriggerServerEvent('police:server:MdtSession', false)
     end
 end
 
@@ -130,14 +134,21 @@ RegisterCommand('mdt', function()
 end, false)
 
 RegisterNUICallback('clockOut', function(_, cb)
-    TriggerServerEvent('police:server:ClockOut')
+    TriggerServerEvent('police:server:HubSetDuty', false)
     cb('ok')
 end)
 
 RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job)
     if not MDTClient.mdtOpen then return end
-    if not job or job.name ~= Config.JobName then return end
-    if not job.onduty then
+    if not job or job.name ~= Config.JobName then
+        -- Fired / job changed while the tablet was open.
+        CloseMdt()
+        SendNUIMessage({ action = 'forceClose' })
+        return
+    end
+    SendNUIMessage({ action = 'dutyChanged', onDuty = job.onduty == true })
+    -- Old behaviour (tablet auto-clocks you in) → clocking out closes it again.
+    if not job.onduty and Config.Hub and Config.Hub.AutoClockIn then
         CloseMdt()
         SendNUIMessage({ action = 'forceClose' })
         QBCore.Functions.Notify('You clocked out — MDT closed.', 'primary')

@@ -47,8 +47,7 @@ function MDT.SendBossData(src)
 
         local activeCount = 0
         for _, emp in ipairs(employees) do
-            local isOut = (emp.onduty == 'out' or emp.onduty == false)
-            if not isOut then activeCount = activeCount + 1 end
+            if emp.onduty == true then activeCount = activeCount + 1 end
         end
 
         TriggerClientEvent('police:client:OpenBossMenuUI', src, {
@@ -59,7 +58,11 @@ function MDT.SendBossData(src)
             isLockdown = MDT.State.lockdown, alertLevel = MDT.State.alertLevel,
             money = isCommandStaff and societyMoney or nil,
             employees = employees, applications = isCommandStaff and (applications or {}) or {},
-            onDutyCount = activeCount
+            onDutyCount = activeCount,
+            selfServerId = src,
+            selfCallsign = MDT.Hub.GetCallsign(Player),
+            selfStatus = selfOnDuty and MDT.Hub.GetStatus(src) or 'off',
+            canManageDispatch = MDT.Hub.CanManageDispatch(Player)
         })
     end
 
@@ -138,11 +141,12 @@ local function HandleOpenMdt(src)
         return
     end
 
-    -- Convenience "clock in": using the tablet while off-duty clocks you on
-    -- automatically instead of refusing — only ever turns duty ON.
-    if not Player.PlayerData.job.onduty then
-        Player.Functions.SetJobDuty(true)
-        TriggerClientEvent('QBCore:Notify', src, 'Clocked in for duty.', 'success')
+    -- Optional convenience "clock in" (Config.Hub.AutoClockIn). By default the
+    -- tablet opens off-duty in a limited mode and you clock in yourself from
+    -- the Command Hub app.
+    if Config.Hub.AutoClockIn and not Player.PlayerData.job.onduty then
+        MDT.Hub.SetDuty(src, true)
+        Player = QBCore.Functions.GetPlayer(src)
     end
 
     -- NOTE: opening/closing the tablet is intentionally never logged
@@ -158,12 +162,4 @@ QBCore.Functions.CreateUseableItem(MDT.ITEM, function(itemSource)
     HandleOpenMdt(itemSource)
 end)
 
---- Dashboard "Clock Out" button. Clocking IN is automatic (see above).
-RegisterNetEvent('police:server:ClockOut', function()
-    local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
-    if not MDT.IsEmployee(Player) then return end
-
-    Player.Functions.SetJobDuty(false)
-    TriggerClientEvent('QBCore:Notify', src, 'You are now off duty.', 'primary')
-end)
+-- Clock in / out now lives in server/hub.lua (police:server:HubSetDuty).

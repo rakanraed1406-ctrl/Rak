@@ -56,7 +56,7 @@ RegisterNetEvent('police:server:SubmitBolo', function(data)
             TriggerClientEvent('QBCore:Notify', src, 'BOLO posted to the department.', 'success')
             MDT.NotifyAllPolice('Police HQ: A new BOLO has been issued — check the MDT.', priority == 'high' and 'error' or 'primary')
 
-            -- High-priority BOLOs also push a real dispatch call via sk1-hub.
+            -- High-priority BOLOs also push a dispatch call (built-in dispatch, Config.Dispatch.CodePriority decides the colour).
             if priority == 'high' then
                 local ped = GetPlayerPed(src)
                 local coords = ped ~= 0 and GetEntityCoords(ped) or vector3(0.0, 0.0, 0.0)

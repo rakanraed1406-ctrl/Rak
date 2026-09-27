@@ -29,14 +29,22 @@ const state = {
     personnelHistory: null,
     citations: null,
     selfOnDuty: true,
+    selfServerId: null,
+    selfCallsign: 'NO TAG',
+    selfStatus: 'active',
+    canManageDispatch: false,
+    dispatchCount: 0,
     shiftStartedAt: null,
     currentApp: null
 };
 
+// allowOffDuty: usable before clocking in (everything else unlocks after you
+// clock in from the Command Hub app).
 const APPS = [
-    { id: 'dashboard',   label: 'Dashboard',   glyph: '📊', tint: '#3b9dfb' },
+    { id: 'hub',         label: 'Command Hub', glyph: '🛡️', tint: '#3b9dfb', dock: true, allowOffDuty: true },
+    { id: 'dispatch',    label: 'Dispatch',    glyph: '📡', tint: '#f43f5e', dock: true, badge: 'calls' },
+    { id: 'dashboard',   label: 'Dashboard',   glyph: '📊', tint: '#60a5fa', allowOffDuty: true },
     { id: 'map',         label: 'Map',         glyph: '🗺️', tint: '#06b6d4', dock: true },
-    { id: 'dispatch',    label: 'Dispatch',    glyph: '📡', tint: '#f43f5e' },
     { id: 'wanted',      label: 'Most Wanted', glyph: '🎯', tint: '#b91c1c', dock: true },
     { id: 'citations',   label: 'Citations',   glyph: '🎫', tint: '#f97316' },
     { id: 'reports',     label: 'Reports',     glyph: '🗂️', tint: '#f59e0b' },
@@ -48,7 +56,7 @@ const APPS = [
     { id: 'finance',     label: 'Treasury',    glyph: '💰', tint: '#eab308', requiresCommand: true },
     { id: 'tactical',    label: 'Tactical Ops',glyph: '⚡', tint: '#f97316', requiresBoss: true },
     { id: 'cameras',     label: 'CCTV',        glyph: '🎥', tint: '#22c55e', requiresBoss: true, dock: true },
-    { id: 'about',       label: 'About',       glyph: 'ℹ️', tint: '#9aa3b2' }
+    { id: 'about',       label: 'About',       glyph: 'ℹ️', tint: '#9aa3b2', allowOffDuty: true }
 ];
 
 const REPORT_TYPES = ['General', 'Arrest', 'Incident', 'Traffic Stop', 'Investigation', 'Use of Force', 'Other'];
@@ -94,6 +102,14 @@ function nuiPost(endpoint, body) {
     }).catch(() => {});
 }
 
+function formatDuration(totalSeconds) {
+    const secs = Math.max(0, Math.floor(totalSeconds || 0));
+    const h = String(Math.floor(secs / 3600)).padStart(2, '0');
+    const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
+    const s = String(secs % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+}
+
 function showToast(message, type) {
     let stack = document.getElementById('toast-stack');
     if (!stack) {
@@ -131,11 +147,7 @@ setInterval(() => {
     if (!state.shiftStartedAt || state.currentApp !== 'dashboard') return;
     const el = document.getElementById('shift-timer');
     if (!el) return;
-    const secs = Math.floor((Date.now() - state.shiftStartedAt) / 1000);
-    const h = String(Math.floor(secs / 3600)).padStart(2, '0');
-    const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
-    const s = String(secs % 60).padStart(2, '0');
-    el.textContent = `Shift time: ${h}:${m}:${s}`;
+    el.textContent = 'Shift time: ' + formatDuration((Date.now() - state.shiftStartedAt) / 1000);
 }, 1000);
 tickClock();
 
@@ -204,16 +216,50 @@ window.addEventListener('message', function (event) {
         if (state.currentApp === 'dashboard' || state.currentApp === 'dispatch') renderApp(state.currentApp);
     } else if (data.action === 'forceClose') {
         closeDevice();
+    } else if (data.action === 'dutyChanged') {
+        setSelfDuty(data.onDuty === true);
+    } else if (data.action === 'statusChanged') {
+        state.selfStatus = data.status || 'active';
+        if (state.currentApp === 'hub' && typeof hubRefresh === 'function') hubRefresh();
+    } else if (data.action === 'dispatchCount') {
+        state.dispatchCount = Number(data.count) || 0;
+        updateDockBadges();
+        renderStatusIndicators();
     }
 });
+
+// Duty flipped (from the Hub app, a duty board, or another script).
+function setSelfDuty(onDuty) {
+    const changed = state.selfOnDuty !== onDuty;
+    state.selfOnDuty = onDuty;
+    if (onDuty && !state.shiftStartedAt) state.shiftStartedAt = Date.now();
+    if (!onDuty) { state.shiftStartedAt = null; state.selfStatus = 'off'; }
+    else if (state.selfStatus === 'off') state.selfStatus = 'active';
+    if (!state.opened) return;
+    if (changed) { renderAppGrid(); renderDock(); }
+    renderHomeMeta();
+    const current = state.currentApp && APPS.find(a => a.id === state.currentApp);
+    if (current && isAppLocked(current)) {
+        showToast('You are off duty — clock in from the Command Hub.', 'error');
+        goHome();
+    } else if (state.currentApp) {
+        if (state.currentApp === 'hub' && typeof hubRefresh === 'function') hubRefresh();
+        else if (state.currentApp === 'dashboard') renderApp('dashboard');
+    }
+}
 
 function applyBossData(data) {
     state.selfName = data.selfName || 'Officer';
     state.selfGrade = data.selfGrade || 'Officer';
     state.selfGradeLevel = data.selfGradeLevel || 0;
     state.selfCitizenId = data.selfCitizenId || null;
-    state.selfOnDuty = data.selfOnDuty !== false;
-    if (!state.shiftStartedAt) state.shiftStartedAt = Date.now();
+    state.selfOnDuty = data.selfOnDuty === true;
+    if (state.selfOnDuty && !state.shiftStartedAt) state.shiftStartedAt = Date.now();
+    if (!state.selfOnDuty) state.shiftStartedAt = null;
+    state.selfServerId = data.selfServerId ?? state.selfServerId;
+    state.selfCallsign = data.selfCallsign || state.selfCallsign;
+    state.selfStatus = data.selfStatus || (state.selfOnDuty ? 'active' : 'off');
+    state.canManageDispatch = !!data.canManageDispatch;
     state.isCommandStaff = !!data.isCommandStaff;
     state.isBoss = !!data.isBoss;
     state.minCommandGrade = data.minCommandGrade || 9;
@@ -286,6 +332,7 @@ function closeMenu() {
     nuiPost('close');
 }
 function closeDevice() {
+    if (typeof closeDialog === 'function') closeDialog(null);
     const container = document.getElementById('boss-container');
     container.classList.add('closing');
     setTimeout(() => {
@@ -318,8 +365,31 @@ function renderHomeMeta() {
     document.getElementById('home-avatar').textContent = initials(state.selfName);
     document.getElementById('widget-onduty').textContent = state.onDutyCount;
     document.getElementById('widget-lockdown').textContent = state.isLockdown ? 'LOCKED DOWN' : 'Unlocked';
+    const dutyEl = document.getElementById('widget-duty');
+    if (dutyEl) {
+        dutyEl.textContent = state.selfOnDuty ? 'ON DUTY' : 'OFF DUTY';
+        dutyEl.className = state.selfOnDuty ? 'txt-ok' : 'txt-danger';
+    }
+    const greet = document.getElementById('home-greeting-text');
+    if (greet) greet.textContent = state.selfOnDuty ? 'Welcome back' : 'Off duty — clock in from Command Hub';
     renderAlertPill();
+    renderStatusIndicators();
     updateDockBadges();
+}
+
+// Status-bar pills: duty dot + active call count + mute bell.
+function renderStatusIndicators() {
+    const duty = document.getElementById('status-duty');
+    if (duty) {
+        duty.className = 'status-duty ' + (state.selfOnDuty ? 'on' : 'off');
+        duty.title = state.selfOnDuty ? 'On duty' : 'Off duty';
+    }
+    const calls = document.getElementById('status-calls');
+    if (calls) {
+        calls.textContent = state.dispatchCount;
+        calls.parentElement.classList.toggle('has-calls', state.dispatchCount > 0);
+    }
+    if (typeof renderMuteButton === 'function') renderMuteButton();
 }
 
 // ===========================================================================
@@ -327,6 +397,7 @@ function renderHomeMeta() {
 // ===========================================================================
 
 function isAppLocked(app) {
+    if (!state.selfOnDuty && !app.allowOffDuty) return 'Clock in from the Command Hub first';
     if (app.requiresCommand && !state.isCommandStaff) return 'Command access required (Grade ' + state.minCommandGrade + '+)';
     if (app.requiresBoss && !state.isBoss) return 'Boss access required';
     return null;
@@ -339,6 +410,7 @@ function appBadgeCount(app) {
     if (app.badge === 'bolos') {
         return (state.bolos || []).filter(b => b.active === undefined || b.active == 1).length;
     }
+    if (app.badge === 'calls') return state.dispatchCount || 0;
     return 0;
 }
 
@@ -365,7 +437,7 @@ function buildAppIcon(app, small) {
         <div class="app-icon-tile" style="--tile-glow:${app.tint}55">
             <span class="glyph" style="color:${app.tint}">${app.glyph}</span>
             ${lockReason ? '<div class="app-icon-lock">🔒</div>' : ''}
-            ${badgeCount > 0 ? `<div class="app-badge" data-badge="${app.id}">${badgeCount}</div>` : ''}
+            ${app.badge ? `<div class="app-badge" data-badge="${app.id}" style="display:${badgeCount > 0 ? 'flex' : 'none'}">${badgeCount}</div>` : ''}
         </div>
         ${small ? '' : `<div class="app-icon-label">${escapeHtml(app.label)}</div>`}
     `;
@@ -402,7 +474,7 @@ function updateDockBadges() {
 const RENDERERS = {
     dashboard: renderDashboard,
     map: renderMap,
-    dispatch: renderDispatch,
+    // hub + dispatch renderers are registered by js/hub.js and js/dispatch.js
     wanted: renderWanted,
     citations: renderCitations,
     reports: renderReports,
@@ -436,6 +508,7 @@ function openApp(appId) {
     document.getElementById('app-title').textContent = app.label;
     document.getElementById('app-view').classList.add('active');
     document.getElementById('app-body').classList.toggle('app-body-flush', appId === 'map');
+    document.getElementById('app-body').classList.toggle('app-body-full', appId === 'dispatch' || appId === 'hub');
     renderApp(appId);
 }
 
@@ -481,6 +554,7 @@ function renderDashboard() {
 
         <div class="section-title">Quick Access</div>
         <div class="field-row" style="flex-wrap:wrap; gap:10px;">
+            <button class="btn btn-ghost" onclick="openApp('hub')">🛡️ Command Hub</button>
             <button class="btn btn-ghost" onclick="openApp('map')">🗺️ Tactical Map</button>
             <button class="btn btn-ghost" onclick="openApp('dispatch')">📡 Dispatch</button>
             <button class="btn btn-ghost" onclick="openApp('wanted')">🎯 Most Wanted</button>
@@ -495,10 +569,16 @@ function renderDashboard() {
         <div class="section-title">Duty Status</div>
         <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
             <div>
-                <strong>${state.selfOnDuty ? 'On Duty' : 'Off Duty'}</strong>
-                <div class="hint-text" id="shift-timer" style="margin-top:2px;">Shift time: 00:00:00</div>
+                <strong class="${state.selfOnDuty ? 'txt-ok' : 'txt-danger'}">${state.selfOnDuty ? 'On Duty' : 'Off Duty'}</strong>
+                <span class="tag tag-normal" style="margin-left:6px;">${escapeHtml(state.selfCallsign)}</span>
+                <div class="hint-text" id="shift-timer" style="margin-top:2px;">${state.selfOnDuty ? 'Shift time: 00:00:00' : 'Clock in to start your shift.'}</div>
             </div>
-            <button class="btn btn-danger btn-sm" onclick="doClockOut()">🔴 Clock Out</button>
+            <div style="display:flex; gap:8px;">
+                ${state.selfOnDuty
+                    ? `<button class="btn btn-danger btn-sm" onclick="doClockOut()">🔴 Clock Out</button>`
+                    : `<button class="btn btn-ok btn-sm" onclick="doClockIn()">🟢 Clock In</button>`}
+                <button class="btn btn-ghost btn-sm" onclick="openApp('hub'); hubSetTab('ops');">🚨 Panic / Status</button>
+            </div>
         </div>
 
         <div class="section-title">Recent Directives</div>
@@ -507,56 +587,12 @@ function renderDashboard() {
     `;
 }
 
-function doClockOut() { nuiPost('clockOut'); }
+function doClockOut() {
+    mdtConfirm({ title: 'Clock out?', message: 'You will go off duty and be removed from any calls you are attached to.', confirmText: 'Clock Out', danger: true })
+        .then(ok => { if (ok) nuiPost('hubSetDuty', { onDuty: false }); });
+}
+function doClockIn() { nuiPost('hubSetDuty', { onDuty: true }); }
 function doOpenRadio() { nuiPost('openRadio'); }
-
-// ===========================================================================
-// Dispatch app (alert level + broadcasts, wired to sk1-hub server-side)
-// ===========================================================================
-
-function renderDispatch() {
-    const levels = [ { id: 'green', label: 'CODE GREEN' }, { id: 'yellow', label: 'CODE YELLOW' }, { id: 'red', label: 'CODE RED' } ];
-    const levelButtons = levels.map(l => `
-        <button class="btn ${state.alertLevel === l.id ? 'btn-accent' : 'btn-ghost'} btn-sm" onclick="doSetAlertLevel('${l.id}')" ${state.isBoss ? '' : 'disabled'}>${l.label}</button>
-    `).join('');
-
-    return `
-        <div class="card">
-            <div class="section-title" style="margin-top:0;">Department Alert Level</div>
-            <div class="hint-text">Current: <strong>CODE ${state.alertLevel.toUpperCase()}</strong>${state.isLockdown ? ' · Facility Locked' : ''}</div>
-            <div class="field-row" style="flex-wrap:wrap; gap:8px; margin-top:10px;">${levelButtons}</div>
-            ${!state.isBoss ? `<div class="hint-text" style="margin-top:8px;">Boss-level command only.</div>` : ''}
-        </div>
-        ${state.isBoss ? `
-        <div class="card">
-            <div class="section-title" style="margin-top:0;">Emergency Broadcast (911-style)</div>
-            <div class="field"><input id="dispatch-911-input" type="text" maxlength="250" placeholder="What's happening and where?"></div>
-            <button class="btn btn-danger btn-block" onclick="doSendEmergencyAlert()">📡 Broadcast to All Police</button>
-        </div>` : ''}
-        <div class="card">
-            <div class="section-title" style="margin-top:0;">All-Units Alert</div>
-            <div class="hint-text">Short call-out to every on-duty officer — e.g. "stand down". Limited to one every 20 seconds.</div>
-            <div class="field" style="margin-top:8px;"><input id="dispatch-units-input" type="text" maxlength="200" placeholder="e.g. All units, stand down"></div>
-            <button class="btn btn-accent btn-block" onclick="doSendUnitsAlert()">📢 Send to All Units</button>
-        </div>
-    `;
-}
-
-function doSetAlertLevel(level) { nuiPost('setAlertLevel', { level }); }
-function doSendEmergencyAlert() {
-    const input = document.getElementById('dispatch-911-input');
-    if (!input.value.trim()) { showToast('Enter a message.', 'error'); return; }
-    nuiPost('sendAlertMessage', { message: input.value.trim() });
-    input.value = '';
-    showToast('Emergency broadcast sent.', 'success');
-}
-function doSendUnitsAlert() {
-    const input = document.getElementById('dispatch-units-input');
-    if (!input.value.trim()) { showToast('Enter a message.', 'error'); return; }
-    nuiPost('sendUnitsAlert', { message: input.value.trim() });
-    input.value = '';
-    showToast('All-units alert sent.', 'success');
-}
 
 // ===========================================================================
 // Most Wanted (Top 10 — Command staff post/remove, everyone views)
@@ -709,6 +745,7 @@ function renderMap() {
     return `
         <div class="map-wrap" id="map-wrap">
             <div class="map-canvas" id="map-canvas">
+                <div class="map-calls-layer" id="map-calls-layer"></div>
                 <div class="map-pins-layer" id="map-pins-layer"></div>
                 <div class="map-markers-layer" id="map-markers-layer"></div>
             </div>
@@ -722,7 +759,12 @@ function renderMap() {
                 <button class="map-ctrl-btn" onclick="mapZoom(-1)" title="Zoom out">－</button>
                 <button class="map-ctrl-btn" onclick="mapResetView()" title="Reset view">⤾</button>
             </div>
-            <div class="map-legend"><span class="map-legend-dot"></span> On-Duty Units: <strong id="map-legend-count">0</strong></div>
+            <div class="map-legend">
+                <span class="map-legend-dot"></span> Units: <strong id="map-legend-count">0</strong>
+                <span class="map-legend-sep"></span>
+                <span class="pri-dot pri-high"></span><span class="pri-dot pri-medium"></span><span class="pri-dot pri-low"></span>
+                Calls: <strong id="map-legend-calls">0</strong>
+            </div>
             <div class="map-info-panel hidden" id="map-info-panel"></div>
         </div>
     `;
@@ -798,13 +840,32 @@ function clientToNormalized(clientX, clientY) {
     return { x: Math.min(1, Math.max(0, nx)), y: Math.min(1, Math.max(0, ny)) };
 }
 
+const PIN_COLORS = ['#3b9dfb', '#ef4444', '#f59e0b', '#22c55e', '#a855f7', '#eef1f6'];
+let lastPinColor = PIN_COLORS[0];
+
 function onMapPointerDown(e) {
-    if (e.target.closest('.map-pin') || e.target.closest('.map-marker-pin') || e.target.closest('.map-controls') || e.target.closest('.map-toolbar')) return;
+    if (e.target.closest('.map-pin') || e.target.closest('.map-marker-pin') || e.target.closest('.map-call')
+        || e.target.closest('.map-controls') || e.target.closest('.map-toolbar') || e.target.closest('.map-info-panel')
+        || e.target.closest('.map-legend')) return;
 
     if (mapTool === 'pin') {
         const pt = clientToNormalized(e.clientX, e.clientY);
-        const label = (prompt('Label this pin (optional):') || '').slice(0, 60);
-        nuiPost('mapAddMarker', { kind: 'pin', x: pt.x, y: pt.y, label, color: '#3b9dfb' });
+        // The label is asked INSIDE the tablet (no browser prompt window).
+        mdtPrompt({
+            title: 'Drop a pin',
+            icon: '📍',
+            message: 'Shared live with every on-duty officer on the tactical map.',
+            label: 'Pin label (optional)',
+            placeholder: 'e.g. Roadblock, Staging area, Suspect last seen…',
+            maxLength: 60,
+            colors: PIN_COLORS,
+            color: lastPinColor,
+            confirmText: 'Drop Pin'
+        }).then(res => {
+            if (!res) return;
+            lastPinColor = res.color || lastPinColor;
+            nuiPost('mapAddMarker', { kind: 'pin', x: pt.x, y: pt.y, label: res.value || '', color: lastPinColor });
+        });
         return;
     }
 
@@ -832,6 +893,8 @@ function initMapApp() {
     applyMapTransform();
     renderMapPins();
     renderMapMarkers();
+    renderMapCalls();
+    if (mapFocusCallId) { focusMapCall(mapFocusCallId); mapFocusCallId = null; }
 
     const wrap = document.getElementById('map-wrap');
     if (!wrap) return;
@@ -858,23 +921,112 @@ function teardownMapApp() {
     selectedMapOfficer = null;
 }
 
+function safeColor(c) { return /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#3b9dfb'; }
+
 function renderMapMarkers() {
     const layer = document.getElementById('map-markers-layer');
     if (!layer) return;
     layer.innerHTML = (state.mapMarkers || []).map(m => {
-        const canClear = state.selfCitizenId && (m.citizenid === state.selfCitizenId || state.isCommandStaff);
+        const color = safeColor(m.color);
         return `
-            <div class="map-marker-pin" style="left:${m.x * 100}%; top:${m.y * 100}%;">
+            <div class="map-marker-pin" style="left:${m.x * 100}%; top:${m.y * 100}%; --pin:${color};" onclick="selectMapMarker(${Number(m.id)})">
                 <span class="map-marker-pin-dot" title="${escapeHtml(m.label || 'Marker')} — ${escapeHtml(m.author)}"></span>
                 ${m.label ? `<span class="map-marker-pin-label">${escapeHtml(m.label)}</span>` : ''}
-                ${canClear ? `<button class="map-marker-clear" onclick="doClearMapMarker(${m.id})">✕</button>` : ''}
             </div>
         `;
     }).join('');
 }
 
-function doClearMapMarker(id) { nuiPost('mapClearMarker', { id }); }
-function doClearAllMapMarkers() { nuiPost('mapClearAllMarkers'); }
+// Normalized (0..1) map point → GTA world coords (inverse of worldToMapPercent).
+function normalizedToWorld(nx, ny) {
+    const b = state.mapBounds || { minX: -4000, maxX: 4600, minY: -4300, maxY: 8100 };
+    return { x: b.minX + nx * (b.maxX - b.minX), y: b.maxY - ny * (b.maxY - b.minY) };
+}
+
+function selectMapMarker(id) {
+    const m = (state.mapMarkers || []).find(x => Number(x.id) === Number(id));
+    const panel = document.getElementById('map-info-panel');
+    if (!m || !panel) return;
+    selectedMapOfficer = null;
+    const canClear = state.selfCitizenId && (m.citizenid === state.selfCitizenId || state.isCommandStaff);
+    panel.classList.remove('hidden');
+    panel.innerHTML = `
+        <button class="map-info-close" onclick="closeMapInfoPanel()">✕</button>
+        <strong><span class="pin-swatch" style="background:${safeColor(m.color)}"></span>${escapeHtml(m.label || 'Unlabeled pin')}</strong>
+        <small>Dropped by ${escapeHtml(m.author)}</small>
+        <div class="map-info-actions">
+            <button class="btn btn-accent btn-sm" onclick="doGpsMapMarker(${Number(m.id)})">📍 Set GPS</button>
+            ${canClear ? `<button class="btn btn-danger btn-sm" onclick="doClearMapMarker(${Number(m.id)})">Remove Pin</button>` : ''}
+        </div>
+    `;
+}
+
+function doGpsMapMarker(id) {
+    const m = (state.mapMarkers || []).find(x => Number(x.id) === Number(id));
+    if (!m) return;
+    const w = normalizedToWorld(m.x, m.y);
+    nuiPost('setWaypoint', { x: w.x, y: w.y, label: m.label || 'Map pin' });
+}
+
+function doClearMapMarker(id) { nuiPost('mapClearMarker', { id }); closeMapInfoPanel(); }
+function doClearAllMapMarkers() {
+    mdtConfirm({ title: 'Clear the tactical board?', message: 'Removes every pin for every officer.', confirmText: 'Clear All', danger: true })
+        .then(ok => { if (ok) nuiPost('mapClearAllMarkers'); });
+}
+
+// ---- Dispatch calls on the tactical map (coloured by priority) ----
+let mapFocusCallId = null;
+
+function renderMapCalls() {
+    const layer = document.getElementById('map-calls-layer');
+    const calls = (typeof dsp !== 'undefined' && dsp.calls) ? dsp.calls : [];
+    const countEl = document.getElementById('map-legend-calls');
+    if (countEl) countEl.textContent = calls.length;
+    if (!layer) return;
+    layer.innerHTML = calls.filter(c => c.coords).map(c => {
+        const pos = worldToMapPercent(c.coords.x, c.coords.y);
+        return `
+            <div class="map-call pri-${escapeHtml(c.priority)}" style="left:${pos.left}%; top:${pos.top}%;" onclick="selectMapCall('${escapeHtml(c.id)}')" title="${escapeHtml(c.code + ' ' + c.title)}">
+                <span class="map-call-ring"></span>
+                <span class="map-call-core">${escapeHtml(c.code)}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+function selectMapCall(callId) {
+    const call = (dsp.calls || []).find(c => c.id === callId);
+    const panel = document.getElementById('map-info-panel');
+    if (!call || !panel) return;
+    selectedMapOfficer = null;
+    const attached = dspIsAttached(call);
+    panel.classList.remove('hidden');
+    panel.innerHTML = `
+        <button class="map-info-close" onclick="closeMapInfoPanel()">✕</button>
+        <span class="pri-badge pri-${escapeHtml(call.priority)}">${PRIORITY_META[call.priority].label}</span>
+        <strong>${escapeHtml(call.code)} · ${escapeHtml(call.title)}</strong>
+        <small>📍 ${escapeHtml(call.street)} · ${dspAgo(call.createdAt)} · ${call.units.length} unit(s)</small>
+        <small>${escapeHtml(call.description)}</small>
+        <div class="map-info-actions">
+            ${attached ? `<button class="btn btn-ghost btn-sm" onclick="dspDetach('${escapeHtml(call.id)}')">Detach</button>`
+                       : `<button class="btn btn-ok btn-sm" onclick="dspRespond('${escapeHtml(call.id)}')">🚓 Respond</button>`}
+            <button class="btn btn-accent btn-sm" onclick="dspGps('${escapeHtml(call.id)}')">📍 GPS</button>
+            <button class="btn btn-ghost btn-sm" onclick="dspOpenCall('${escapeHtml(call.id)}')">Open in Dispatch</button>
+        </div>
+    `;
+}
+
+function focusMapCall(callId) {
+    const call = (dsp.calls || []).find(c => c.id === callId);
+    if (!call || !call.coords) return;
+    const pos = worldToMapPercent(call.coords.x, call.coords.y);
+    mapZoomLevel = 2.5;
+    mapPanX = (0.5 - pos.left / 100) * mapCanvasBaseSize * mapZoomLevel;
+    mapPanY = (0.5 - pos.top / 100) * mapCanvasBaseSize * mapZoomLevel;
+    clampMapPan();
+    applyMapTransform();
+    selectMapCall(callId);
+}
 
 function renderMapPins() {
     const layer = document.getElementById('map-pins-layer');
@@ -907,6 +1059,7 @@ function selectMapOfficer(citizenid) {
 }
 
 function closeMapInfoPanel() {
+    if (typeof mapFocusCallId !== 'undefined') mapFocusCallId = null;
     selectedMapOfficer = null;
     const panel = document.getElementById('map-info-panel');
     if (panel) panel.classList.add('hidden');
@@ -1262,14 +1415,28 @@ function doUpdateGrade(citizenid, type) {
 
 function doFireEmployee(citizenid) {
     if (!citizenid) return;
-    nuiPost('fireEmployee', { citizenid });
+    mdtConfirm({ title: 'Terminate officer?', message: 'Citizen ID ' + citizenid + ' will be removed from the department.', confirmText: 'Terminate', danger: true })
+        .then(ok => { if (ok) nuiPost('fireEmployee', { citizenid }); });
 }
 
 function doToggleSuspension(citizenid, currentlySuspended) {
     if (!citizenid) return;
-    let reason = '';
-    if (!currentlySuspended) reason = prompt('Reason for suspension (optional):') || '';
-    nuiPost('toggleSuspension', { citizenid, reason });
+    if (currentlySuspended) {
+        nuiPost('toggleSuspension', { citizenid, reason: '' });
+        return;
+    }
+    mdtPrompt({
+        title: 'Suspend MDT access',
+        icon: '⛔',
+        message: 'The officer keeps their job but cannot open the tablet or receive dispatch until lifted.',
+        label: 'Reason (optional)',
+        placeholder: 'e.g. Pending internal investigation',
+        maxLength: 200,
+        confirmText: 'Suspend',
+        danger: true
+    }).then(res => {
+        if (res) nuiPost('toggleSuspension', { citizenid, reason: res.value || '' });
+    });
 }
 
 // ===========================================================================
@@ -1551,11 +1718,11 @@ function renderAbout() {
         </div>
         <div class="card">
             <div class="section-title" style="margin-top:0;">System</div>
-            <div class="hint-text">MDT Software v4.0.0 · Command clearance: Grade ${state.minCommandGrade}+ · Session encrypted end-to-end.</div>
+            <div class="hint-text">MDT Software v8.0.0 · Command clearance: Grade ${state.minCommandGrade}+ · Session encrypted end-to-end.</div>
         </div>
         <div class="card">
             <div class="section-title" style="margin-top:0;">What's New</div>
-            <div class="hint-text">Tactical Map, BOLO board, and Vehicle Lookup are now on this device. Command staff can promote, demote, or terminate an officer directly from a pin on the map.</div>
+            <div class="hint-text">The Command Hub (roster, duty, callsign, status, panic, comms) and a full Dispatch CAD now live inside this tablet. Calls are ranked Blue (low) · Yellow (medium) · Red (high), each with its own alert tone — and they reach you even with the tablet closed, as long as it's in your inventory.</div>
         </div>
     `;
 }
