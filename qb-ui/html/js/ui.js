@@ -135,6 +135,33 @@ var UiSfx = {
     }
 };
 
+// ---------------------------------------------------------------------------
+// Settings (index.html can override these)
+// ---------------------------------------------------------------------------
+var UiConfig = {
+    notifyPosition: 'top-right',   // top-right | top-left | bottom-right | bottom-left | top-center
+    notifyMax: 5
+};
+
+// GTA color codes -> spans in the muted palette (~r~ red, ~g~ green, ~b~ blue,
+// ~y~ yellow, ~o~ orange, ~p~ purple, ~c~ cyan, ~m~ grey, ~w~ white, ~h~ bold,
+// ~s~ reset). Text without codes is returned untouched.
+function uiColors(html) {
+    html = String(html == null ? '' : html);
+    if (html.indexOf('~') === -1) return html;
+    var open = 0;
+    var out = html.replace(/~([rgbyopcmwhsn])~/g, function (_, c) {
+        if (c === 'n') return '<br>';
+        var close = '';
+        while (open > 0) { close += '</span>'; open--; }
+        if (c === 's') return close;
+        open++;
+        return close + '<span class="gc-' + c + '">';
+    });
+    while (open > 0) { out += '</span>'; open--; }
+    return out;
+}
+
 function uiResource() {
     return typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'qb-ui';
 }
@@ -158,9 +185,12 @@ function $(id) { return document.getElementById(id); }
 // ---------------------------------------------------------------------------
 var DT = { visible: false, hideTimer: null };
 
-function dtOpen(text, icon) {
+function dtOpen(text, icon, position) {
     var el = $('dt'), key = $('dtKey'), body = $('dtText');
     text = text == null ? '' : String(text);
+    var pos = { left: 1, right: 1, top: 1, bottom: 1 }[position] ? position : 'bottom';
+    el.classList.remove('pos-left', 'pos-right', 'pos-top', 'pos-bottom');
+    el.classList.add('pos-' + pos);
 
     // "[E] Open door" / "[E] - Open door" -> keycap "E" + "Open door"
     var m = text.match(/^\s*\[([^\]]{1,8})\]\s*[-:]?\s*/);
@@ -173,8 +203,10 @@ function dtOpen(text, icon) {
         key.innerHTML = '<i class="' + uiAttr(icon || 'fa-solid fa-bells') + '"></i>';
     }
 
+    text = uiColors(text);
     var changed = body.innerHTML !== text;
     body.innerHTML = text; // HTML on purpose, same as the original
+    body.classList.toggle('multi', /<br|\n/i.test(text));
 
     if (DT.hideTimer) { clearTimeout(DT.hideTimer); DT.hideTimer = null; }
     el.classList.remove('pressed');
@@ -220,16 +252,15 @@ function dtPressed() {
 // Notifications
 // ---------------------------------------------------------------------------
 var NOTE_TYPES = {
-    primary:   { color: '#3a6cff', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
-    inform:    { color: '#3a6cff', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
-    info:      { color: '#3a6cff', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
-    success:   { color: '#2ecc71', icon: 'fa-solid fa-circle-check',         label: 'SUCCESS',   sound: 'success' },
-    error:     { color: '#ff5a6e', icon: 'fa-solid fa-circle-xmark',         label: 'ERROR',     sound: 'deny' },
-    warning:   { color: '#f5b041', icon: 'fa-solid fa-triangle-exclamation', label: 'WARNING',   sound: 'warn' },
-    police:    { color: '#3a6cff', icon: 'fa-solid fa-shield-halved',        label: 'POLICE',    sound: 'warn' },
-    ambulance: { color: '#ff5a6e', icon: 'fa-solid fa-truck-medical',        label: 'EMS',       sound: 'warn' }
+    primary:   { color: '#8aa2d6', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
+    inform:    { color: '#8aa2d6', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
+    info:      { color: '#8aa2d6', icon: 'fa-solid fa-circle-info',          label: 'INFO',      sound: 'note' },
+    success:   { color: '#7cc79a', icon: 'fa-solid fa-circle-check',         label: 'SUCCESS',   sound: 'success' },
+    error:     { color: '#d9707c', icon: 'fa-solid fa-circle-xmark',         label: 'ERROR',     sound: 'deny' },
+    warning:   { color: '#e2c079', icon: 'fa-solid fa-triangle-exclamation', label: 'WARNING',   sound: 'warn' },
+    police:    { color: '#8aa2d6', icon: 'fa-solid fa-shield-halved',        label: 'POLICE',    sound: 'warn' },
+    ambulance: { color: '#d9707c', icon: 'fa-solid fa-truck-medical',        label: 'EMS',       sound: 'warn' }
 };
-var NOTE_MAX = 5;
 
 function hexToRgba(hex, a) {
     var h = hex.replace('#', '');
@@ -262,6 +293,7 @@ function notify(data) {
     var def = NOTE_TYPES[type];
     var length = Math.max(1000, Number(data.length) || 5000);
     var box = $('notes');
+    if (box.className !== UiConfig.notifyPosition) box.className = UiConfig.notifyPosition;
 
     // same message again while it is still on screen -> count it instead of stacking
     var key = type + '|' + text + '|' + (data.caption || '');
@@ -283,20 +315,20 @@ function notify(data) {
     node.className = 'note';
     node._key = key;
     node.style.setProperty('--c', def.color);
-    node.style.setProperty('--c-soft', hexToRgba(def.color, 0.18));
+    node.style.setProperty('--c-soft', hexToRgba(def.color, 0.16));
     node.innerHTML =
         '<div class="note-icon"><i class="' + uiAttr(data.icon || def.icon) + '"></i></div>' +
         '<div class="note-body">' +
             '<div class="note-kicker">' + def.label + '</div>' +
-            '<div class="note-text">' + uiEsc(text) + '</div>' +
-            (data.caption ? '<div class="note-caption">' + uiEsc(data.caption) + '</div>' : '') +
+            '<div class="note-text">' + uiColors(uiEsc(text)) + '</div>' +
+            (data.caption ? '<div class="note-caption">' + uiColors(uiEsc(data.caption)) + '</div>' : '') +
         '</div>' +
         '<span class="note-count" style="display:none"></span>' +
         '<div class="note-bar"><i></i></div>';
     box.appendChild(node);
 
     var live = Array.prototype.filter.call(box.children, function (n) { return !n.classList.contains('out'); });
-    if (live.length > NOTE_MAX) noteRemove(live[0]);
+    if (live.length > UiConfig.notifyMax) noteRemove(live[0]);
 
     noteStartTimer(node, length);
     UiSfx.play('notify', def.sound);
@@ -308,8 +340,15 @@ function notify(data) {
 var INFO = { visible: false, timer: null };
 
 function infoShow(text) {
-    var el = $('info');
-    $('infoText').innerHTML = text == null ? '' : String(text); // HTML, same as the original
+    var el = $('info'), box = $('infoText');
+    text = text == null ? '' : String(text);
+    var prevNum = box.querySelector('.num');
+    prevNum = prevNum ? prevNum.textContent : null;
+    // numbers in plain text (e.g. "RESPAWN IN: 12 SECONDS") get their own tick animation
+    var html = text.indexOf('<') === -1 ? uiColors(text).replace(/(\d+)/, '<span class="num">$1</span>') : uiColors(text);
+    box.innerHTML = html; // HTML, same as the original
+    var num = box.querySelector('.num');
+    if (num && prevNum !== null && prevNum !== num.textContent) num.classList.add('tick');
     if (INFO.visible) return; // just a text update (countdowns etc.)
     INFO.visible = true;
     clearTimeout(INFO.timer);
@@ -391,13 +430,13 @@ function lpDraw(now) {
     // track
     ctx.lineCap = 'butt';
     ctx.beginPath();
-    ctx.strokeStyle = '#0b1a3d';
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
     ctx.lineWidth = 16;
     ctx.arc(cx, cy, R, 0, Math.PI * 2);
     ctx.stroke();
 
     // ticks
-    ctx.strokeStyle = 'rgba(92,130,255,0.28)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     for (var i = 0; i < 60; i++) {
@@ -411,10 +450,10 @@ function lpDraw(now) {
     // zone
     var flash = now < LP.flashUntil;
     ctx.beginPath();
-    ctx.strokeStyle = LP.failed ? '#ff5a6e' : (flash ? '#ffffff' : '#3a6cff');
+    ctx.strokeStyle = LP.failed ? '#d9707c' : (flash ? '#eef1f6' : '#8aa2d6');
     ctx.lineWidth = 16;
-    ctx.shadowColor = LP.failed ? 'rgba(255,90,110,0.8)' : 'rgba(58,108,255,0.9)';
-    ctx.shadowBlur = 12;
+    ctx.shadowColor = LP.failed ? 'rgba(217,112,124,0.5)' : 'rgba(138,162,214,0.45)';
+    ctx.shadowBlur = 8;
     ctx.arc(cx, cy, R, rad(LP.zoneStart), rad(LP.zoneEnd));
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -422,33 +461,43 @@ function lpDraw(now) {
     // needle trail + head
     var inZone = deg >= LP.zoneStart && deg <= LP.zoneEnd;
     ctx.beginPath();
-    ctx.strokeStyle = 'rgba(159,184,255,0.25)';
+    ctx.strokeStyle = 'rgba(238,241,246,0.12)';
     ctx.lineWidth = 16;
     ctx.arc(cx, cy, R, rad(Math.max(0, deg - 26)), rad(deg));
     ctx.stroke();
     ctx.beginPath();
-    ctx.strokeStyle = inZone ? '#ffffff' : '#9fb8ff';
+    ctx.strokeStyle = inZone ? '#ffffff' : '#c4cbd9';
     ctx.lineWidth = 28;
     ctx.arc(cx, cy, R - 2, rad(deg - 5), rad(deg));
     ctx.stroke();
 
     // core
     ctx.beginPath();
-    ctx.fillStyle = '#070f26';
+    ctx.fillStyle = 'rgba(9,10,13,0.85)';
     ctx.arc(cx, cy, 58, 0, Math.PI * 2);
     ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = inZone ? '#3a6cff' : 'rgba(92,130,255,0.35)';
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = inZone ? 'rgba(138,162,214,0.8)' : 'rgba(255,255,255,0.1)';
     ctx.stroke();
 
+    // time left in this turn (thin inner ring that empties)
+    var left = Math.max(0, 1 - deg / 360);
+    ctx.beginPath();
+    ctx.strokeStyle = left < 0.25 ? 'rgba(217,112,124,0.8)' : 'rgba(138,162,214,0.55)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.arc(cx, cy, 66, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+
     // key
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = '#eef1f6';
     ctx.font = '800 58px Oxanium, "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(LP.key, cx, cy + 3);
     ctx.font = '700 10px Oxanium, "Segoe UI", sans-serif';
-    ctx.fillStyle = '#6f95ff';
+    ctx.fillStyle = '#9ba3b4';
     ctx.fillText(LP.streak + ' / ' + LP.needed, cx, cy + 38);
 }
 
@@ -518,7 +567,7 @@ function lpKey(key) {
 // ---------------------------------------------------------------------------
 window.addEventListener('message', function (event) {
     var d = event.data || {};
-    if (d.type === 'open') return dtOpen(d.text, d.icon);
+    if (d.type === 'open') return dtOpen(d.text, d.icon, d.position);
     if (d.type === 'close') return dtClose();
     switch (d.action) {
         case 'KEY_PRESSED': return dtPressed();
@@ -526,6 +575,7 @@ window.addEventListener('message', function (event) {
         case 'show': return infoShow(d.text);
         case 'hide': return infoHide();
         case 'start': return lpStart(d.value, d.time);
+        case 'pause': return document.body.classList.toggle('paused', !!d.state);
     }
 });
 

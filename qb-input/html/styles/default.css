@@ -1,28 +1,33 @@
 /* ============================================================================
    Command Form — qb-input (default style)
-   Same identity as the qb-radialmenu Command Wheel and the qb-menu Command
-   Panel: the --rm-* tokens are the same values in all three.
-   Performance (FiveM CEF): no backdrop-filter, no full-screen layers, no
-   infinite animations, only transform/opacity animate, hidden = display:none.
+   Shared identity with qb-menu and qb-ui: transparent black glass, a muted
+   steel-blue accent, soft white text. The --cm-* tokens are the same values in
+   all three resources.
+   Performance (FiveM CEF): plain rgba transparency (no backdrop-filter), no
+   full-screen layers, no infinite animations, hidden = display:none.
    ============================================================================ */
 
 :root {
-    --rm-deep: #050c20;
-    --rm-navy: #0b1a3d;
-    --rm-blue: #1a4bd6;
-    --rm-blue-hi: #3a6cff;
-    --rm-line: rgba(92, 130, 255, 0.35);
-    --rm-line-dim: rgba(92, 130, 255, 0.16);
-    --rm-text: #ffffff;
-    --rm-text-dim: #b4c1e6;
-    --rm-ease: cubic-bezier(0.2, 0.9, 0.25, 1.15);
-    --rm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --cm-panel: rgba(9, 10, 13, 0.80);
+    --cm-head: rgba(255, 255, 255, 0.03);
+    --cm-row: rgba(255, 255, 255, 0.045);
+    --cm-row-hover: rgba(255, 255, 255, 0.07);
+    --cm-row-hot: rgba(120, 146, 204, 0.16);
+    --cm-chip: rgba(255, 255, 255, 0.06);
+    --cm-line: rgba(255, 255, 255, 0.08);
+    --cm-line-mid: rgba(255, 255, 255, 0.14);
+    --cm-line-hot: rgba(138, 162, 214, 0.55);
+    --cm-accent: #8aa2d6;
+    --cm-accent-deep: #5c74a8;
+    --cm-accent-soft: rgba(138, 162, 214, 0.18);
+    --cm-text: #eef1f6;
+    --cm-text-dim: #9ba3b4;
+    --cm-text-mute: #6b7282;
+    --cm-bad: #d9707c;
+    --cm-ease: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+    --cm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
-    --qi-width: 360px;
-    --qi-panel: #070f26;
-    --qi-row: #0c1834;
-    --qi-row-hot: #13307f;
-    --qi-bad: #ff5a6e;
+    --qi-width: 350px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -33,7 +38,7 @@ html, body {
     overflow: hidden;
     background: transparent !important;
     font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
-    color: var(--rm-text);
+    color: var(--cm-text);
     -webkit-font-smoothing: antialiased;
 }
 
@@ -45,49 +50,49 @@ html, body {
     width: var(--qi-width);
     display: none;
     border-radius: 12px;
-    background: var(--qi-panel);
-    border: 1px solid var(--rm-line);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+    background: var(--cm-panel);
+    border: 1px solid var(--cm-line);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
     overflow: hidden;
     will-change: transform, opacity;
 }
-body.qi-visible #panel { display: block; animation: qiIn 0.4s var(--rm-ease-out) both; }
+body.qi-visible #panel { display: block; animation: qiIn 0.4s var(--cm-ease-out) both; }
 body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events: none; }
-@keyframes qiIn { from { opacity: 0; transform: translateX(36px) scale(0.96); } to { opacity: 1; transform: none; } }
-@keyframes qiOut { to { opacity: 0; transform: translateX(28px) scale(0.96); } }
+@keyframes qiIn { from { opacity: 0; transform: translateX(32px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes qiOut { to { opacity: 0; transform: translateX(24px) scale(0.97); } }
 
 .qi-deco {
     position: absolute;
-    left: 0; right: 0; top: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--rm-blue-hi) 30%, var(--rm-blue-hi) 70%, transparent);
-    opacity: 0.8;
+    left: 18px; right: 18px; top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cm-accent) 50%, transparent);
+    opacity: 0.55;
 }
 
 /* ---------- header ---------- */
 #head {
     padding: 14px 18px 12px;
-    background: linear-gradient(180deg, #0d1e4a 0%, var(--qi-panel) 100%);
-    border-bottom: 1px solid var(--rm-line-dim);
+    background: var(--cm-head);
+    border-bottom: 1px solid var(--cm-line);
 }
 .qi-kicker {
     display: flex;
     align-items: center;
     gap: 7px;
     font-family: 'Oxanium', 'Segoe UI', sans-serif;
-    color: #6f95ff;
-    font-size: 11px;
+    color: var(--cm-text-dim);
+    font-size: 10.5px;
     font-weight: 700;
-    letter-spacing: 2.2px;
+    letter-spacing: 2px;
 }
-.qi-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--rm-blue-hi); }
+.qi-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cm-accent); }
 #title {
     margin-top: 6px;
     font-family: 'Oxanium', 'Cairo', sans-serif;
-    font-size: 20px;
+    font-size: 19px;
     font-weight: 700;
     line-height: 1.25;
-    color: var(--rm-text);
+    color: var(--cm-text);
     overflow-wrap: anywhere;
 }
 
@@ -97,47 +102,49 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     overflow-y: auto;
     padding: 12px 14px 4px;
 }
-#fields::-webkit-scrollbar { width: 4px; }
-#fields::-webkit-scrollbar-track { background: var(--rm-line-dim); border-radius: 4px; }
-#fields::-webkit-scrollbar-thumb { background: var(--rm-blue); border-radius: 4px; }
+#fields::-webkit-scrollbar { width: 3px; }
+#fields::-webkit-scrollbar-track { background: transparent; }
+#fields::-webkit-scrollbar-thumb { background: var(--cm-line-mid); border-radius: 3px; }
 
 .qi-field {
     display: block;
     margin-bottom: 12px;
-    animation: qiFieldIn 0.35s var(--rm-ease) backwards;
+    animation: qiFieldIn 0.35s var(--cm-ease) backwards;
 }
-@keyframes qiFieldIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+@keyframes qiFieldIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
 
 .qi-label {
     display: block;
     margin: 0 0 5px 2px;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 700;
-    color: var(--rm-text-dim);
+    color: var(--cm-text-dim);
     overflow-wrap: anywhere;
 }
-.qi-label em { color: #6f95ff; font-style: normal; }
+.qi-label em { color: var(--cm-accent); font-style: normal; }
 
 .qi-input,
 .qi-select select {
     width: 100%;
-    height: 44px;
+    height: 42px;
     padding: 0 14px;
     border-radius: 9px;
-    border: 1px solid var(--rm-line-dim);
-    background: var(--qi-row);
-    color: #ffffff;
+    border: 1px solid var(--cm-line);
+    background: var(--cm-row);
+    color: var(--cm-text);
     font-family: inherit;
-    font-size: 15px;
+    font-size: 14.5px;
     font-weight: 600;
     outline: none;
     transition: border-color 0.18s ease, background-color 0.18s ease;
 }
-.qi-input::placeholder { color: #6f7fae; font-weight: 600; }
+.qi-input::placeholder { color: var(--cm-text-mute); font-weight: 600; }
+.qi-input:hover,
+.qi-select select:hover { background: var(--cm-row-hover); }
 .qi-input:focus,
 .qi-select select:focus {
-    border-color: var(--rm-blue-hi);
-    background: #0f2150;
+    border-color: var(--cm-line-hot);
+    background: var(--cm-row-hot);
 }
 .qi-input[type="number"]::-webkit-outer-spin-button,
 .qi-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -149,15 +156,15 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     position: absolute;
     right: 15px;
     top: 50%;
-    width: 7px;
-    height: 7px;
-    margin-top: -6px;
-    border-right: 2px solid #9fb4ff;
-    border-bottom: 2px solid #9fb4ff;
+    width: 6px;
+    height: 6px;
+    margin-top: -5px;
+    border-right: 1.5px solid var(--cm-text-dim);
+    border-bottom: 1.5px solid var(--cm-text-dim);
     transform: rotate(45deg);
     pointer-events: none;
 }
-.qi-select option { background: #0c1834; color: #ffffff; }
+.qi-select option { background: #15171c; color: var(--cm-text); }
 
 /* radio = segmented chips */
 .qi-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -165,25 +172,25 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
 .qi-chip input { position: absolute; opacity: 0; pointer-events: none; }
 .qi-chip span {
     display: block;
-    padding: 9px 10px;
+    padding: 8px 10px;
     text-align: center;
     border-radius: 9px;
-    border: 1px solid var(--rm-line-dim);
-    background: var(--qi-row);
-    color: var(--rm-text-dim);
-    font-size: 14px;
+    border: 1px solid var(--cm-line);
+    background: var(--cm-row);
+    color: var(--cm-text-dim);
+    font-size: 13.5px;
     font-weight: 700;
-    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s var(--rm-ease);
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
-.qi-chip:hover span { border-color: var(--rm-line); color: #ffffff; }
+.qi-chip:hover span { background: var(--cm-row-hover); color: var(--cm-text); }
 .qi-chip input:checked + span {
-    background: var(--qi-row-hot);
-    border-color: var(--rm-blue-hi);
-    color: #ffffff;
+    background: var(--cm-row-hot);
+    border-color: var(--cm-line-hot);
+    color: var(--cm-text);
 }
-.qi-chip input:focus-visible + span { border-color: #7fa0ff; }
-.qi-chip input:checked + span { animation: qiPop 0.25s var(--rm-ease); }
-@keyframes qiPop { 50% { transform: scale(1.05); } }
+.qi-chip input:focus-visible + span { border-color: var(--cm-accent); }
+.qi-chip input:checked + span { animation: qiPop 0.25s var(--cm-ease); }
+@keyframes qiPop { 50% { transform: scale(1.04); } }
 
 /* checkbox = switch rows */
 .qi-checks { display: flex; flex-direction: column; gap: 6px; }
@@ -195,72 +202,72 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     gap: 10px;
     padding: 9px 12px;
     border-radius: 9px;
-    border: 1px solid var(--rm-line-dim);
-    background: var(--qi-row);
+    border: 1px solid var(--cm-line);
+    background: var(--cm-row);
     cursor: pointer;
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 700;
-    color: #ffffff;
-    transition: border-color 0.18s ease;
+    color: var(--cm-text);
+    transition: background-color 0.18s ease;
 }
-.qi-check:hover { border-color: var(--rm-line); }
+.qi-check:hover { background: var(--cm-row-hover); }
 .qi-check input { position: absolute; opacity: 0; pointer-events: none; }
 .qi-switch {
     position: relative;
     flex: 0 0 auto;
-    width: 36px;
-    height: 20px;
-    border-radius: 20px;
-    background: #1a2750;
+    width: 34px;
+    height: 18px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.1);
     transition: background-color 0.2s ease;
 }
 .qi-switch::after {
     content: "";
     position: absolute;
     left: 3px; top: 3px;
-    width: 14px; height: 14px;
+    width: 12px; height: 12px;
     border-radius: 50%;
-    background: #8d9bc4;
-    transition: transform 0.22s var(--rm-ease), background-color 0.2s ease;
+    background: var(--cm-text-mute);
+    transition: transform 0.22s var(--cm-ease), background-color 0.2s ease;
 }
-.qi-check input:checked ~ .qi-switch { background: var(--rm-blue); }
-.qi-check input:checked ~ .qi-switch::after { transform: translateX(16px); background: #ffffff; }
-.qi-check input:focus-visible ~ .qi-switch { box-shadow: 0 0 0 2px #7fa0ff; }
+.qi-check input:checked ~ .qi-switch { background: var(--cm-accent-deep); }
+.qi-check input:checked ~ .qi-switch::after { transform: translateX(16px); background: var(--cm-text); }
+.qi-check input:focus-visible ~ .qi-switch { box-shadow: 0 0 0 2px var(--cm-line-hot); }
 
 /* color */
 .qi-color {
     display: flex;
     align-items: center;
     gap: 10px;
-    height: 44px;
+    height: 42px;
     padding: 0 8px;
     border-radius: 9px;
-    border: 1px solid var(--rm-line-dim);
-    background: var(--qi-row);
+    border: 1px solid var(--cm-line);
+    background: var(--cm-row);
 }
-.qi-color input { width: 56px; height: 30px; border: none; background: none; cursor: pointer; }
+.qi-color input { width: 52px; height: 28px; border: none; background: none; cursor: pointer; }
 .qi-color input::-webkit-color-swatch-wrapper { padding: 0; }
-.qi-color input::-webkit-color-swatch { border: 1px solid var(--rm-line); border-radius: 6px; }
-.qi-color b { font-family: 'Oxanium', monospace; font-size: 13px; color: var(--rm-text-dim); text-transform: uppercase; }
+.qi-color input::-webkit-color-swatch { border: 1px solid var(--cm-line-mid); border-radius: 6px; }
+.qi-color b { font-family: 'Oxanium', monospace; font-size: 12.5px; color: var(--cm-text-dim); text-transform: uppercase; }
 
 /* plain text rows (unknown type) */
 .qi-note {
     margin-bottom: 12px;
     padding: 10px 12px;
     border-radius: 9px;
-    border: 1px solid var(--rm-line);
-    border-left: 3px solid var(--rm-blue-hi);
-    background: #0b1a44;
-    font-size: 14px;
+    border: 1px solid var(--cm-line);
+    border-left: 2px solid var(--cm-accent);
+    background: var(--cm-row);
+    font-size: 13.5px;
     font-weight: 600;
     line-height: 1.45;
-    color: #e1e8ff;
-    animation: qiFieldIn 0.35s var(--rm-ease) backwards;
+    color: #d3d8e3;
+    animation: qiFieldIn 0.35s var(--cm-ease) backwards;
 }
 
 /* validation */
-.qi-invalid .qi-input { border-color: var(--qi-bad); }
-.qi-invalid .qi-label { color: var(--qi-bad); }
+.qi-invalid .qi-input { border-color: var(--cm-bad); }
+.qi-invalid .qi-label { color: var(--cm-bad); }
 .qi-shake { animation: qiShake 0.3s ease; }
 @keyframes qiShake {
     20% { transform: translateX(-5px); }
@@ -276,47 +283,47 @@ body.qi-closing #panel { animation: qiOut 0.2s ease-in forwards; pointer-events:
     padding: 6px 14px 12px;
 }
 .qi-btn {
-    height: 44px;
+    height: 42px;
     border-radius: 9px;
     font-family: 'Oxanium', 'Cairo', sans-serif;
-    font-size: 15px;
+    font-size: 14.5px;
     font-weight: 700;
     letter-spacing: 0.4px;
     cursor: pointer;
     outline: none;
-    transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.15s var(--rm-ease);
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.15s var(--cm-ease);
 }
 .qi-btn:active { transform: scale(0.97); }
 .qi-btn-main {
     flex: 1 1 auto;
-    color: #ffffff;
-    background: var(--rm-blue);
-    border: 1px solid #5b84ff;
+    color: var(--cm-text);
+    background: var(--cm-row-hot);
+    border: 1px solid var(--cm-line-hot);
 }
-.qi-btn-main:hover, .qi-btn-main:focus-visible { background: #2458ea; border-color: #9fb8ff; }
+.qi-btn-main:hover, .qi-btn-main:focus-visible { background: rgba(138, 162, 214, 0.26); }
 .qi-btn-ghost {
-    flex: 0 0 96px;
-    color: var(--rm-text-dim);
-    background: var(--qi-row);
-    border: 1px solid var(--rm-line-dim);
+    flex: 0 0 92px;
+    color: var(--cm-text-dim);
+    background: var(--cm-row);
+    border: 1px solid var(--cm-line);
 }
-.qi-btn-ghost:hover, .qi-btn-ghost:focus-visible { color: #ffffff; border-color: var(--rm-line); }
+.qi-btn-ghost:hover, .qi-btn-ghost:focus-visible { color: var(--cm-text); background: var(--cm-row-hover); }
 .qi-flash { animation: qiFlash 0.3s ease-out; }
-@keyframes qiFlash { 0% { background-color: #6f95ff; } 100% { background-color: var(--rm-blue); } }
+@keyframes qiFlash { 0% { background-color: rgba(138, 162, 214, 0.45); } 100% { background-color: var(--cm-row-hot); } }
 
 /* ---------- hints ---------- */
 #hints {
     display: flex;
     justify-content: space-between;
     padding: 9px 16px 10px;
-    border-top: 1px solid var(--rm-line-dim);
+    border-top: 1px solid var(--cm-line);
     font-family: 'Oxanium', sans-serif;
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 600;
     letter-spacing: 0.8px;
-    color: #8d9bc4;
+    color: var(--cm-text-mute);
 }
-#hints b { color: #ffffff; font-weight: 700; margin-right: 3px; }
+#hints b { color: var(--cm-text-dim); font-weight: 700; margin-right: 3px; }
 
 /* ---------- 4K ---------- */
 @media (min-width: 3000px) {

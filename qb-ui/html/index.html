@@ -10,16 +10,17 @@
         <script src="js/ui.js"></script>
     </head>
     <body>
+      <div id="root">
         <!-- Info overlay (DrawBlackUi / HideBlackUi) -->
         <div id="info">
             <div id="infoBox"><span class="ui-dot"></span><div id="infoText"></div></div>
         </div>
 
         <!-- Notifications -->
-        <div id="notes"></div>
+        <div id="notes" class="top-right"></div>
 
         <!-- DrawText -->
-        <div id="dt">
+        <div id="dt" class="pos-bottom">
             <div id="dtKey"></div>
             <div id="dtText"></div>
         </div>
@@ -31,8 +32,14 @@
             <div id="lpHint"><b>1-4</b> PRESS THE KEY IN THE ZONE · <b>ESC</b> GIVE UP</div>
         </div>
 
+      </div>
+
         <script>
-            // ---- Sound settings (change here) ----
+            // ---- Settings (change here) ----
+            UiConfig.notifyPosition = 'top-right'; // top-right | top-left | bottom-right | bottom-left | top-center
+            UiConfig.notifyMax = 5;
+
+            // ---- Sound settings ----
             UiSfx.enabled = true;
             UiSfx.volume = 0.35;
             UiSfx.parts = { drawtext: true, notify: true, lockpick: true, info: true };

@@ -2,12 +2,20 @@ local lasttext = ''
 local lasticon = ''
 
 -- qb-core style calls pass a position ('left' / 'right' / 'top') where these
--- exports expect an icon; treat those as "no icon" so the default is used.
+-- exports expect an icon; that value is used as the position and the default
+-- icon is shown. A position can also be passed as the third argument.
 local positions = { left = true, right = true, top = true, bottom = true }
 
-local function sendDrawText(text, icon, defaultIcon)
-    if icon == nil or icon == '' or positions[icon] then
+local function sendDrawText(text, icon, defaultIcon, position)
+    if positions[icon] then
+        position = position or icon
+        icon = nil
+    end
+    if icon == nil or icon == '' then
         icon = defaultIcon
+    end
+    if not positions[position] then
+        position = 'bottom'
     end
     if text == nil then
         text = ''
@@ -18,6 +26,7 @@ local function sendDrawText(text, icon, defaultIcon)
         type = 'open',
         icon = icon,
         text = text,
+        position = position,
     })
 end
 
@@ -38,8 +47,8 @@ local defaults = {
 
 local DrawText
 for name, defaultIcon in pairs(defaults) do
-    local fn = function(text, icon)
-        sendDrawText(text, icon, defaultIcon)
+    local fn = function(text, icon, position)
+        sendDrawText(text, icon, defaultIcon, position)
     end
     if name == 'DrawText' then DrawText = fn end
     exports(name, fn)
@@ -117,3 +126,16 @@ exports('KeyPressed', KeyPressed)
 exports('DrawBlackUi', DrawBlackUi)
 exports('HideBlackUi', HideBlackUi)
 exports('Notify', Notify)
+
+-- Hide the whole UI while the pause menu / map is open (only sends on change).
+CreateThread(function()
+    local paused = false
+    while true do
+        local now = IsPauseMenuActive()
+        if now ~= paused then
+            paused = now
+            SendNUIMessage({ action = 'pause', state = paused })
+        end
+        Wait(400)
+    end
+end)
