@@ -1,4 +1,4 @@
---[[ server/main.lua — shared helpers used by stock.lua and auction.lua ]]
+--[[ server/main.lua — shared helpers used by stock.lua ]]
 
 QBCore = exports['qb-core']:GetCoreObject()
 VS = {}

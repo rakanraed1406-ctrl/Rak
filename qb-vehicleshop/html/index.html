@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Vehicle Auction</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- دعوة المزاد -->
+    <div id="invite" class="overlay hidden">
+        <div class="modal invite">
+            <div class="gavel">🔨</div>
+            <div class="modal-title">فيه مزاد شغال</div>
+            <div class="modal-sub">تبي تشارك في مزاد <b id="inv-label">—</b>؟</div>
+            <div class="stats">
+                <div><small>سعر البداية</small><b id="inv-start">$0</b></div>
+                <div><small>كل زيادة</small><b id="inv-inc">$0</b></div>
+            </div>
+            <div class="hint">لازم تبقى داخل النطاق. بيوصلك أيتم للمزايدة — استخدمه عشان تزيد.</div>
+            <div class="actions">
+                <button class="btn btn-ghost" data-act="inv-no">لا</button>
+                <button class="btn btn-gold" data-act="inv-yes">نعم، أشارك</button>
+            </div>
+            <div class="timer-bar"><div id="inv-bar"></div></div>
+        </div>
+    </div>
+
+    <!-- فورم الأدمن -->
+    <div id="admin" class="overlay hidden">
+        <form class="modal admin" id="admin-form" autocomplete="off">
+            <div class="modal-kicker">لوحة الأدمن</div>
+            <div class="modal-title">إنشاء مزاد سيارة</div>
+            <label>موديل السيارة (spawn code)
+                <input id="ad-model" type="text" maxlength="40" placeholder="مثال: t20" required>
+            </label>
+            <div class="row">
+                <label>سعر البداية
+                    <input id="ad-start" type="number" min="5000" step="500" value="5000" required>
+                </label>
+                <label>قيمة الزيادة
+                    <input id="ad-inc" type="number" min="100" step="100" value="1000" required>
+                </label>
+            </div>
+            <label>مكان المزاد
+                <select id="ad-loc"></select>
+            </label>
+            <div class="hint" id="ad-hint"></div>
+            <div class="error" id="ad-error"></div>
+            <div class="actions">
+                <button type="button" class="btn btn-ghost" data-act="ad-cancel">إلغاء</button>
+                <button type="submit" class="btn btn-gold">ابدأ المزاد</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- HUD المزاد (فوق يمين) -->
+    <div id="hud" class="hud hidden">
+        <div class="hud-head">
+            <span class="hud-live"><span class="dot"></span> مزاد</span>
+            <span class="hud-timer" id="hud-timer">5:00</span>
+        </div>
+        <div class="hud-car" id="hud-car">—</div>
+        <div id="hud-lobby" class="hud-lobby">
+            <div class="hud-status" id="hud-status">بانتظار المشاركين</div>
+            <div class="slots" id="hud-slots"></div>
+        </div>
+        <div id="hud-running" class="hidden">
+            <small class="hud-label">السعر الحالي</small>
+            <div class="hud-price" id="hud-price">$0</div>
+            <div class="hud-top">
+                <small>أعلى مزايد</small>
+                <b id="hud-topname">لا أحد بعد</b>
+            </div>
+            <div class="hud-sold" id="hud-sold-wrap">
+                <div class="hud-sold-text"><span id="hud-sold-label">يُباع بعد</span> <b id="hud-sold">10</b></div>
+                <div class="hud-sold-bar"><div id="hud-sold-bar"></div></div>
+            </div>
+            <div class="hud-next">الزيادة الجاية: <b id="hud-next">$0</b></div>
+        </div>
+        <div class="hud-foot" id="hud-foot"></div>
+    </div>
+
+    <!-- إشعار زيادة -->
+    <div id="bid-toast" class="bid-toast hidden"></div>
+
+    <!-- نتيجة المزاد -->
+    <div id="result" class="result hidden">
+        <div class="result-kicker">انتهى المزاد</div>
+        <div class="result-title" id="res-title">—</div>
+        <div class="result-sub" id="res-sub">—</div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

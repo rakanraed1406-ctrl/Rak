@@ -1,3 +1,5 @@
+> **مضاف: نظام مزادات السيارات للأدمن — شوف [AUCTION.md](AUCTION.md).**
+
 # qb-vehicleshop
 
 **Test Drives:**

@@ -68,7 +68,7 @@ function VSC.FormatMoney(n)
 end
 
 -- ---------------------------------------------------------------------------
--- Delivery (showroom purchase + auction win): spawn owned car, give keys
+-- Delivery (showroom purchase): spawn owned car, give keys
 -- ---------------------------------------------------------------------------
 
 local function setFuel(veh)
