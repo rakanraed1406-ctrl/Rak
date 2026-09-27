@@ -167,6 +167,11 @@ local function clientCreateDispatchCall(dept, data)
 end
 
 exports('CreateDispatchCall', clientCreateDispatchCall)
+-- Event version for other CLIENT scripts (no folder name needed):
+--   TriggerEvent('mdt:client:CreateDispatchCall', { code = '10-90', title = 'Store Robbery', priority = 'high' })
+AddEventHandler('mdt:client:CreateDispatchCall', function(data, dept)
+    clientCreateDispatchCall(dept or 'police', data)
+end)
 if DCfg.Sk1HubCompat then
     AddEventHandler('__cfx_export_sk1-hub_CreateDispatchCall', function(setCB) setCB(clientCreateDispatchCall) end)
 end

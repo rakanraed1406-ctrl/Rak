@@ -497,6 +497,12 @@ end
 exports('CreateDispatchCall', exportCreate)
 exports('GetActiveCalls', function() return sortedActive() end)
 
+-- Same thing as an event, so other SERVER scripts don't need to know this
+-- resource's folder name:  TriggerEvent('mdt:server:CreateDispatchCall', data)
+AddEventHandler('mdt:server:CreateDispatchCall', function(data, dept)
+    exportCreate(dept or 'police', data)
+end)
+
 if DCfg.Sk1HubCompat then
     AddEventHandler('__cfx_export_sk1-hub_CreateDispatchCall', function(setCB) setCB(exportCreate) end)
 end

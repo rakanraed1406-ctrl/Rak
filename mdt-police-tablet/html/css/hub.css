@@ -361,6 +361,14 @@ kbd {
     box-shadow: 0 14px 34px rgba(0,0,0,0.55); animation: bannerIn .35s var(--ease-out);
 }
 @keyframes bannerIn { from { transform: translateY(-14px); opacity: 0; } to { transform: none; opacity: 1; } }
+.device-banner { position: relative; overflow: hidden; }
+.device-banner::after { content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: currentColor; opacity: .5; transform-origin: left; animation: hudProgress var(--banner-time, 15000ms) linear forwards; }
+.device-banner.pri-high { color: var(--pri-high); }
+.device-banner.pri-medium { color: var(--pri-medium); }
+.device-banner.pri-low { color: var(--pri-low); }
+.device-banner-main, .device-banner-actions { color: var(--ink); }
+.device-banner.leaving { animation: bannerOut .32s ease forwards; }
+@keyframes bannerOut { to { transform: translateY(-12px); opacity: 0; } }
 .device-banner.pri-high { border-left-color: var(--pri-high); box-shadow: 0 14px 34px rgba(0,0,0,0.55), 0 0 24px -6px var(--pri-high); }
 .device-banner.pri-medium { border-left-color: var(--pri-medium); }
 .device-banner.pri-low { border-left-color: var(--pri-low); }
@@ -383,18 +391,27 @@ kbd {
 .hud-dispatch.pos-bottom-left { bottom: 260px; left: 22px; flex-direction: column-reverse; }
 
 .hud-card {
+    --slide: 40px;
     position: relative; overflow: hidden; display: flex; border-radius: 14px; color: var(--ink);
     background: linear-gradient(160deg, rgba(24,28,37,0.96), rgba(10,12,16,0.97));
     border: 1px solid rgba(255,255,255,0.09); box-shadow: 0 16px 36px rgba(0,0,0,0.55);
-    animation: hudIn .4s var(--ease-out);
+    transition: opacity .3s ease, transform .3s var(--ease-out);
 }
-.hud-card:not(.top) { opacity: .82; transform: scale(.97); }
-@keyframes hudIn { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+.hud-dispatch.pos-top-left .hud-card, .hud-dispatch.pos-bottom-left .hud-card { --slide: -40px; }
+.hud-dispatch.pos-top-center .hud-card { --slide: 0px; }
+.hud-card.entering { animation: hudIn .45s var(--ease-out) both; }
+.hud-card.pri-high.entering { animation: hudIn .45s var(--ease-out) both, hudFlash .7s ease .1s 2; }
+.hud-card.leaving { animation: hudOut .38s ease forwards; pointer-events: none; }
+.hud-card:not(.top):not(.leaving) { opacity: .82; transform: scale(.97); }
+.hud-card:not(.top) .hud-card-desc, .hud-card:not(.top) .hud-card-tags, .hud-card:not(.top) .hud-card-keys { display: none; }
+@keyframes hudIn { from { transform: translateX(var(--slide)) translateY(-8px) scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes hudOut { to { transform: translateX(var(--slide)) scale(.94); opacity: 0; } }
+@keyframes hudFlash { 50% { background: linear-gradient(160deg, rgba(120,20,24,0.97), rgba(40,10,12,0.97)); } }
 .hud-card-stripe { width: 5px; flex-shrink: 0; }
 .hud-card.pri-high .hud-card-stripe { background: var(--pri-high); box-shadow: 0 0 14px var(--pri-high); }
 .hud-card.pri-medium .hud-card-stripe { background: var(--pri-medium); }
 .hud-card.pri-low .hud-card-stripe { background: var(--pri-low); }
-.hud-card.pri-high.top { border-color: rgba(239,68,68,0.55); animation: hudIn .4s var(--ease-out), hudPulse 1.1s ease-in-out .4s infinite alternate; }
+.hud-card.pri-high.top:not(.entering):not(.leaving) { border-color: rgba(239,68,68,0.55); animation: hudPulse 1.1s ease-in-out infinite alternate; }
 @keyframes hudPulse { from { box-shadow: 0 16px 36px rgba(0,0,0,0.55); } to { box-shadow: 0 16px 36px rgba(0,0,0,0.55), 0 0 26px -4px rgba(239,68,68,0.75); } }
 .hud-card-body { flex: 1; padding: 10px 12px 12px; min-width: 0; }
 .hud-card-head { display: flex; align-items: center; gap: 7px; }

@@ -43,18 +43,43 @@
 - `Config.Dispatch` — الأوامر، شرط الأيتم/الدوام للإشعارات، مدة الإشعار، الأزرار، **`CodePriority`** (تحدد لون كل كود)، الأدوار، الأصوات المخصصة.
 - `Config.Hub` — AutoClockIn، قنوات الشات، البلبات.
 
-## للمطورين
+## ربط سكربت ثاني (مثال: سكربت سرقة)
+أي طريقة من هذي تطلع إشعار للشرطة (اللي على الدوام ومعهم التابلت):
+
+**من الكلاينت** (داخل سكربت السرقة وقت ما يبدأ اللاعب يسرق — الإحداثيات والشارع تنحط تلقائي من مكان اللاعب):
 ```lua
--- سيرفر
-exports['mdt-police-tablet']:CreateDispatchCall('police', {
-    code = '10-90', title = 'Store Robbery', priority = 'high', -- low / medium / high (أو HIGH/NORMAL/LOW أو 1/2/3)
-    description = 'Silent alarm', street = 'Innocence Blvd',
-    coords = vector3(x, y, z),
-    tags = { { icon = 'fa-gun', label = 'Armed', isWeapon = true } }
+TriggerEvent('mdt:client:CreateDispatchCall', {
+    code = '10-90',
+    title = 'Store Robbery',
+    priority = 'high',              -- low (أزرق) / medium (أصفر) / high (أحمر)
+    description = 'Silent alarm triggered at the store',
+    tags = { { icon = 'fa-gun', label = 'Armed suspect', isWeapon = true } }
 })
--- نفس الشي من الكلاينت، و exports['sk1-hub']:CreateDispatchCall يشتغل كمان
 ```
-(غيّر `mdt-police-tablet` لاسم مجلد السكربت عندك.)
+
+**من السيرفر:**
+```lua
+TriggerEvent('mdt:server:CreateDispatchCall', {
+    code = '10-90', title = 'Bank Robbery', priority = 'high',
+    street = 'Fleeca — Legion Square',
+    coords = vector3(147.0, -1045.0, 29.3),
+    description = 'Vault alarm'
+})
+```
+
+**أو بالإكسبورت** (نفس الشي، سيرفر أو كلاينت):
+```lua
+exports['mdt-police-tablet']:CreateDispatchCall('police', { code = '10-90', title = 'Store Robbery', priority = 'high' })
+exports['sk1-hub']:CreateDispatchCall('police', { ... }) -- السكربتات القديمة تشتغل بدون تعديل
+```
+- الأولوية تقبل كمان `HIGH/NORMAL/LOW` أو `1/2/3`. ولو الكود موجود بـ `Config.Dispatch.CodePriority` هو اللي يحدد اللون.
+- بلاغات الكلاينت فيها حد: بلاغ واحد كل 3 ثواني لكل لاعب (ضد السبام).
+- سكربتات تستخدم `ps-dispatch` / `cd_dispatch` / `qb-dispatch` events تشتغل تلقائي.
+
+## مدة الإشعار
+الإشعار **ما يبقى طول الوقت**: يدخل بأنيميشن، يبقى، ويطلع بأنيميشن لحاله:
+سهل 🔵 10 ثواني · متوسط 🟡 15 ثانية · صعب 🔴 20 ثانية — تتغير من `Config.Dispatch.ToastDuration`.
+الأحمر يومض أول ما يدخل. تقدر تسكّره قبل بـ `DELETE` أو ترد بـ `G`.
 
 ## هيكلة الملفات
 - `server/hub.lua` — الروستر، الدوام، الكول ساين، الحالة، البانيك، الشات.

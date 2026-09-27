@@ -17,7 +17,7 @@ const PRIORITY_META = {
 const PRIORITY_ORDER = ['high', 'medium', 'low'];
 
 const mdtCfg = {
-    toastDuration: { low: 8000, medium: 11000, high: 16000 },
+    toastDuration: { low: 10000, medium: 15000, high: 20000 },
     sounds: { low: '', medium: '', high: '' },
     defaultVolume: 0.7,
     respondKey: 'G',
@@ -185,65 +185,90 @@ function reportTopToast() {
     nuiPost('toastState', top ? { callId: top.call.id, coords: top.call.coords || null } : {});
 }
 
-function renderHud() {
-    const hud = document.getElementById('hud-dispatch');
-    if (!hud) return;
-    hud.innerHTML = hudCards.map((c, i) => {
-        const call = c.call;
-        const meta = PRIORITY_META[call.priority] || PRIORITY_META.medium;
-        const duration = c.duration;
-        const isTop = i === 0;
-        return `
-            <div class="hud-card pri-${call.priority}${isTop ? ' top' : ''}" data-hud-id="${escapeHtml(call.id)}">
-                <div class="hud-card-stripe"></div>
-                <div class="hud-card-body">
-                    <div class="hud-card-head">
-                        <span class="pri-badge pri-${call.priority}">${c.kind === 'assigned' ? 'ASSIGNED · ' : ''}${meta.label}</span>
-                        <span class="hud-card-code">${escapeHtml(call.code)}</span>
-                        <span class="hud-card-time">${hudCards.length > 1 ? `${i + 1}/${hudCards.length}` : 'now'}</span>
-                    </div>
-                    <div class="hud-card-title">${escapeHtml(call.title)}</div>
-                    <div class="hud-card-street"><i class="fa-solid fa-location-dot"></i> ${escapeHtml(call.street)}</div>
-                    ${isTop ? `<div class="hud-card-desc">${escapeHtml(call.description)}</div>
-                    <div class="hud-card-tags">${callTagsHtml(call, 4)}</div>
-                    <div class="hud-card-keys">
-                        <span><kbd>${escapeHtml(mdtCfg.respondKey || 'G')}</kbd> Respond</span>
-                        <span><kbd>${escapeHtml(mdtCfg.dismissKey || 'DEL')}</kbd> Dismiss</span>
-                    </div>` : ''}
-                </div>
-                <div class="hud-card-progress"><div style="animation-duration:${duration}ms; animation-delay:-${Math.max(0, Date.now() - c.start)}ms"></div></div>
+// Cards are built once and kept in the DOM (no re-render), so the slide-in
+// animation plays only for the new card and the progress bar never restarts.
+function hudCardEl(c) {
+    const call = c.call;
+    const meta = PRIORITY_META[call.priority] || PRIORITY_META.medium;
+    const el = document.createElement('div');
+    el.className = `hud-card pri-${call.priority} entering`;
+    el.setAttribute('data-hud-id', call.id);
+    el.innerHTML = `
+        <div class="hud-card-stripe"></div>
+        <div class="hud-card-body">
+            <div class="hud-card-head">
+                <span class="pri-badge pri-${call.priority}">${c.kind === 'assigned' ? 'ASSIGNED · ' : ''}${meta.label}</span>
+                <span class="hud-card-code">${escapeHtml(call.code)}</span>
+                <span class="hud-card-time"></span>
             </div>
-        `;
-    }).join('');
+            <div class="hud-card-title">${escapeHtml(call.title)}</div>
+            <div class="hud-card-street"><i class="fa-solid fa-location-dot"></i> ${escapeHtml(call.street)}</div>
+            <div class="hud-card-desc">${escapeHtml(call.description)}</div>
+            <div class="hud-card-tags">${callTagsHtml(call, 4)}</div>
+            <div class="hud-card-keys">
+                <span><kbd>${escapeHtml(mdtCfg.respondKey || 'G')}</kbd> Respond</span>
+                <span><kbd>${escapeHtml(mdtCfg.dismissKey || 'DEL')}</kbd> Dismiss</span>
+            </div>
+        </div>
+        <div class="hud-card-progress"><div style="animation-duration:${c.duration}ms"></div></div>
+    `;
+    el.addEventListener('animationend', (e) => { if (e.animationName === 'hudIn') el.classList.remove('entering'); });
+    return el;
+}
+
+// Updates "top" card + the 1/3 counters without touching the rest.
+function renderHud() {
+    hudCards.forEach((c, i) => {
+        if (!c.el) return;
+        c.el.classList.toggle('top', i === 0);
+        const t = c.el.querySelector('.hud-card-time');
+        if (t) t.textContent = hudCards.length > 1 ? `${i + 1}/${hudCards.length}` : 'now';
+    });
+}
+
+function hudCardLeave(card) {
+    clearTimeout(card.timer);
+    const el = card.el;
+    if (!el) return;
+    el.classList.remove('entering', 'top');
+    el.classList.add('leaving');
+    setTimeout(() => el.remove(), 380);
 }
 
 function removeHudCard(callId) {
     const idx = hudCards.findIndex(c => c.call.id === callId);
     if (idx < 0) return;
-    clearTimeout(hudCards[idx].timer);
-    hudCards.splice(idx, 1);
+    const [card] = hudCards.splice(idx, 1);
+    hudCardLeave(card);
     renderHud();
     reportTopToast();
 }
 
 function pushHudCard(call, kind) {
-    removeHudCard(call.id);
-    const duration = Number((mdtCfg.toastDuration || {})[call.priority]) || 10000;
+    const hud = document.getElementById('hud-dispatch');
+    if (!hud) return;
+    const existing = hudCards.findIndex(c => c.call.id === call.id);
+    if (existing >= 0) {
+        const [old] = hudCards.splice(existing, 1);
+        clearTimeout(old.timer);
+        if (old.el) old.el.remove();
+    }
+    // Each priority stays for its own time (Config.Dispatch.ToastDuration):
+    // low 10s · medium 15s · high 20s — then slides out on its own.
+    const duration = Number((mdtCfg.toastDuration || {})[call.priority]) || 15000;
     const card = { call, kind, duration, start: Date.now() };
+    card.el = hudCardEl(card);
     card.timer = setTimeout(() => removeHudCard(call.id), duration);
     hudCards.unshift(card);
-    while (hudCards.length > HUD_MAX) {
-        const old = hudCards.pop();
-        clearTimeout(old.timer);
-    }
+    hud.prepend(card.el);
+    while (hudCards.length > HUD_MAX) hudCardLeave(hudCards.pop());
     renderHud();
     reportTopToast();
 }
 
 function clearHud() {
-    hudCards.forEach(c => clearTimeout(c.timer));
+    hudCards.forEach(c => { clearTimeout(c.timer); if (c.el) c.el.remove(); });
     hudCards.length = 0;
-    renderHud();
     reportTopToast();
 }
 
@@ -280,12 +305,18 @@ function pushBanner(call, kind) {
         const a = act.getAttribute('data-banner-act');
         if (a === 'respond') dspRespond(call.id);
         if (a === 'view') dspOpenCall(call.id);
-        el.remove();
+        leave();
     });
+    const leave = () => {
+        if (el.classList.contains('leaving')) return;
+        el.classList.add('leaving');
+        setTimeout(() => el.remove(), 330);
+    };
     stack.prepend(el);
     while (stack.children.length > 2) stack.lastElementChild.remove();
-    const duration = Number((mdtCfg.toastDuration || {})[call.priority]) || 10000;
-    setTimeout(() => el.remove(), Math.min(duration, 12000));
+    const duration = Number((mdtCfg.toastDuration || {})[call.priority]) || 15000;
+    el.style.setProperty('--banner-time', duration + 'ms');
+    setTimeout(leave, duration);
 }
 
 // ---------------------------------------------------------------------------
