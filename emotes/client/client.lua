@@ -1,4 +1,4 @@
-local menuState = false
+menuState = false -- global: config.lua reads it (isMenuOpened, weapon wheel block)
 local jsLoaded = false
 local shortcuts = {}
 
@@ -63,8 +63,17 @@ RegisterNUICallback("getShortcuts", function(data, cb)
     cb("ok")
 end)
 
+-- right click on a tile = invite the closest player to a shared emote
 RegisterNUICallback("sendAnimationInvite", function(data, cb)
     cb("ok")
+    local a = data and data.animation
+    if not a or not a.id then return end
+    for _, anim in ipairs(Config.AllAnimations or {}) do
+        if anim.id == a.id then
+            if anim.sender then return SendSharedInvite(anim) end
+            return Notify("Right click is for shared emotes (Shared tab)", "error")
+        end
+    end
 end)
 
 RegisterNUICallback("animPos", function(data, cb)
@@ -161,6 +170,16 @@ CreateThread(function()
         end
     end
 
+    -- give duplicate ids a unique name (the lists contain some twice)
+    local seen = {}
+    for _, a in ipairs(Config.AllAnimations) do
+        if a.id then
+            local base, n = a.id, 1
+            while seen[a.id] do n = n + 1; a.id = base .. "_" .. n end
+            seen[a.id] = true
+        end
+    end
+
     SendNUIMessage({
         action = "load",
         animations = Config.AllAnimations,
@@ -210,10 +229,6 @@ RegisterCommand("fixnui", function()
     end
 end, false)
 
-RegisterCommand("emotemenu", function()
-    openMenu()
-end, false)
-
 RegisterCommand("e", function(source, args)
     if not args or not args[1] then
         openMenu()
@@ -227,4 +242,4 @@ RegisterCommand("e", function(source, args)
     end
 end, false)
 
-RegisterKeyMapping("emotemenu", "Open Emote Menu", "keyboard", "F4")
+-- menu key: config.lua (Config.OpenKey)

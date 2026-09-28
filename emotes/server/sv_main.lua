@@ -1,18 +1,40 @@
 -- Server-side event handlers for emotes resource
 
-RegisterNetEvent("cylex_animmenuv2:server:sendAnimationInvite", function(targetId, animData)
+local invites = {} -- [target] = { [sender] = animId }
+
+local function near(a, b, maxDist)
+    local pa, pb = GetPlayerPed(a), GetPlayerPed(b)
+    if not pa or pa == 0 or not pb or pb == 0 then return false end
+    return #(GetEntityCoords(pa) - GetEntityCoords(pb)) <= maxDist
+end
+
+-- Shared emote invite: remembered so only a real invite can be accepted.
+RegisterNetEvent("cylex_animmenuv2:server:sendAnimationInvite", function(targetId, animId)
     local src = source
-    if targetId and targetId > 0 then
-        TriggerClientEvent("cylex_animmenuv2:client:receiveAnimationInvite", targetId, src, animData)
-    end
+    targetId = tonumber(targetId)
+    if not targetId or targetId == src or type(animId) ~= "string" then return end
+    if not GetPlayerName(targetId) or not near(src, targetId, 5.0) then return end
+    invites[targetId] = invites[targetId] or {}
+    invites[targetId][src] = animId
+    TriggerClientEvent("cylex_animmenuv2:client:receiveAnimationInvite", targetId, src, animId)
+    SetTimeout(12000, function()
+        if invites[targetId] and invites[targetId][src] == animId then invites[targetId][src] = nil end
+    end)
 end)
 
-RegisterNetEvent("cylex_animmenuv2:server:acceptAnimationInvite", function(targetId, animData)
+RegisterNetEvent("cylex_animmenuv2:server:acceptAnimationInvite", function(senderId, animId)
     local src = source
-    if targetId and targetId > 0 then
-        TriggerClientEvent("cylex_animmenuv2:client:startSyncedAnimation", targetId, src, animData)
-        TriggerClientEvent("cylex_animmenuv2:client:startSyncedAnimation", src, targetId, animData)
-    end
+    senderId = tonumber(senderId)
+    local pending = invites[src] and invites[src][senderId]
+    if not pending or pending ~= animId then return end
+    invites[src][senderId] = nil
+    if not near(src, senderId, 5.0) then return end
+    TriggerClientEvent("cylex_animmenuv2:client:startSyncedAnimation", senderId, src, animId, "sender")
+    TriggerClientEvent("cylex_animmenuv2:client:startSyncedAnimation", src, senderId, animId, "receiver")
+end)
+
+AddEventHandler("playerDropped", function()
+    invites[source] = nil
 end)
 
 RegisterNetEvent("cylex_animmenuv2:server:animpos:syncAnimpos", function(targetId, x, y, z)

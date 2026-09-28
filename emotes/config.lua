@@ -313,61 +313,9 @@ RegisterNetEvent('emotes:openMenu', function()
 
     ------------------------------------------------------
 
-    local function playEmote(emote)
-        if emote then
-            local emote = emote:lower()
-        
-            if emote == 'c' or emote == 'cancel' then
-                return onEmoteCancel()
-            end
-        
-            for _, animation in pairs(Config.AllAnimations) do
-                if animation.id == emote and animation.category ~= 'walks' and animation.category ~= 'expressions' then
-                return onAnimTriggered(animation)
-                end
-            end
-        end
-        print('Animation not found: ' .. emote)
-        return false
-    end
-    
-    RegisterCommand('e', function(_, args)
-        return playEmote(args[1])
-    end)
-
-    TriggerEvent('chat:addSuggestion', '/e', 'Play an emote.', {
-        { name = "emote", help = "Emote name" }
-    })
-
-    exports('playEmote', function(emote)
-        return playEmote(emote)
-    end)
-
-    ------------------------------------------------------
-
-    local function playSequence(sequenceId)
-        sequenceId = tonumber(sequenceId)
-        for _, sequence in pairs(sequences) do
-            if sequence.id == sequenceId then
-               return onSequence(sequence)
-            end
-        end
-    
-        print('Sequence not found: ' .. emote)
-        return false
-    end
-    
-    RegisterCommand('sequence', function(_, args)
-        return playSequence(args[1])
-    end)
-
-    TriggerEvent('chat:addSuggestion', '/sequence', 'Play sequence with id.', {
-        { name = "id", help = "Sequence ID" }
-    })
-
-    exports('playSequence', function(emote)
-        return playSequence(emote)
-    end)
+    -- /e and the playEmote export live in client/client.lua + client/functions.lua
+    -- (they were registered twice). /sequence was removed: it called code that
+    -- doesn't exist and only threw errors.
 
     ------------------------------------------------------
 
@@ -466,36 +414,8 @@ CreateThread(function()
     DisableIdleCamera(idleCamDisabled)
 end)
 
-CreateThread(function()
-    local shiftPressed = false
-    RegisterKeyMapping('+emote_shortcuts', 'Emote Shortcut Bind', 'keyboard', 'LSHIFT')
-    RegisterCommand('+emote_shortcuts', function()
-        shiftPressed = true
-    end)
-    RegisterCommand('-emote_shortcuts', function()
-        shiftPressed = false
-    end)
-
-    for i = 1, 7 do
-        RegisterCommand('emote_shortcuts_' .. i, function(source, args)
-            if not shiftPressed then
-                return -- quick slots require LSHIFT to be held
-            end
-
-            local shortcut = shortcuts[i]
-            if shortcut and next(shortcut) and shortcut.id then
-                for _, animation in pairs(Config.AllAnimations) do
-                    if animation.id == shortcuts[i].id then
-                        return onAnimTriggered(animation)
-                    end
-                end
-            end
-        end)
-
-        RegisterKeyMapping('emote_shortcuts_' .. i, 'Emote Shortcut ' .. i, 'keyboard',  'NUMPAD'..i)
-    end
-end)
-
+-- Quick slots (LSHIFT + 1..7) live in client/client.lua. This second copy read a
+-- variable it can't see and errored, so it was removed.
 
 -- With this event you can do what to do when the emote is canceled.
 -- RegisterNetEvent('cylex_animmenuv2:client:onEmoteCancel', function(lastEmote)
