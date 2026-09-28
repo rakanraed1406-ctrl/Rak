@@ -73,6 +73,10 @@ else
 end
 
 RegisterNetEvent('qb-bodycam:startWatchingDashcam',function(netId)
+    if not (PlyInCam or PlyInCarCam) then
+        local coord = GetEntityCoords(cache.ped)
+        goBackCoords = vector4(coord.x, coord.y, coord.z - 1, GetEntityHeading(cache.ped))
+    end
     local targetCoords = lib.callback.await('qb-bodycam:servercb:getCarCoords', false, netId)
     if not targetCoords then
         NotifyPlayer('Car not found!', 'error', 2500) 
@@ -153,6 +157,11 @@ end)
 RegisterNetEvent('qb-bodycam:startWatching',function(targetId)
     local ownId = GetPlayerServerId(PlayerId())
     if targetId == ownId then return TriggerEvent('qb-bodycam:startSelfWatching',targetId) end
+    -- saved here too because the MDT opens feeds without going through this script's menu
+    if not (PlyInCam or PlyInCarCam) then
+        local coord = GetEntityCoords(cache.ped)
+        goBackCoords = vector4(coord.x, coord.y, coord.z - 1, GetEntityHeading(cache.ped))
+    end
     local targetCoords = lib.callback.await('qb-bodycam:servercb:getPedCoords', false, targetId)
     if not targetCoords then return NotifyPlayer('Player not found!', 'error', 2500) end
     targetPedId = targetId
@@ -951,8 +960,10 @@ function QuitBodyCam()
     SetEntityInvincible(cache.ped, false) -- Set invincible
     NetworkSetEntityInvisibleToNetwork(cache.ped, false) -- Set invisibility
     FreezeEntityPosition(cache.ped, false)
-    SetEntityCoords(cache.ped, goBackCoords.x, goBackCoords.y, goBackCoords.z)
-    SetEntityHeading(cache.ped, goBackCoords.w)
+    if goBackCoords then
+        SetEntityCoords(cache.ped, goBackCoords.x, goBackCoords.y, goBackCoords.z)
+        SetEntityHeading(cache.ped, goBackCoords.w)
+    end
     RenderScriptCams(false, false, 0, 1, 0)
     SetTimecycleModifier('default')
     SetTimecycleModifierStrength(1.0)
@@ -978,8 +989,10 @@ function ForceQuitBodyCam()
     SetEntityInvincible(cache.ped, false) -- Set invincible
     NetworkSetEntityInvisibleToNetwork(cache.ped, false) -- Set invisibility
     FreezeEntityPosition(cache.ped, false)
-    SetEntityCoords(cache.ped, goBackCoords.x, goBackCoords.y, goBackCoords.z)
-    SetEntityHeading(cache.ped, goBackCoords.w)
+    if goBackCoords then
+        SetEntityCoords(cache.ped, goBackCoords.x, goBackCoords.y, goBackCoords.z)
+        SetEntityHeading(cache.ped, goBackCoords.w)
+    end
     RenderScriptCams(false, false, 0, 1, 0)
     SetTimecycleModifier('default')
     SetTimecycleModifierStrength(1.0)
