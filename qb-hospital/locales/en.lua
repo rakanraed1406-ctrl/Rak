@@ -125,10 +125,10 @@ local Translations = {
     death_screen = {
         bleeding = 'BLEEDING OUT',
         dead = 'NO PULSE',
-        request_help = 'اضغط لطلب المساعدة',
-        help_requested = 'تم إبلاغ المسعفين',
-        respawn_wait = 'التحلل متاح بعد انتهاء الوقت',
-        respawn_hold = 'اضغط مطولاً للتحلل مقابل %{cost}$',
+        request_help = 'PRESS TO REQUEST HELP',
+        help_requested = 'EMS HAS BEEN NOTIFIED',
+        respawn_wait = 'You can respawn when the timer runs out',
+        respawn_hold = 'HOLD TO RESPAWN ($%{cost})',
     },
     logs = {
         death_log_title = "%{playername} (%{playerid}) is dead",
