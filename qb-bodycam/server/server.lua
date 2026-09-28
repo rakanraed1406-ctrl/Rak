@@ -112,6 +112,8 @@ end)
 
 RegisterNetEvent('qb-bodycam:server:ReqDecoyPed', function(cid, pedCoords)
     if not Config.Dependency.UseAppearance then return end
+    -- older clients sent nil here when the feed was opened from the MDT
+    if not pedCoords or not pedCoords.x then return end
     local src = source
     local result
     local function handleDecoyPed(model, skin, pedCoords, src)
