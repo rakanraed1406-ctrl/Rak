@@ -20,7 +20,7 @@ Config.DeathScreen = {
     Timecycle = 'rply_saturation_neg',    -- فلتر الأبيض والأسود
     TimecycleStrength = 1.0,              -- قوته من 0.0 إلى 1.0
     ExtraTimecycle = 'rply_contrast',     -- فلتر إضافي يزيد التباين عشان الأبيض والأسود ما يطلع باهت (حطه false تلغيه)
-    ExtraTimecycleStrength = 0.6,
+    ExtraTimecycleStrength = 0.35,
 
     CameraShake = 0.3,                    -- اهتزاز خفيف للكاميرا وقت الموت (0 يلغيه)
 

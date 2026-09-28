@@ -618,24 +618,30 @@ end)
 
 
 function EMSAlert(msg)
-    local data = exports['cd_dispatch']:GetPlayerInfo()
-    TriggerServerEvent('cd_dispatch:AddNotification', {
-        job_table = { 'ambulance' },
-        coords = data.coords,
-        title = "10-69 - Civilan Down",
-        message = "Civilan Down",
-        flash = 0,
-        unique_id = tostring(math.random(0000000, 9999999)),
-        blip = {
-            sprite = 126,
-            scale = 0.7,
-            colour = 3,
-            flashes = false,
-            text = "Civilan Down",
-            time = (5 * 60 * 1000),
-            sound = 1,
-        }
-    })
+    -- cd_dispatch is optional: without it the export errors and used to kill the death loop
+    -- (the player could get up and walk while dead)
+    if GetResourceState('cd_dispatch') == 'started' then
+        local ok, data = pcall(function() return exports['cd_dispatch']:GetPlayerInfo() end)
+        if ok and data then
+            TriggerServerEvent('cd_dispatch:AddNotification', {
+                job_table = { 'ambulance' },
+                coords = data.coords,
+                title = "10-69 - Civilan Down",
+                message = "Civilan Down",
+                flash = 0,
+                unique_id = tostring(math.random(0000000, 9999999)),
+                blip = {
+                    sprite = 126,
+                    scale = 0.7,
+                    colour = 3,
+                    flashes = false,
+                    text = "Civilan Down",
+                    time = (5 * 60 * 1000),
+                    sound = 1,
+                }
+            })
+        end
+    end
     TriggerServerEvent('hospital:server:ambulanceAlert', msg)
 end
 
