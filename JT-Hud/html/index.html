@@ -1,0 +1,1218 @@
+<!--  -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/css/all.min.css">
+    <link rel="stylesheet" href="https://kit-pro.fontawesome.com/releases/v6.5.0/css/pro.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <title>HUD</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; font-family: "Inter", sans-serif; background: transparent; }
+
+        :root {
+            --Theme-Color: #2dd0dc;
+            --background: rgba(24, 26, 30, 0.92);
+            --text-color: rgba(255,255,255,0.95);
+            --rpm-fill: #2dd0dc;
+            --rpm-normal: rgba(24,26,30,0.8);
+            --rpm-warning: #ff8c00;
+            --rpm-critical: #CE2938;
+            --primary-clock: #00D4FF;
+            --primary-glow: rgba(0,212,255,0.4);
+            --bg-deep: rgba(5,5,5,0.45);
+            --border-thin: rgba(255,255,255,0.05);
+            --text-ghost: rgba(255,255,255,0.3);
+            --wm-text: "DIS.GG/JTCFW";      /* النص (يستخدم فقط للمرجع، غيّره بالـ HTML بالأسفل أيضاً) */
+        --wm-color: #9ab8d1;          /* لون النص والفاصل */
+        --wm-font-size: 14px;         /* حجم الخط */
+        --wm-font-family: 'Poppins', 'Helvetica Neue', Arial, sans-serif;
+        --wm-letter-spacing: 5px;
+
+        --wm-bottom: 2%;              /* بعد الواتر مارك عن أسفل الشاشة */
+        --wm-glow-min: 0.55;          /* أقل شفافية أثناء النبض */
+        --wm-glow-max: 1;             /* أعلى شفافية أثناء النبض */
+        --wm-pulse-speed: 2s;       /* سرعة النبض */
+
+        --wm-float-amount: 4px;       /* مقدار الحركة لأعلى/أسفل */
+        --wm-float-speed: 3s;         /* سرعة الحركة */
+
+        --wm-underline-width: 90px;   /* عرض الفاصل تحت النص */
+        --wm-underline-height: 2px;
+        }
+        html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent; /* خلفية شفافة تناسب OBS */
+        overflow: hidden;
+    }
+
+    .watermark-wrapper {
+        position: fixed;
+        left: 50%;
+        bottom: var(--wm-bottom);
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        animation: floatMove var(--wm-float-speed) ease-in-out infinite;
+        pointer-events: none;
+        user-select: none;
+    }
+
+    .watermark-text {
+        font-family: var(--wm-font-family);
+        font-size: var(--wm-font-size);
+        font-weight: 300;
+        letter-spacing: var(--wm-letter-spacing);
+        color: var(--wm-color);
+        text-shadow:
+            0 0 4px var(--wm-color),
+            0 0 10px var(--wm-color);
+        animation: pulseGlow var(--wm-pulse-speed) ease-in-out infinite;
+        white-space: nowrap;
+    }
+
+    .watermark-underline {
+        margin-top: 8px;
+        width: var(--wm-underline-width);
+        height: var(--wm-underline-height);
+        background: var(--wm-color);
+        box-shadow:
+            0 0 6px var(--wm-color),
+            0 0 12px var(--wm-color);
+        animation: pulseGlow var(--wm-pulse-speed) ease-in-out infinite;
+    }
+
+    @keyframes pulseGlow {
+        0%, 100% { opacity: var(--wm-glow-max); }
+        50%      { opacity: var(--wm-glow-min); }
+    }
+
+    @keyframes floatMove {
+        0%, 100% { transform: translateX(-50%) translateY(0px); }
+        50%      { transform: translateX(-50%) translateY(calc(-1 * var(--wm-float-amount))); }
+    }
+
+        /* ── SCALE WRAPPER ── */
+        .ui-scale {
+            position: fixed; left: 0; top: 0;
+            width: 1920px; height: 1080px;
+            transform-origin: top left;
+            pointer-events: none;
+        }
+
+        /* ══════════════════ TOP RIGHT — CLOCK ══════════════════ */
+        #app {
+            position: absolute; top: 30px; right: 20px;
+            pointer-events: none;
+            display: flex; flex-direction: column; align-items: flex-end;
+            z-index: 1000;
+        }
+        .time-ammo-block { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+        .time-container {
+            padding: 6px 14px; position: relative;
+            display: flex; align-items: center; gap: 12px;
+            animation: apparition 1.2s cubic-bezier(0.23,1,0.32,1) forwards;
+            font-family: 'Outfit', sans-serif; user-select: none;
+        }
+        .bg-pulse {
+            position: absolute; top: 50%; right: 0;
+            transform: translateY(-50%);
+            width: 80px; height: 30px;
+            background: radial-gradient(circle at center, var(--primary-glow) 0%, transparent 80%);
+            filter: blur(25px); z-index: -1; opacity: 0.4;
+            animation: drift 10s ease-in-out infinite alternate;
+        }
+        .glass-orb {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-deep);
+            border: 0.5px solid var(--border-thin);
+            border-right: 2px solid var(--primary-clock);
+            border-radius: 2px; z-index: -1;
+            clip-path: polygon(10px 0%, 100% 0%, 100% 100%, 0% 100%, 0% 8px);
+        }
+        .content { position: relative; z-index: 1; }
+        .time-box { display: flex; align-items: center; gap: 10px; }
+        #time { font-size: 11px; font-weight: 900; color: #ececec; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; line-height: 1; }
+        .separator { width: 1px; height: 10px; background: var(--text-ghost); opacity: 0.3; }
+        #date { font-size: 9px; font-weight: 400; color: #ececec; letter-spacing: 1px; text-transform: uppercase; line-height: 1; }
+
+        /* ══════════════════ AMMO ══════════════════ */
+        #ammo-container {
+            display: none; gap: 4px; pointer-events: none;
+            animation: apparition 0.8s cubic-bezier(0.23,1,0.32,1) forwards;
+        }
+        .ammo-container {
+            display: none; align-items: center; gap: 0;
+            font-family: 'Outfit', sans-serif; font-weight: 900; color: white;
+            text-shadow: 0 0 8px rgba(0,0,0,0.7), 1px 1px 3px rgba(0,0,0,0.7);
+            transform: skewX(-15deg); z-index: 100; user-select: none;
+        }
+        .ammo-clip    { font-size: 22px; color: #fff; line-height: 1; letter-spacing: -1px; }
+        .ammo-slash   { font-size: 18px; color: #fff; opacity: 0.5; margin: 0 3px; line-height: 1; }
+        .ammo-reserve { font-size: 18px; opacity: 0.4; color: #fff; line-height: 1; letter-spacing: -0.5px; }
+        /* ══════════════════ Made By : 1iuae ══════════════════ */
+
+        /* ══════════════════ BOTTOM LEFT — TOOLBAR ══════════════════ */
+        #ui-container {
+            position: absolute; bottom: 5px; left: 28.8px;
+            display: flex; flex-direction: row; align-items: flex-end; gap: 5px;
+        }
+        .bottom-toolbar { display: flex; }
+        .toolbar-icon {
+            position: relative; width: 43.2px; height: 50.76px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: transform .2s, filter .2s; margin-right: 5px;
+        }
+        .toolbar-icon:hover { transform: scale(1.1); filter: brightness(1.2); }
+        .toolbar-icon svg.hex-bg { position: absolute; width: 100%; height: 100%; z-index: 1; overflow: visible; }
+        .toolbar-icon svg.hex-bg .hex-progress { transform-origin: 50% 50%; transform: scaleX(-1); }
+        .toolbar-icon svg.hex-bg .hex-fill     { fill: var(--hex-color,#fff); fill-opacity: 0.18; stroke: none; }
+        .toolbar-icon svg.hex-bg .hex-track    { fill: none; stroke: rgba(255,255,255,0.25); stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; }
+        .toolbar-icon svg.hex-bg .hex-progress {
+            fill: none; stroke: var(--hex-color,#fff); stroke-width: 3.0;
+            stroke-linejoin: round; stroke-linecap: round;
+            filter: drop-shadow(0 0 6px rgba(255,255,255,0.25));
+            transition: stroke-dashoffset 650ms cubic-bezier(0.4,0,0.2,1);
+        }
+        .toolbar-icon .icon {
+            position: relative; z-index: 2; color: white; font-size: 19.44px;
+            line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+            text-shadow: 0 0 5px #939394, 0 0 8px #939394;
+        }
+
+        #voice-box  { --hex-color: #22c55e; }
+        #health-box { --hex-color: #ff2d55; }
+        #armor-box  { --hex-color: #3b82f6; }
+        #hunger-box { --hex-color: #ff8a00; }
+        #thirst-box { --hex-color: #00d4ff; }
+        #stress-box { --hex-color: #dd7de0; }
+        #oxygen-box { --hex-color: #fd621a; }
+
+        /* ══════════════════ MINIMAP ══════════════════ */
+        .minimap-container { display: none !important; }
+
+        /* إطار شفاف فوق خريطة اللعبة */
+        .map-frame {
+            position: absolute;
+            left: 12px;
+            bottom: 70px;
+            width: 315px;
+            height: 198px;
+            border: 2px solid rgba(255,255,255,0.55);
+            border-radius: 6px;
+            pointer-events: none;
+            z-index: 10;
+            background: transparent;
+        }
+
+        :root {
+            --car-accent: #7be7ff;
+            --car-accent-2: #bdf5ff;
+            --car-danger: #ff5f66;
+            --car-warning: #ffb64c;
+        }
+
+        /* Street / map block - copied from Sx-HUD */
+        .street-continer {
+            position: absolute;
+            left: 0.42vw;
+            bottom: 24.8vh;
+            width: min(16.4vw, 315px);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: none;
+            pointer-events: none;
+            z-index: 70;
+        }
+
+        .coords {
+            width: 43px;
+            height: 43px;
+            transform: translateY(-2px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(158, 201, 203, 0.18);
+            border: 1px solid rgba(158, 201, 203, 0.42);
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+            box-shadow: none;
+        }
+
+        .nav-shell {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.03);
+            color: rgba(255, 255, 255, 0.96);
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+            font-size: 1.02rem;
+        }
+
+        .nav-hex.has-waypoint {
+            background: rgba(158, 201, 203, 0.30);
+            border-color: rgba(158, 201, 203, 0.56);
+        }
+
+        .nav-hex.has-waypoint .nav-shell {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .street-label {
+            flex: 1;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid rgba(158, 201, 203, 0.09);
+            border-radius: 10px;
+            box-shadow: none;
+        }
+
+        .street-texts {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .area-name {
+            color: rgba(210, 221, 230, 0.74);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.95px;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
+        .streeat-name {
+            color: rgba(255,255,255,0.95);
+            font-size: 16px;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 13vw;
+        }
+
+        .waypoint {
+            display: none;
+        }
+
+        .street-continer,
+        .street-continer *,
+        .coords,
+        .nav-shell,
+        .street-label,
+        .area-name,
+        .streeat-name {
+            text-shadow: none !important;
+            filter: none !important;
+            box-shadow: none !important;
+        }
+
+        .nav-shell,
+        .nav-shell i,
+        .nav-icon {
+            color: #ffffff !important;
+            font-size: 16px !important;
+        }
+
+        .street-label::before,
+        .street-label::after,
+        .coords::before,
+        .coords::after,
+        .nav-shell::before,
+        .nav-shell::after {
+            content: none !important;
+            display: none !important;
+        }
+
+        /* V3 cleanup from Sx-HUD: original placement/size and no black backdrops */
+        .street-continer {
+            position: absolute !important;
+            left: 0.42vw !important;
+            bottom: 24.8vh !important;
+            width: min(16.4vw, 315px) !important;
+            min-width: unset !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
+        .coords,
+        .nav-hex {
+            width: 43px !important;
+            height: 43px !important;
+            min-width: 43px !important;
+            transform: translateY(-2px) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: rgba(158, 201, 203, 0.18) !important;
+            border: 1px solid rgba(158, 201, 203, 0.42) !important;
+            border-radius: 0 !important;
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%) !important;
+            box-shadow: none !important;
+        }
+
+        .nav-shell {
+            width: 36px !important;
+            height: 36px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: rgba(255, 255, 255, 0.03) !important;
+            color: rgba(255, 255, 255, 0.96) !important;
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%) !important;
+            font-size: 1.02rem !important;
+        }
+
+        .nav-hex.has-waypoint {
+            background: rgba(158, 201, 203, 0.30) !important;
+            border-color: rgba(158, 201, 203, 0.56) !important;
+        }
+
+        .nav-hex.has-waypoint .nav-shell {
+            background: rgba(255, 255, 255, 0.05) !important;
+        }
+
+        .street-label {
+            flex: 1 !important;
+            min-height: 50px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            padding: 8px 15px !important;
+            background: transparent !important;
+            border: 0 !important;
+            border-radius: 10px !important;
+            box-shadow: none !important;
+        }
+
+        .street-texts {
+            gap: 0 !important;
+        }
+
+        .area-name {
+            color: rgba(210, 221, 230, 0.78) !important;
+            font-family: "Inter", sans-serif !important;
+            font-size: 11px !important;
+            font-weight: 800 !important;
+            letter-spacing: 1px !important;
+            text-transform: uppercase !important;
+        }
+
+        .streeat-name {
+            color: rgba(255,255,255,0.98) !important;
+            font-family: "Inter", sans-serif !important;
+            font-size: 16px !important;
+            font-weight: 800 !important;
+            max-width: 13vw !important;
+        }
+
+
+
+        #navigation {
+            display: none !important;
+        }
+
+        #navigation.is-visible {
+            display: flex !important;
+        }
+
+        /* ══════════════════ VEHICLE HUD ══════════════════ */
+        #displayRoot {
+            width: 100%; position: fixed;
+            bottom: 76.8px; left: 355.2px;
+            color: var(--text-color); font-size: 28px;
+            font-family: "Inter", sans-serif;
+            filter: drop-shadow(0px 0px 3px rgba(0,0,0,0.3));
+        }
+
+        /* Speed */
+        .speedometer {
+            position: absolute; bottom: 38.4px; left: 57.6px;
+            height: fit-content; width: fit-content; overflow: hidden;
+            display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 1.92px;
+        }
+        .speedometer > span { font-size: 13.44px; font-weight: 600; font-family: "Inter", sans-serif; }
+        #speedDisplay { font-size: 45.12px; font-weight: 600; font-family: "Inter", sans-serif; line-height: 1; }
+
+        /* Gear */
+        #gear-box { display: flex; align-items: baseline; gap: 5.76px; font-family:'Inter',sans-serif; color:white; text-shadow:0 1px 2px rgba(0,0,0,0.8); position:absolute; left:155.52px; bottom:37.8px; }
+        .gear-label { font-size: 9.6px; font-weight: 800; color: rgba(255,255,255,0.9); }
+        #gearNum    { font-size: 13.44px; font-weight: 800; color: white; }
+
+        /* Seatbelt */
+        .seatbelt {
+            position: absolute; bottom: 92.16px; left: -3.84px;
+            width: 34px; height: 34px;
+            display: flex; align-items: center; justify-content: center;
+            animation: pulse 1.25s cubic-bezier(0.215,0.61,0.355,1) infinite;
+        }
+        .seatbelt svg { width: 33px; height: 33px; }
+
+        /* RPM */
+        .RPMContainer { position: fixed; bottom: 9.71px; left: 48px; width: 180.48px; height: 59.52px; }
+        .rpmBar-item {
+            offset-path: path("M0,47.59l130.52,0c12.36,0,24.04-5.7,31.63-15.46l0,0c5.48-7.04,8.46-15.71,8.46-24.63V0.36");
+            width: 8px; height: 15px; background: var(--rpm-normal); position: absolute;
+        }
+        .rpmBar-item.filled   { background: var(--rpm-fill); }
+        .rpmBar-item.warning  { background: var(--rpm-warning); }
+        .rpmBar-item.critical { background: var(--rpm-critical); }
+
+        /* Fuel */
+        .fuel-gauge { width:26px; height:26px; position:absolute; bottom:56.16px; left:0; display:flex; align-items:center; justify-content:center; --fuel:100%; --fuel-color:#22c55e; }
+        .fuel-gauge .fuel-icon { font-size:22px; line-height:1; background:linear-gradient(to top, var(--fuel-color) var(--fuel), rgba(255,255,255,0.15) var(--fuel)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; filter:drop-shadow(0 0 6px rgba(0,0,0,0.4)); transition:background 0.9s ease; }
+
+        /* Engine */
+        .engine-gauge { width:26px; height:26px; position:absolute; left:0; bottom:10.8px; display:flex; align-items:center; justify-content:center; --engine:100%; --engine-color:#22c55e; }
+        .engine-gauge .engine-icon { font-size:22px; line-height:1; background:linear-gradient(to top, var(--engine-color) var(--engine), rgba(255,255,255,0.15) var(--engine)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; filter:drop-shadow(0 0 6px rgba(0,0,0,0.4)); transition:background 0.9s ease; }
+
+        /* Altitude */
+        #altContainer { position:fixed; bottom:15px; left:21px; display:flex; flex-direction:column; align-items:center; gap:4px; z-index:10; }
+        .alt-label  { font-family:'Inter',sans-serif; font-size:10px; font-weight:800; color:rgba(255,255,255,0.7); letter-spacing:1.5px; text-transform:uppercase; }
+        .alt-value  { font-family:'Inter',sans-serif; font-size:22px; font-weight:700; color:#fff; line-height:1; text-shadow:0 0 8px rgba(45,208,220,0.5); }
+        .altBar     { display:flex; flex-direction:column-reverse; align-items:center; gap:3px; width:10px; height:160px; }
+        .altBar-item { width:100%; flex:1; background:var(--rpm-normal); border-radius:1px; transition:background .2s ease; }
+        .altBar-item.filled   { background:var(--rpm-fill);     box-shadow:0 0 4px rgba(45,208,220,0.4); }
+        .altBar-item.warning  { background:var(--rpm-warning);  box-shadow:0 0 4px rgba(255,140,0,0.4); }
+        .altBar-item.critical { background:var(--rpm-critical); box-shadow:0 0 4px rgba(206,41,56,0.4); }
+
+        /* ══════════════════ MONEY ══════════════════ */
+        .moneybox { position:absolute; right:38.4px; top:96px; width:192px; height:108px; }
+        .MyMoney  { display:none; position:relative; font-size:x-large; color:white; text-shadow:1px 1px 2px black; text-align:center; }
+
+        /* ══════════════════ HIDE NATIVE GTA HUD ══════════════════ */
+        /* إخفاء أي عناصر HUD من قراند تظهر فوق الـ NUI */
+        /* هذا backup — الإخفاء الأساسي يصير من الـ Lua */
+
+        /* ══════════════════ KEYFRAMES ══════════════════ */
+        @keyframes apparition {
+            0%   { transform:translate(15px,-5px) scale(0.98); opacity:0; filter:blur(5px); }
+            100% { transform:translate(0,0) scale(1); opacity:1; filter:blur(0); }
+        }
+        @keyframes drift {
+            0%   { transform:translateY(-50%) translateX(20px);  opacity:0.4; }
+            100% { transform:translateY(-50%) translateX(-20px); opacity:0.8; }
+        }
+        @keyframes pulse {
+            0%,100% { transform:scale(1); }
+            50%     { transform:scale(1.05); }
+        }
+        .no-transition { transition:none !important; }
+    </style>
+</head>
+<body>
+
+
+    <div class="watermark-wrapper">
+        <div class="watermark-text">DIS.GG/JTCFW</div>
+        <div class="watermark-underline"></div>
+    </div>
+
+
+<div class="ui-scale">
+
+    <!-- ── Clock + Ammo ── -->
+    <div id="app" style="display:block;">
+        <div class="time-ammo-block">
+            <div class="time-container">
+                <div class="bg-pulse"></div>
+                <div class="glass-orb"></div>
+                <div class="content">
+                    <div class="time-box">
+                        <span id="date">JANUARY 16, 2026</span>
+                        <div class="separator"></div>
+                        <div id="time">02:12AM</div>
+                    </div>
+                </div>
+            </div>
+            <div id="ammo-container" class="ammo-container">
+                <div class="ammo-clip" id="ammo-clip">12</div>
+                <div class="ammo-slash">/</div>
+                <div class="ammo-reserve" id="ammo-reserve">88</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Toolbar + Minimap ── -->
+    <div id="ui-container">
+        <div class="minimap-container" style="display:none;">
+            <div class="minimap-square"></div>
+        </div>
+        <div class="bottom-toolbar">
+
+            <!-- Voice -->
+            <div class="toolbar-icon" id="voice-box" data-stat="voice">
+                <svg class="hex-bg" viewBox="0 0 56 64">
+                    <path class="hex-fill"     d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-track"    d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-progress" d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                </svg>
+                <i class="icon fa-solid fa-microphone-lines-slash" id="voice-icon"></i>
+            </div>
+
+            <!-- Health -->
+            <div class="toolbar-icon" id="health-box" data-stat="health">
+                <svg class="hex-bg" viewBox="0 0 56 64">
+                    <path class="hex-fill"     d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-track"    d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-progress" d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                </svg>
+                <i class="icon fa-solid fa-heart"></i>
+            </div>
+
+            <!-- Armor -->
+            <div class="toolbar-icon" id="armor-box" data-stat="armor">
+                <svg class="hex-bg" viewBox="0 0 56 64">
+                    <path class="hex-fill"     d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-track"    d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-progress" d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                </svg>
+                <i class="icon fa-solid fa-shield-halved"></i>
+            </div>
+
+            <!-- Hunger -->
+            <div class="toolbar-icon" id="hunger-box" data-stat="hunger">
+                <svg class="hex-bg" viewBox="0 0 56 64">
+                    <path class="hex-fill"     d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-track"    d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-progress" d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                </svg>
+                <i class="icon fa-solid fa-burger"></i>
+            </div>
+
+            <!-- Thirst -->
+            <div class="toolbar-icon" id="thirst-box" data-stat="thirst">
+                <svg class="hex-bg" viewBox="0 0 56 64">
+                    <path class="hex-fill"     d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-track"    d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-progress" d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                </svg>
+                <i class="icon fa-solid fa-bottle-water"></i>
+            </div>
+
+
+            <!-- Oxygen -->
+            <div class="toolbar-icon" id="oxygen-box" data-stat="oxygen">
+                <svg class="hex-bg" viewBox="0 0 56 64">
+                    <path class="hex-fill"     d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-track"    d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                    <path class="hex-progress" d="M34 7 L49 14 Q54 17 54 24 L54 40 Q54 47 49 50 L34 57 Q28 62 22 57 L7 50 Q2 47 2 40 L2 24 Q2 17 7 14 L22 7 Q28 2 34 7 Z"/>
+                </svg>
+                <i class="icon fa-solid fa-person-running" id="oxygen-icon"></i>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="street-continer" id="navigation" style="display:none;">
+        <div class="coords nav-hex">
+            <div class="nav-shell">
+                <i class="fa-regular fa-map-location-dot nav-icon"></i>
+            </div>
+        </div>
+
+        <div class="street-label">
+            <div class="street-texts">
+                <div class="area-name">PILLBOX HILL</div>
+                <div class="streeat-name">Sinner St</div>
+            </div>
+            <div class="waypoint"></div>
+        </div>
+    </div>
+
+    <!-- ── إطار الخريطة (الخريطة تظهر من اللعبة خلفه) ── -->
+    <div class="map-frame" id="map-frame" style="display:none;"></div>
+
+    <!-- ──im.iuae ── -->
+
+
+    <!-- ── Vehicle HUD ── -->
+    <div id="displayRoot" style="display:none;">
+        <div class="engine-gauge" id="engineGauge">
+            <i class="fa-solid fa-gear engine-icon"></i>
+        </div>
+        <div class="fuel-gauge" id="fuelGauge">
+            <i class="fa-solid fa-gas-pump fuel-icon"></i>
+        </div>
+        <div id="gear-box">
+            <span class="gear-label">GEAR</span>
+            <span id="gearNum">N</span>
+        </div>
+        <!-- Seatbelt SVG inline -->
+        <div class="seatbelt" style="display:none;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="#f73f3f">
+                <path d="M30.69,74.93l8.12,19.13a1.55,1.55,0,0,0,1.42.94h4.13a1.53,1.53,0,0,0,1.52-1.76L43.62,77.37A1.52,1.52,0,0,1,45,75.62c1.52-.15,3.18-.24,5-.24a47.94,47.94,0,0,1,5,.25,1.54,1.54,0,0,1,1.36,1.75L54.08,93.24A1.54,1.54,0,0,0,55.6,95h4.13a1.54,1.54,0,0,0,1.42-.94L69.28,75a1.54,1.54,0,0,0-.72-2C65,71.17,59.05,69.23,50,69.23S35,71.14,31.41,73A1.54,1.54,0,0,0,30.69,74.93Z"/>
+                <path d="M22.8,72.94l-.6-.47a1.55,1.55,0,0,1-.13-2.29l7.49-7.53a2.67,2.67,0,0,0,.66-1.41L32.89,33a3.38,3.38,0,0,1,1.85-2.54L42.69,27A3.55,3.55,0,0,1,45,27l1.21.46a12.5,12.5,0,0,0,7.56,0L55,27a3.52,3.52,0,0,1,2.29.06l4.58,2a1.68,1.68,0,0,0,1.7-.33l5.88-5.88a1.55,1.55,0,0,1,2.18,0l.54.54a1.55,1.55,0,0,1,0,2.18L36,61.69A.77.77,0,0,0,36.67,63c.95-.22,2-.43,3-.61a3.87,3.87,0,0,0,2.11-1.08l24.05-24c.82-.83,1.59-.55,1.7.61L70,64.32a1.72,1.72,0,0,0,.91,1.26,26.5,26.5,0,0,1,7,4.55,1.53,1.53,0,0,1-.1,2.31l-.54.43a1.57,1.57,0,0,1-2.07,0c-2.43-2.17-9.94-7.51-25.21-7.51s-22.77,5.34-25.2,7.51A1.53,1.53,0,0,1,22.8,72.94Z"/>
+                <circle cx="49.98" cy="14.23" r="9.23"/>
+            </svg>
+        </div>
+        <div class="speedometer">
+            <div id="speedDisplay">000</div>
+            <span>KM/H</span>
+        </div>
+        <div class="RPMContainer" id="rpmBar"></div>
+        <div class="altContainer" id="altContainer" style="display:none;">
+            <span class="alt-label">ALT</span>
+            <span class="alt-value" id="altValue">0</span>
+            <div class="altBar" id="altBar"></div>
+        </div>
+    </div>
+
+    <!-- ── Money ── -->
+    <div class="moneybox">
+        <div class="MyMoney"></div>
+    </div>
+
+</div><!-- .ui-scale -->
+
+<script>
+// ════════════════════════════════════════════
+//              HUD SCALE
+// ════════════════════════════════════════════
+function updateHudScale() {
+    var scale = window.innerHeight / 1080;
+    var el    = document.querySelector('.ui-scale');
+    if (el) {
+        el.style.transform = 'scale(' + scale + ')';
+        el.style.width     = (window.innerWidth / scale) + 'px';
+    }
+}
+window.addEventListener('resize', updateHudScale);
+updateHudScale();
+
+// ════════════════════════════════════════════
+//              STATE
+// ════════════════════════════════════════════
+window.forceShowStats = false;
+window.hudVisible     = true;
+window.isInVehicle   = false;
+window.lastHudData  = null;
+
+$('#displayRoot').hide();
+$('#altContainer').hide();
+setNavigationVisible(false);
+$('.minimap-container').hide();
+
+
+function setNavigationVisible(show) {
+    var nav = $('#navigation');
+    if (!nav || !nav.length) return;
+    if (show) {
+        nav.addClass('is-visible');
+    } else {
+        nav.removeClass('is-visible');
+    }
+}
+
+function setVehicleUiVisible(show) {
+    window.isInVehicle = !!show;
+    if (show) {
+        setNavigationVisible(true);
+        $('#map-frame').show();
+    } else {
+        setNavigationVisible(false);
+        $('#map-frame').hide();
+        $('.minimap-container').hide();
+    }
+}
+
+// ════════════════════════════════════════════
+//              MESSAGE LISTENER
+// ════════════════════════════════════════════
+window.addEventListener('message', function(event) {
+    var data = event.data;
+    switch (data.action) {
+
+        case 'money':
+            $('.MyMoney').html('');
+            if (data.money === false) {
+                $('.MyMoney').append(
+                    '<p style="color:blue;">$ <span style="color:white;">' + data.bank + '</span></p>' +
+                    '<p style="color:green;">$ <span style="color:white;">' + data.amount + '</span></p>'
+                );
+            } else if (data.money === true) {
+                $('.MyMoney').append(
+                    '<p style="color:green;">$ <span style="color:white;">' + data.bank + '</span></p>' +
+                    '<p style="color:red;">$ <span style="color:white;">' + data.amount + '</span></p>'
+                );
+            } else if (data.money === 'cehckmoney') {
+                $('.MyMoney').append(
+                    '<p style="color:green;">$ <span style="color:white;">' + data.bank + '</span></p>'
+                );
+            }
+            $('.MyMoney').show();
+            setTimeout(function() { $('.MyMoney').fadeOut(500); }, 1000);
+            break;
+
+        case 'hud':
+            if (data.show) {
+                window.hudVisible = true;
+                updateHud(data);
+                HUD('show');
+            } else {
+                window.hudVisible = false;
+                HUD('hide');
+            }
+            break;
+
+        case 'vehHud':
+            if (window.hudVisible) updateVehHud(data);
+            break;
+
+        case 'updateNav':
+            if (window.hudVisible) updateNavigation(data);
+            break;
+
+        case 'setMapFrame': {
+            var frame = document.getElementById('map-frame');
+            if (frame) {
+                var scaleX = 1920 / data.resX;
+                var scaleY = 1080 / data.resY;
+                frame.style.width  = (data.width  * scaleX) + 'px';
+                frame.style.height = (data.height * scaleY) + 'px';
+            }
+            break;
+        }
+
+        case 'vehHideHud':
+            setVehicleUiVisible(false);
+            $('#displayRoot').hide();
+            $('#altContainer').hide();
+            _lastRpm = -1; _lastAlt = -1;
+            break;
+
+        case 'updateAmmo':
+            var ammoEl = document.getElementById('ammo-container');
+            if (data.data && data.data.show) {
+                $(ammoEl).css('display','flex').css('opacity',0).animate({opacity:1},500);
+                document.getElementById('ammo-clip').textContent    = data.data.clip || 0;
+                document.getElementById('ammo-reserve').textContent = String(data.data.reserve || 0).padStart(2,'0');
+            } else {
+                $(ammoEl).animate({opacity:0},500,function(){ $(this).css('display','none'); });
+            }
+            break;
+
+        case 'hideHud':
+            window.hudVisible = false;
+            HUD('hide');
+            break;
+
+        case 'SetClock':
+            // ignored — clock uses real device time
+            break;
+
+        case 'showAllStats':
+            window.forceShowStats = data.show;
+            if (window.forceShowStats) {
+                $('.toolbar-icon').stop(true, true).fadeIn(300);
+            } else {
+                if (window.lastHudData) {
+                    updateHud(window.lastHudData);
+                } else {
+                    $('.toolbar-icon').not('#voice-box').fadeOut(500);
+                    $('#voice-box').fadeIn(300);
+                }
+            }
+            break;
+    }
+});
+
+// ════════════════════════════════════════════
+//              RPM BAR  (pre-built, no DOM rebuild)
+// ════════════════════════════════════════════
+var _lastRpm = -1;
+var _rpmItems = null;
+function initRpmBar() {
+    var rpmBar = document.getElementById('rpmBar');
+    if (!rpmBar) return;
+    for (var i = 0; i < 17; i++) {
+        var item = document.createElement('div');
+        item.className = 'rpmBar-item';
+        item.style.offsetDistance = (8 + i * 12) + 'px';
+        rpmBar.appendChild(item);
+    }
+    _rpmItems = rpmBar.children;
+}
+function updateRPM(rpm) {
+    rpm = Math.round(rpm);
+    if (rpm === _lastRpm) return;
+    _lastRpm = rpm;
+    if (!_rpmItems) return;
+    for (var i = 0; i < 17; i++) {
+        var cls = 'rpmBar-item';
+        if (i < rpm) {
+            if      (i >= 14) cls += ' critical';
+            else if (i >= 10) cls += ' warning';
+            else               cls += ' filled';
+        }
+        _rpmItems[i].className = cls;
+    }
+}
+
+// ════════════════════════════════════════════
+//              ALTITUDE BAR  (pre-built, no DOM rebuild)
+// ════════════════════════════════════════════
+var _lastAlt = -1;
+var _altItems = null;
+function initAltBar() {
+    var altBar = document.getElementById('altBar');
+    if (!altBar) return;
+    for (var i = 0; i < 17; i++) {
+        var item = document.createElement('div');
+        item.className = 'altBar-item';
+        altBar.appendChild(item);
+    }
+    _altItems = altBar.children;
+}
+function updateAltitude(altitude) {
+    var filledCount = Math.round((Math.min(altitude, 1000) / 1000) * 17);
+    var altValue    = document.getElementById('altValue');
+    if (filledCount === _lastAlt) {
+        if (altValue) altValue.textContent = Math.floor(altitude);
+        return;
+    }
+    _lastAlt = filledCount;
+    if (altValue) altValue.textContent = Math.floor(altitude);
+    if (!_altItems) return;
+    for (var i = 0; i < 17; i++) {
+        var cls = 'altBar-item';
+        if (i < filledCount) {
+            if      (i >= 15) cls += ' critical';
+            else if (i >= 12) cls += ' warning';
+            else               cls += ' filled';
+        }
+        _altItems[i].className = cls;
+    }
+}
+
+// ════════════════════════════════════════════
+//              VEHICLE HUD
+// ════════════════════════════════════════════
+function updateVehHud(data) {
+    if (!window.hudVisible) return;
+    var speedsInt  = Math.floor(parseFloat(data.speed));
+    var speedString = speedsInt.toString().padStart(3, '0');
+
+    $('#displayRoot').show();
+    setVehicleUiVisible(true);
+
+    if (speedsInt <= 0)    $('#gearNum').text('N');
+    else if (data.gear <= 0) $('#gearNum').text('R');
+    else                    $('#gearNum').text(data.gear);
+
+    $('#speedDisplay').text(speedString);
+
+    if (data.isAircraft) {
+        updateRPM(Math.round((Math.min(speedsInt, 300) / 300) * 17));
+        $('#altContainer').show();
+        updateAltitude(data.altitude || 0);
+    } else {
+        updateRPM((data.rpm / 100) * 17);
+        $('#altContainer').hide();
+    }
+
+    var fuelRoot = document.getElementById('fuelGauge');
+    if (fuelRoot) {
+        var f = Math.max(0, Math.min(100, data.fuel));
+        fuelRoot.style.setProperty('--fuel', f + '%');
+        fuelRoot.style.setProperty('--fuel-color',
+            f >= 75 ? '#22c55e' : f >= 50 ? '#facc15' : f >= 25 ? '#fb923c' : '#ef4444');
+    }
+
+    var engineRoot = document.getElementById('engineGauge');
+    if (engineRoot) {
+        var eValue = Number(data.engineHp);
+        var e = Number.isFinite(eValue) ? Math.max(0, Math.min(100, eValue / 10)) : 0;
+        engineRoot.style.setProperty('--engine', e + '%');
+        engineRoot.style.setProperty('--engine-color',
+            e >= 75 ? '#1dbb61' : e >= 50 ? '#f5a623' : '#ff1f1f');
+    }
+
+    if (data.seatbelt) $('.seatbelt').show();
+    else               $('.seatbelt').hide();
+}
+
+// ════════════════════════════════════════════
+//              NAVIGATION
+// ════════════════════════════════════════════
+var _lastNavDirection = null;
+var _lastNavZone      = '';
+var _lastNavStreet    = '';
+
+function updateNavigation(data) {
+    if (!window.hudVisible || !window.isInVehicle) {
+        setNavigationVisible(false);
+        return;
+    }
+
+    var AreaName = data.area || data.zone || '';
+    var StreetName = data.street || data.streetName || AreaName || 'Unknown';
+    var waydist = (data.waydist !== undefined) ? data.waydist : data.distance;
+    var directions = data.directions || data.direction || 'None';
+
+    setNavigationVisible(true);
+
+    // نفس كود Sx-HUD للأسماء والأيقونة
+    $(".area-name").text((AreaName || "").toUpperCase());
+    $(".streeat-name").text(StreetName || AreaName || "Unknown");
+
+    const hasWaypoint = Number(waydist) >= 0;
+    let navIcon = `<i class="fa-regular fa-map-location-dot nav-icon"></i>`;
+    if (hasWaypoint) {
+        if (directions === "Front") {
+            navIcon = `<i class="fa-solid fa-arrow-up nav-icon"></i>`;
+        } else if (directions === "Back") {
+            navIcon = `<i class="fa-solid fa-arrow-down nav-icon"></i>`;
+        } else if (directions === "Left") {
+            navIcon = `<i class="fa-solid fa-arrow-left nav-icon"></i>`;
+        } else if (directions === "Right") {
+            navIcon = `<i class="fa-solid fa-arrow-right nav-icon"></i>`;
+        } else if (directions === "Halfright") {
+            navIcon = `<i class="fa-solid fa-arrow-up-right nav-icon"></i>`;
+        } else if (directions === "Halfleft") {
+            navIcon = `<i class="fa-solid fa-arrow-up-left nav-icon"></i>`;
+        } else {
+            navIcon = `<i class="fa-solid fa-location-arrow nav-icon"></i>`;
+        }
+    }
+    $(".nav-shell").html(navIcon);
+    $(".nav-hex").toggleClass("has-waypoint", hasWaypoint);
+    $(".waypoint").text("").hide();
+}
+
+
+// ════════════════════════════════════════════
+//              HUD SHOW / HIDE
+// ════════════════════════════════════════════
+function HUD(data) {
+    if (data === 'show') {
+        $('#ui-container').removeClass('hide').addClass('show').show();
+        $('#app').show();
+    } else if (data === 'hide') {
+        $('#ui-container').removeClass('show').addClass('hide').hide();
+        setVehicleUiVisible(false);
+        $('#displayRoot').hide();
+        $('#app').hide();
+    }
+}
+
+// ════════════════════════════════════════════
+//              HEX PROGRESS INIT
+// ════════════════════════════════════════════
+function initHexBorderProgress() {
+    document.querySelectorAll('.toolbar-icon .hex-progress, .toolbar-icon .hex-track').forEach(function(path) {
+        if (!path || typeof path.getTotalLength !== 'function') return;
+        var len = path.getTotalLength();
+        path.style.strokeDasharray  = String(len);
+        path.style.strokeDashoffset = '0';
+        path.dataset.len = String(len);
+    });
+}
+
+// ════════════════════════════════════════════
+//              STAT SETTERS
+// ════════════════════════════════════════════
+function setHexStat(statName, percent) {
+    var root = document.querySelector('[data-stat="' + statName + '"]') || document.getElementById(statName + '-box');
+    if (!root) return;
+
+    var val = (typeof percent === 'object') ? percent.range : percent;
+    val = Math.max(0, Math.min(100, val));
+    if (val < 1.0) val = 0;
+
+    if (window.forceShowStats) {
+        $(root).show();
+    } else {
+        if      (statName === 'health') { val < 97 ? $(root).fadeIn(500) : $(root).fadeOut(500); }
+        else if (statName === 'armor')  { val > 0  ? $(root).fadeIn(500) : $(root).fadeOut(500); }
+        else if (statName === 'hunger') { val < 80 ? $(root).fadeIn(500) : $(root).fadeOut(500); }
+        else if (statName === 'thirst') { val < 80 ? $(root).fadeIn(500) : $(root).fadeOut(500); }
+        else if (statName === 'stress') { val > 0  ? $(root).fadeIn(500) : $(root).fadeOut(500); }
+    }
+
+    var progress = root.querySelector('.hex-progress');
+    if (!progress) return;
+    var len = Number(progress.dataset.len);
+    if (!Number.isFinite(len) || len <= 0) return;
+    progress.style.strokeDashoffset = String(len * (1 - (val / 100)));
+}
+
+// ── Voice state tracker (منع التحديث المتكرر)
+var _lastVoiceState = { talking: null, radio: null, range: null };
+
+function update(boxId, fillPercentage) {
+    if (boxId === 'voice') {
+        if (!fillPercentage || typeof fillPercentage !== 'object') return;
+        var root    = document.getElementById('voice-box');
+        var talking = fillPercentage.talking || false;
+        var radio   = fillPercentage.radio   || false;
+        var range   = fillPercentage.range   || 3;
+
+        // تحديث الأيقونة فقط لو تغيرت الحالة
+        if (_lastVoiceState.talking !== talking || _lastVoiceState.radio !== radio) {
+            _lastVoiceState.talking = talking;
+            _lastVoiceState.radio   = radio;
+
+            // نزيل فقط classes الأيقونة وليس 'icon'
+            var voiceIcon = document.getElementById('voice-icon');
+            voiceIcon.className = 'icon'; // نرجع لـ base class فقط
+
+            if (radio) {
+                // راديو: أحمر + walkie-talkie
+                root.style.setProperty('--hex-color', '#ef4444');
+                voiceIcon.classList.add('fa-solid', 'fa-walkie-talkie');
+            } else if (talking) {
+                // يتكلم: أصفر + مايك مفتوح
+                root.style.setProperty('--hex-color', '#eab308');
+                voiceIcon.classList.add('fa-solid', 'fa-microphone');
+            } else {
+                // صامت: أخضر + مايك مقطوع
+                root.style.setProperty('--hex-color', '#22c55e');
+                voiceIcon.classList.add('fa-solid', 'fa-microphone-lines-slash');
+            }
+        }
+
+        // الـ progress bar حسب الـ range
+        var percent = range <= 1.5 ? 25 : range <= 3.0 ? 50 : 100;
+        setHexStat('voice', percent);
+        // الـ voice يطلع دايمًا (لأنه يظهر اتصال الصوت)
+        var vRoot = document.querySelector('[data-stat="voice"]');
+        if (vRoot && $(vRoot).is(':hidden')) $(vRoot).fadeIn(300);
+        return;
+    }
+
+    if (boxId === 'oxygen') {
+        var root     = document.getElementById('oxygen-box');
+        var progress = root.querySelector('.hex-progress');
+        var oxyIcon  = document.getElementById('oxygen-icon');
+        var val      = (typeof fillPercentage === 'object') ? fillPercentage.range   : fillPercentage;
+        var inwater  = (typeof fillPercentage === 'object') ? fillPercentage.inwater : false;
+
+        // val = 100 (فل) → 0 (فاضي) — سواء ستامينا أو أكسجين
+        var displayVal = Math.max(0, Math.min(100, val));
+
+        if (inwater) {
+            // ══ تحت الماء: أيقونة الغوص + أزرق ══
+            root.style.setProperty('--hex-color', '#00d4ff');
+            if (oxyIcon) oxyIcon.className = 'icon fa-solid fa-person-drowning';
+
+            // يظهر دايمًا تحت الماء — بدون transition لأول ظهور
+            if ($(root).is(':hidden')) {
+                if (progress) $(progress).addClass('no-transition');
+                $(root).show();
+                setTimeout(function() {
+                    if (progress) $(progress).removeClass('no-transition');
+                }, 50);
+            }
+        } else {
+            // ══ على الأرض: ستامينا — نفس الأكسجين بالضبط ══
+            if (oxyIcon) oxyIcon.className = 'icon fa-solid fa-person-running';
+
+            // لون يتغير مع نقص الستامينا
+            if      (displayVal < 25) root.style.setProperty('--hex-color', '#ef4444'); // أحمر
+            else if (displayVal < 60) root.style.setProperty('--hex-color', '#ff8c00'); // برتقالي
+            else                      root.style.setProperty('--hex-color', '#fd621a'); // برتقالي فاتح
+
+            // يظهر لما تنقص، يختفي لما تكتمل — بدون تأخير
+            if (window.forceShowStats || displayVal < 99) {
+                if ($(root).is(':hidden')) {
+                    if (progress) $(progress).addClass('no-transition');
+                    $(root).show();
+                    setTimeout(function() {
+                        if (progress) $(progress).removeClass('no-transition');
+                    }, 50);
+                }
+            } else {
+                if (!$(root).is(':hidden')) $(root).fadeOut(800);
+            }
+        }
+
+        // ══ progress bar — 100=hex فل، 0=hex فاضي ══
+        // نفس حساب الأكسجين في البحر بالضبط
+        var len = progress && Number(progress.dataset.len);
+        if (progress && Number.isFinite(len) && len > 0) {
+            progress.style.strokeDashoffset = String(len * (1 - (displayVal / 100)));
+        }
+        return;
+    }
+
+    setHexStat(boxId, fillPercentage);
+}
+
+function updateHud(data) {
+    window.lastHudData = data;
+    if (!window.hudVisible && !window.forceShowStats) return;
+    update('voice',  data.voice);
+    update('health', data.health);
+    update('armor',  data.armor);
+    update('hunger', data.hunger);
+    update('thirst', data.thirst);
+    update('stress', data.stress);
+    update('oxygen', data.oxygen);
+
+    if (data.playerDead) $('#health-fill').css('background-color', '#e00000');
+    else                 $('#health-fill').css('background-color', '#27aa4a');
+}
+
+
+(function() {
+    var months = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE',
+                  'JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+    function tick() {
+        var now  = new Date();
+        var h    = now.getHours();
+        var m    = now.getMinutes();
+        var ampm = h >= 12 ? 'PM' : 'AM';
+        var h12  = h % 12 || 12;
+        var timeStr = (h12 < 10 ? '0' : '') + h12 + ':' + (m < 10 ? '0' : '') + m + ampm;
+        var dateStr = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+        document.getElementById('time').textContent = timeStr;
+        document.getElementById('date').textContent = dateStr;
+    }
+    tick();
+    setInterval(tick, 1000);
+})();
+
+
+
+setTimeout(function() {
+    initHexBorderProgress();
+    initRpmBar();
+    initAltBar();
+}, 500);
+
+setTimeout(function() {
+    updateHud({
+        action: 'hud', show: true,
+        voice:  { talking: false, range: 50, radio: false },
+        health: 100, armor: 0, playerDead: false,
+        hunger: 100, thirst: 100, stress: 0,
+        oxygen: { range: 100, inwater: false, running: false },
+    });
+}, 600);
+</script>
+</body>
+</html>
