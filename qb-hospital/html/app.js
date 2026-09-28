@@ -12,7 +12,7 @@ const respawnRing = document.getElementById('respawn-ring');
 
 const LINE_COLOR = '#3da2ff';
 const GLOW_COLOR = 'rgba(61, 162, 255, 0.85)';
-const HEAD_POS = 0.9;       // where the newest point is drawn (fraction of width)
+const HEAD_POS = 0.94;      // where the newest point is drawn (fraction of width)
 const SPEED = 0.2;          // how fast the trace scrolls (fraction of width per second)
 
 // One heartbeat (P, QRS, T), as [seconds since beat, height]
@@ -37,6 +37,7 @@ let height = 0;
 let samples = [];
 let carry = 0;
 let beatClock = 0;
+let skipBeat = false;
 let beatInterval = 0.6;
 let amplitude = 1;
 let targetAmplitude = 1;
@@ -100,10 +101,11 @@ function resize() {
 }
 
 function step(dt) {
-    // heart rate slows down and gets weaker as the timer runs out
+    // heart rate slows down (110 -> 30 bpm) and starts missing beats as the timer runs out
     const ratio = Math.max(0, Math.min(1, (state ? state.time : 0) / maxTime));
-    beatInterval = 60 / (48 + 72 * ratio);
-    targetAmplitude = flat ? 0 : 0.5 + 0.5 * ratio;
+    beatInterval = 60 / (30 + 80 * ratio);
+    targetAmplitude = flat ? 0 : 0.6 + 0.4 * ratio;
+    const skipChance = ratio < 0.3 ? 0.3 - ratio : 0;
     amplitude += (targetAmplitude - amplitude) * Math.min(1, dt * (flat ? 4 : 2));
 
     carry += width * SPEED * dt;
@@ -114,9 +116,12 @@ function step(dt) {
     for (let i = 0; i < px; i++) {
         const prev = beatClock;
         beatClock += dtPx;
-        if (!flat && prev < R_PEAK && beatClock >= R_PEAK) tone(1050, 0.09, 1);
-        if (beatClock >= beatInterval) beatClock -= beatInterval;
-        samples.push(flat ? 0 : beatValue(beatClock) * amplitude);
+        if (!flat && !skipBeat && prev < R_PEAK && beatClock >= R_PEAK) tone(1050, 0.09, 1);
+        if (beatClock >= beatInterval) {
+            beatClock -= beatInterval;
+            skipBeat = Math.random() < skipChance;
+        }
+        samples.push(flat || skipBeat ? 0 : beatValue(beatClock) * amplitude);
     }
 
     const len = Math.ceil(width * HEAD_POS);
@@ -127,8 +132,8 @@ function draw() {
     ctx.clearRect(0, 0, width, height);
     if (!samples.length) return;
 
-    const mid = height * 0.55;
-    const scale = height * 0.45;
+    const mid = height * 0.56;
+    const scale = height * 0.48;
     const headX = width * HEAD_POS;
     const start = headX - (samples.length - 1);
 
@@ -223,6 +228,7 @@ function show(data) {
     flat = false;
     amplitude = 1;
     beatClock = 0;
+    skipBeat = false;
     samples = [];
     screen.classList.remove('flat');
     screen.classList.add('bleeding');

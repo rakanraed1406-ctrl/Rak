@@ -55,7 +55,7 @@ html, body {
     left: 50%;
     top: 58%;
     transform: translate(-50%, -50%);
-    width: min(64vw, 1100px);
+    width: min(46vw, 780px);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -66,8 +66,8 @@ html, body {
 .monitor {
     position: relative;
     width: 100%;
-    height: 15vh;
-    min-height: 110px;
+    height: 22vh;
+    min-height: 150px;
 }
 
 #ecg {
@@ -77,11 +77,11 @@ html, body {
     height: 100%;
     /* fade both ends and cut a gap behind the timer */
     -webkit-mask-image: linear-gradient(to right,
-        transparent 0%, #000 12%, #000 34%, transparent 41%,
-        transparent 59%, #000 66%, #000 100%);
+        transparent 0%, #000 8%, #000 30%, transparent 35%,
+        transparent 65%, #000 70%, #000 100%);
     mask-image: linear-gradient(to right,
-        transparent 0%, #000 12%, #000 34%, transparent 41%,
-        transparent 59%, #000 66%, #000 100%);
+        transparent 0%, #000 8%, #000 30%, transparent 35%,
+        transparent 65%, #000 70%, #000 100%);
 }
 
 .timer {
@@ -202,9 +202,20 @@ html, body {
 }
 
 #help.done .key {
+    display: none;
+}
+
+#help.done .label::before {
+    content: '';
+    display: inline-block;
+    width: 0.55em;
+    height: 0.55em;
+    margin-inline-end: 0.5em;
+    border-radius: 50%;
     background: var(--blue);
-    border-color: var(--blue);
-    box-shadow: 0 3px 0 rgba(0, 40, 90, 0.6), 0 0 18px var(--blue-glow);
+    box-shadow: 0 0 10px var(--blue);
+    vertical-align: middle;
+    animation: breathe 1.6s ease-in-out infinite;
 }
 
 .label {

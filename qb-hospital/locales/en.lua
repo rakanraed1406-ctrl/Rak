@@ -127,8 +127,8 @@ local Translations = {
         dead = 'NO PULSE',
         request_help = 'اضغط لطلب المساعدة',
         help_requested = 'تم إبلاغ المسعفين',
-        respawn_wait = 'الإنعاش في المستشفى متاح بعد انتهاء الوقت',
-        respawn_hold = 'اضغط مطولاً للإنعاش في المستشفى مقابل %{cost}$',
+        respawn_wait = 'التحلل متاح بعد انتهاء الوقت',
+        respawn_hold = 'اضغط مطولاً للتحلل مقابل %{cost}$',
     },
     logs = {
         death_log_title = "%{playername} (%{playerid}) is dead",
