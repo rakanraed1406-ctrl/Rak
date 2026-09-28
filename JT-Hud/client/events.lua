@@ -157,6 +157,18 @@ end)
 -- ──────────────────────────────────────────────────────────
 --  NUI Callbacks
 -- ──────────────────────────────────────────────────────────
+RegisterNUICallback("hudReady", function(_, cb)
+    Koci.Client.HUD:SendConfig()
+    cb(true)
+end)
+
+-- /hudtest : play the hunger and thirst alerts to check sounds and volume
+RegisterCommand("hudtest", function()
+    SendNUIMessage({ action = "hudTest", toast = "hunger", arg = false })
+    SetTimeout(1500, function() SendNUIMessage({ action = "hudTest", toast = "thirst", arg = true }) end)
+    SetTimeout(3000, function() SendNUIMessage({ action = "hudTest", sound = "heartbeat" }) end)
+end, false)
+
 RegisterNUICallback("OnHideSettingsMenu", function(_, cb)
     SetNuiFocus(false, false)
     cb(true)

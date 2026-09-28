@@ -13,8 +13,8 @@ Config.Settings = {
         voice    = { active = true  },
         health   = { active = true  },
         armor    = { active = true  },
-        hunger   = { active = false  },
-        thirst   = { active = false  },
+        hunger   = { active = true  },
+        thirst   = { active = true  },
         stress   = { active = false  },
         oxygen   = { active = false  },
         stamina  = { active = true  },
@@ -43,6 +43,34 @@ Config.Settings = {
     CruiseControl = {
         active = false,
         key    = "CAPITAL",
+    },
+}
+
+-- ══════════════════════════════════════════════
+--  تنبيهات الـ HUD (أصوات + إشعارات)
+-- ══════════════════════════════════════════════
+Config.Alerts = {
+    Volume = 0.35,                 -- مستوى صوت كل تنبيهات الـ HUD (0.0 = بدون صوت، 1.0 = أعلى)
+
+    -- الجوع والعطش: تنبيه أول لما ينزل تحت warn، وتنبيه قوي تحت critical يتكرر كل repeatEvery ثانية
+    Hunger = { enabled = true, warn = 25, critical = 10, repeatEvery = 60 },
+    Thirst = { enabled = true, warn = 25, critical = 10, repeatEvery = 60 },
+
+    -- دقات قلب + أطراف الشاشة حمراء لما الصحة تنزل تحت هذا الرقم
+    LowHealth = { enabled = true, below = 25 },
+
+    -- جرس الحزام إذا تمشي بدون حزام (يشتغل بس إذا عندك نظام حزام)
+    SeatbeltChime = { enabled = true, minSpeed = 30, times = 6 },
+
+    MoneySound = true,             -- صوت لما تزيد أو تنقص فلوسك
+
+    -- نصوص الإشعارات { العنوان، الرسالة }
+    Texts = {
+        hungerWarn = { 'HUNGRY', 'You should eat something soon.' },
+        hungerCrit = { 'STARVING', 'Eat now or you will start losing health.' },
+        thirstWarn = { 'THIRSTY', 'You should drink something soon.' },
+        thirstCrit = { 'DEHYDRATED', 'Drink now or you will start losing health.' },
+        lowHealth  = { 'CRITICAL CONDITION', 'Find a medic.' },
     },
 }
 

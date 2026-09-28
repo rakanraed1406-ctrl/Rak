@@ -45,6 +45,30 @@ local function Sx_GetDirectionToWaypoint()
 end
 
 
+local seatbeltSeen = Config.Settings.Seatbelt.active
+
+function Koci.Client.HUD:SendConfig()
+    local a = Config.Alerts or {}
+    local function need(n)
+        n = n or {}
+        return { enabled = n.enabled ~= false, warn = n.warn or 25, critical = n.critical or 10, repeatEvery = n.repeatEvery or 60 }
+    end
+    SendNUIMessage({
+        action = "config",
+        data = {
+            bars          = Config.Settings.StatusBars,
+            compass       = Config.Settings.Compass.active and Config.Settings.Compass.show,
+            volume        = a.Volume or 0.35,
+            hunger        = need(a.Hunger),
+            thirst        = need(a.Thirst),
+            lowHealth     = { enabled = not a.LowHealth or a.LowHealth.enabled ~= false, below = a.LowHealth and a.LowHealth.below or 25 },
+            seatbeltChime = { enabled = not a.SeatbeltChime or a.SeatbeltChime.enabled ~= false, minSpeed = a.SeatbeltChime and a.SeatbeltChime.minSpeed or 30, times = a.SeatbeltChime and a.SeatbeltChime.times or 6 },
+            moneySound    = a.MoneySound ~= false,
+            texts         = a.Texts,
+        },
+    })
+end
+
 function Koci.Client.HUD:Start(xPlayer)
     CreateThread(function()
         while not playerLoaded() do Wait(500) end
@@ -71,6 +95,7 @@ function Koci.Client.HUD:Start(xPlayer)
         end)
 
         Wait(300)
+        self:SendConfig()
         SendNUIMessage({ action = "hud", show = true,
             voice   = { talking = false, range = 3, radio = false },
             health  = 100, armor = 0, playerDead = false,
@@ -420,8 +445,12 @@ function Koci.Client.HUD:fVehicleInfoThick(vehicle)
                 fuel       = fuelLevel,
                 engineHp   = engineHealth,
                 seatbelt   = not self.data.vehicle.isSeatbeltOn,
+                seatbeltSystem = seatbeltSeen,
                 isAircraft = isAircraft,
-                altitude   = altitude,
+                altitude   = math.floor(altitude),
+                lights     = lightsOn,
+                cruise     = self.data.vehicle.cruiseControlStatus and true or false,
+                heading    = math.floor(GetEntityHeading(vehicle)),
             }
 
             -- الحزام يُرسَل دايمًا بدون DeepEqual check عشان يستجيب فوراً
@@ -431,7 +460,7 @@ function Koci.Client.HUD:fVehicleInfoThick(vehicle)
                 lastVehPayload = payload
             elseif seatbeltChanged then
                 -- أرسل فقط الحزام لو هو اللي تغيّر
-                SendNUIMessage({ action = "vehHud", seatbelt = payload.seatbelt })
+                SendNUIMessage({ action = "vehHud", seatbelt = payload.seatbelt, seatbeltSystem = payload.seatbeltSystem })
             end
 
             Wait(self.data.vehicle.thick.wait)
@@ -572,6 +601,7 @@ function Koci.Client.HUD:ToggleSeatBelt(state)
     if class == 8 or class == 13 or class == 14 then return end
 
     self.data.vehicle.isSeatbeltOn = not self.data.vehicle.isSeatbeltOn
+    seatbeltSeen = true -- a seatbelt system is in use, so the HUD can show the belt light and chime
 
     Koci.Client:SendNotify(
         self.data.vehicle.isSeatbeltOn and _t("notify.seatbeltOn") or _t("notify.seatbeltOff")
