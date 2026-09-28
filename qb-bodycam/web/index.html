@@ -82,6 +82,8 @@
     <audio id="beep-sound" src="audio/on_sound.mp3"></audio>
     <audio id="off-sound" src="audio/off_sound.mp3"></audio>
     <script src="js/jquery-3.7.1.min.js"></script>
+    <!-- if the local copy is missing, load jQuery from the CDN so the page still works -->
+    <script>window.jQuery || document.write('<script src="https://code.jquery.com/jquery-3.7.1.min.js"><\/script>')</script>
     <script type="module" src="js/app.js"></script>
 </body>
 </html>
