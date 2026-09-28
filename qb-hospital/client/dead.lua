@@ -301,7 +301,8 @@ CreateThread(function()
                 --         killername = killerName, playername = GetPlayerName(player), weaponlabel = weaponLabel, weaponname = weaponName
                 --     })
                 -- )
-                deathTime = Config.DeathTime
+                -- finished off while down: the heart stops right away (timer 00:00, flat line)
+                deathTime = 0
                 OnDeath()
                 DeathTimer()
             end
