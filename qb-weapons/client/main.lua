@@ -175,23 +175,19 @@ CreateThread(function()
         if LocalPlayer.state.isLoggedIn then
             local ped = PlayerPedId()
             if CurrentWeaponData and next(CurrentWeaponData) then
-                if IsPedShooting(ped) or IsControlJustPressed(0, 24) then
-                    local weapon = GetSelectedPedWeapon(ped)
-                    if CanShoot then
-                        if weapon and weapon ~= 0 and QBCore.Shared.Weapons[weapon] then
-                            QBCore.Functions.TriggerCallback('prison:server:checkThrowable', function(result)
-                                if result or GetAmmoInPedWeapon(ped, weapon) <= 0 then return end
-                                MultiplierAmount += 1
-                            end, weapon)
-                            Wait(200)
-                        end
-                    else
-                        if weapon ~= `WEAPON_UNARMED` then
-                            TriggerEvent('inventory:client:CheckWeapon', QBCore.Shared.Weapons[weapon]["name"])
-                            QBCore.Functions.Notify(Lang:t('error.weapon_broken'), "error")
-                            MultiplierAmount = 0
+                local weapon = GetSelectedPedWeapon(ped)
+                if CanShoot then
+                    -- Count exactly one wear tick per bullet fired (no click counting, no 200ms skip)
+                    if IsPedShooting(ped) and weapon and weapon ~= 0 and QBCore.Shared.Weapons[weapon] then
+                        local wear = Config.DurabilityMultiplier[QBCore.Shared.Weapons[weapon].name]
+                        if wear and wear > 0 then
+                            MultiplierAmount += 1
                         end
                     end
+                elseif (IsPedShooting(ped) or IsControlJustPressed(0, 24)) and weapon ~= `WEAPON_UNARMED` then
+                    TriggerEvent('inventory:client:CheckWeapon', QBCore.Shared.Weapons[weapon]["name"])
+                    QBCore.Functions.Notify(Lang:t('error.weapon_broken'), "error")
+                    MultiplierAmount = 0
                 end
             end
         end
