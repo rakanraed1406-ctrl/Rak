@@ -1,9 +1,11 @@
-const screen = document.getElementById('death-screen');
+const root = document.getElementById('death-screen');
 const canvas = document.getElementById('ecg');
 const ctx = canvas.getContext('2d');
 const timerEl = document.getElementById('timer');
 const statusEl = document.getElementById('status');
 const subEl = document.getElementById('sub');
+const pulseEl = document.getElementById('pulse');
+const flashEl = document.getElementById('flash');
 const helpEl = document.getElementById('help');
 const helpLabel = document.getElementById('help-label');
 const respawnEl = document.getElementById('respawn');
@@ -14,6 +16,8 @@ const LINE_COLOR = '#3da2ff';
 const GLOW_COLOR = 'rgba(61, 162, 255, 0.85)';
 const HEAD_POS = 0.94;      // where the newest point is drawn (fraction of width)
 const SPEED = 0.2;          // how fast the trace scrolls (fraction of width per second)
+const INTRO_DELAY = 250;    // ms, matches the CSS intro delays
+const INTRO_TIME = 1300;    // ms the line takes to open up and the timer to count in
 
 // One heartbeat (P, QRS, T), as [seconds since beat, height]
 const BEAT = [
@@ -30,7 +34,9 @@ let volume = 0.15;
 let visible = false;
 let state = null;
 let maxTime = 1;
-let lastTime = null;
+let shownTime = null;
+let introStart = 0;
+let introTimer = null;
 
 let width = 0;
 let height = 0;
@@ -40,10 +46,23 @@ let beatClock = 0;
 let skipBeat = false;
 let beatInterval = 0.6;
 let amplitude = 1;
-let targetAmplitude = 1;
 let flat = false;
 let frame = null;
 let prevTs = 0;
+
+function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
+}
+
+function easeOut(t) {
+    return 1 - Math.pow(1 - t, 3);
+}
+
+function restartAnimation(el, cls) {
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+}
 
 // Audio
 
@@ -69,7 +88,8 @@ function tone(freq, duration, gain) {
     amp.gain.linearRampToValueAtTime(volume * gain, now + 0.01);
     amp.gain.setValueAtTime(volume * gain, now + duration - 0.05);
     amp.gain.linearRampToValueAtTime(0, now + duration);
-    osc.connect(amp).connect(ac.destination);
+    osc.connect(amp);
+    amp.connect(ac.destination);
     osc.start(now);
     osc.stop(now + duration + 0.02);
 }
@@ -78,13 +98,20 @@ function tone(freq, duration, gain) {
 
 function beatValue(t) {
     for (let i = 1; i < BEAT.length; i++) {
-        const [t1, v1] = BEAT[i];
+        const t1 = BEAT[i][0];
         if (t <= t1) {
-            const [t0, v0] = BEAT[i - 1];
+            const t0 = BEAT[i - 1][0];
+            const v0 = BEAT[i - 1][1];
+            const v1 = BEAT[i][1];
             return v0 + (v1 - v0) * ((t - t0) / (t1 - t0));
         }
     }
     return 0;
+}
+
+function onBeat() {
+    tone(1050, 0.09, 1);
+    restartAnimation(pulseEl, 'thump');
 }
 
 function resize() {
@@ -101,10 +128,12 @@ function resize() {
 }
 
 function step(dt) {
+    if (width <= 0) return;
+
     // heart rate slows down (110 -> 30 bpm) and starts missing beats as the timer runs out
-    const ratio = Math.max(0, Math.min(1, (state ? state.time : 0) / maxTime));
+    const ratio = clamp((state ? state.time : maxTime) / maxTime, 0, 1);
     beatInterval = 60 / (30 + 80 * ratio);
-    targetAmplitude = flat ? 0 : 0.6 + 0.4 * ratio;
+    const targetAmplitude = flat ? 0 : 0.6 + 0.4 * ratio;
     const skipChance = ratio < 0.3 ? 0.3 - ratio : 0;
     amplitude += (targetAmplitude - amplitude) * Math.min(1, dt * (flat ? 4 : 2));
 
@@ -116,7 +145,7 @@ function step(dt) {
     for (let i = 0; i < px; i++) {
         const prev = beatClock;
         beatClock += dtPx;
-        if (!flat && !skipBeat && prev < R_PEAK && beatClock >= R_PEAK) tone(1050, 0.09, 1);
+        if (!flat && !skipBeat && prev < R_PEAK && beatClock >= R_PEAK) onBeat();
         if (beatClock >= beatInterval) {
             beatClock -= beatInterval;
             skipBeat = Math.random() < skipChance;
@@ -128,14 +157,23 @@ function step(dt) {
     if (samples.length > len) samples.splice(0, samples.length - len);
 }
 
-function draw() {
+function draw(intro) {
     ctx.clearRect(0, 0, width, height);
-    if (!samples.length) return;
+    if (!samples.length || intro <= 0) return;
 
     const mid = height * 0.56;
     const scale = height * 0.48;
     const headX = width * HEAD_POS;
     const start = headX - (samples.length - 1);
+
+    // intro: the line opens up from the middle
+    ctx.save();
+    if (intro < 1) {
+        const half = (width / 2) * intro;
+        ctx.beginPath();
+        ctx.rect(width / 2 - half, 0, half * 2, height);
+        ctx.clip();
+    }
 
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
@@ -159,18 +197,10 @@ function draw() {
     ctx.beginPath();
     ctx.arc(headX, headY, 3.4, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 0;
+    ctx.restore();
 }
 
-function loop(ts) {
-    const dt = prevTs ? Math.min(0.1, (ts - prevTs) / 1000) : 0;
-    prevTs = ts;
-    step(dt);
-    draw();
-    if (visible) frame = requestAnimationFrame(loop);
-}
-
-// UI
+// Timer
 
 function formatTime(sec) {
     const m = Math.floor(sec / 60);
@@ -178,12 +208,39 @@ function formatTime(sec) {
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
 
-function setFlat(value) {
+function updateTimer(intro) {
+    const target = state ? state.time : 0;
+    // intro: count up to the real time, then tick down normally
+    const value = intro < 1 ? Math.round(target * easeOut(intro)) : target;
+    if (value === shownTime) return;
+    const ticking = intro >= 1 && shownTime !== null && value < shownTime && !flat;
+    shownTime = value;
+    timerEl.textContent = formatTime(value);
+    if (ticking) restartAnimation(timerEl, 'tick');
+}
+
+function loop(ts) {
+    if (!visible) return;
+    const dt = prevTs ? Math.min(0.1, (ts - prevTs) / 1000) : 0;
+    prevTs = ts;
+    const intro = introStart ? clamp((performance.now() - introStart) / INTRO_TIME, 0, 1) : 1;
+    step(dt);
+    draw(easeOut(intro));
+    updateTimer(intro);
+    frame = requestAnimationFrame(loop);
+}
+
+// UI
+
+function setFlat(value, animate) {
     if (value === flat) return;
     flat = value;
-    screen.classList.toggle('flat', flat);
-    screen.classList.toggle('bleeding', !flat);
-    if (flat) tone(1050, 2.6, 0.8);
+    root.classList.toggle('flat', flat);
+    root.classList.toggle('bleeding', !flat);
+    if (flat && animate) {
+        tone(1050, 2.6, 0.8);
+        restartAnimation(flashEl, 'go');
+    }
 }
 
 function render(next) {
@@ -193,17 +250,7 @@ function render(next) {
     if (next.mode === 'bleeding' && (!prev || prev.mode !== 'bleeding')) maxTime = Math.max(1, next.time);
     if (next.mode === 'bleeding' && next.time > maxTime) maxTime = next.time;
 
-    setFlat(next.mode === 'dead' || next.time <= 0);
-
-    if (next.time !== lastTime) {
-        timerEl.textContent = formatTime(next.time);
-        if (!flat) {
-            timerEl.classList.remove('tick');
-            void timerEl.offsetWidth;
-            timerEl.classList.add('tick');
-        }
-        lastTime = next.time;
-    }
+    setFlat(next.mode === 'dead' || next.time <= 0, prev !== null);
 
     statusEl.textContent = next.mode === 'dead' ? texts.dead : texts.bleeding;
     subEl.textContent = next.mode === 'dead' && !next.canRespawn ? texts.respawn_wait : '';
@@ -215,7 +262,7 @@ function render(next) {
     respawnEl.classList.toggle('show', next.canRespawn);
     respawnLabel.textContent = texts.respawn_hold;
     const progress = next.holdMax > 0 ? (next.holdMax - next.hold) / next.holdMax : 0;
-    respawnRing.style.strokeDashoffset = String(100 - Math.max(0, Math.min(1, progress)) * 100);
+    respawnRing.style.strokeDashoffset = String(100 - clamp(progress, 0, 1) * 100);
 }
 
 function show(data) {
@@ -224,15 +271,22 @@ function show(data) {
     volume = typeof data.volume === 'number' ? data.volume : 0.15;
 
     state = null;
-    lastTime = null;
+    shownTime = null;
     flat = false;
     amplitude = 1;
     beatClock = 0;
     skipBeat = false;
     samples = [];
-    screen.classList.remove('flat');
-    screen.classList.add('bleeding');
-    screen.classList.remove('hidden');
+    timerEl.textContent = formatTime(0);
+    root.classList.remove('flat');
+    root.classList.add('bleeding');
+    root.classList.remove('hidden');
+
+    // intro animation (CSS classes + line/timer in the loop)
+    clearTimeout(introTimer);
+    restartAnimation(root, 'intro');
+    introStart = performance.now() + INTRO_DELAY;
+    introTimer = setTimeout(() => root.classList.remove('intro'), 2400);
 
     visible = true;
     resize();
@@ -243,13 +297,9 @@ function show(data) {
 
 function hide() {
     visible = false;
-    screen.classList.add('hidden');
-    setTimeout(() => {
-        if (!visible) {
-            cancelAnimationFrame(frame);
-            ctx.clearRect(0, 0, width, height);
-        }
-    }, 700);
+    introStart = 0;
+    root.classList.add('hidden');
+    cancelAnimationFrame(frame);
 }
 
 window.addEventListener('resize', () => { if (visible) resize(); });
@@ -261,3 +311,8 @@ window.addEventListener('message', (event) => {
     else if (data.action === 'hide') hide();
     else if (data.action === 'update' && visible) render(data);
 });
+
+// tell the client script the page is loaded, so it stops using the fallback text
+if (typeof GetParentResourceName === 'function') {
+    fetch('https://' + GetParentResourceName() + '/ready', { method: 'POST', body: '{}' }).catch(() => {});
+}

@@ -2,7 +2,7 @@ Config = {}
 
 Config.MinimalDoctors = 1
 Config.WipeInventoryOnRespawn = true
-Config.ReviveInterval = 50                                  -- How long the timer is for players to revive a player in laststand
+Config.ReviveInterval = 60                                  -- How long the timer is for players to revive a player in laststand
 Config.MinimumRevive = 300                                   -- How long the timer is for players to revive a player in laststand
 Config.BillCost = 100                                          ---- قيمة تعبيئة البينات الي مب شارين التامين
 Config.insurancepersent = 45                                   --  سعر تعبيئة البينات للمشترين التامين
@@ -11,11 +11,21 @@ Config.DeathTime = 300
 
 -- شاشة الموت (html/)
 Config.DeathScreen = {
-    Grayscale = true,                   -- الشاشة تصير أبيض وأسود وقت الموت والإصابة
-    Timecycle = 'rply_saturation_neg',  -- فلتر اللعبة المستخدم للأبيض والأسود
-    TimecycleStrength = 1.0,            -- قوة الفلتر من 0.0 إلى 1.0
-    Sound = true,                       -- صوت جهاز دقات القلب
-    Volume = 0.15,                      -- مستوى الصوت من 0.0 إلى 1.0
+    FadeToBlack = true,                   -- الشاشة تسود لما تموت وبعدين ترجع أبيض وأسود
+    FadeOutTime = 400,                    -- مدة السواد وهو يدخل (ملي ثانية)
+    BlackTime = 900,                      -- كم تبقى سوداء (ملي ثانية)
+    FadeInTime = 1800,                    -- مدة رجوع الشاشة (ملي ثانية)
+
+    Grayscale = true,                     -- الشاشة تصير أبيض وأسود
+    Timecycle = 'rply_saturation_neg',    -- فلتر الأبيض والأسود
+    TimecycleStrength = 1.0,              -- قوته من 0.0 إلى 1.0
+    ExtraTimecycle = 'rply_contrast',     -- فلتر إضافي يزيد التباين عشان الأبيض والأسود ما يطلع باهت (حطه false تلغيه)
+    ExtraTimecycleStrength = 0.6,
+
+    CameraShake = 0.3,                    -- اهتزاز خفيف للكاميرا وقت الموت (0 يلغيه)
+
+    Sound = true,                         -- صوت جهاز دقات القلب
+    Volume = 0.15,                        -- مستوى الصوت من 0.0 إلى 1.0
 }
 Config.CheckTime = 10
 

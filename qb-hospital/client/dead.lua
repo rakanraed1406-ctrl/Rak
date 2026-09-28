@@ -86,16 +86,27 @@ end
 
 -- Death screen (html/)
 
+local nuiReady = false
 local deathScreenVisible = false
 local deathScreenState = nil
+local deathScreenToken = 0
 
-local function ShowDeathScreen()
-    deathScreenVisible = true
-    deathScreenState = nil
-    if Config.DeathScreen.Grayscale then
-        SetTimecycleModifier(Config.DeathScreen.Timecycle)
-        SetTimecycleModifierStrength(Config.DeathScreen.TimecycleStrength)
-    end
+-- only used when the html page did not load
+local function DrawTxt(x, y, width, height, scale, text, r, g, b, a)
+    SetTextFont(4)
+    SetTextProportional(0)
+    SetTextScale(scale, scale)
+    SetTextColour(r, g, b, a)
+    SetTextDropShadow(0, 0, 0, 0,255)
+    SetTextEdge(2, 0, 0, 0, 255)
+    SetTextDropShadow()
+    SetTextOutline()
+    SetTextEntry("STRING")
+    AddTextComponentString(text)
+    DrawText(x - width/2, y - height/2 + 0.005)
+end
+
+local function SendShowMessage()
     SendNUIMessage({
         action = 'show',
         sound = Config.DeathScreen.Sound,
@@ -111,13 +122,75 @@ local function ShowDeathScreen()
     })
 end
 
+local function SetDeathFilter(strength)
+    local cfg = Config.DeathScreen
+    SetTimecycleModifierStrength(cfg.TimecycleStrength * strength)
+    if cfg.ExtraTimecycle then
+        SetExtraTimecycleModifierStrength(cfg.ExtraTimecycleStrength * strength)
+    end
+end
+
+local function ShowDeathScreen()
+    local cfg = Config.DeathScreen
+    deathScreenVisible = true
+    deathScreenState = nil
+    deathScreenToken = deathScreenToken + 1
+
+    -- screen goes black, comes back black and white, then the timer animates in
+    if cfg.FadeToBlack then
+        DoScreenFadeOut(cfg.FadeOutTime)
+        local timeout = GetGameTimer() + cfg.FadeOutTime + 1000
+        while not IsScreenFadedOut() and GetGameTimer() < timeout do
+            Wait(0)
+        end
+    end
+
+    if cfg.Grayscale then
+        SetTimecycleModifier(cfg.Timecycle)
+        if cfg.ExtraTimecycle then
+            SetExtraTimecycleModifier(cfg.ExtraTimecycle)
+        end
+        SetDeathFilter(1.0)
+    end
+    if cfg.CameraShake > 0 then
+        ShakeGameplayCam('DRUNK_SHAKE', cfg.CameraShake)
+    end
+
+    if cfg.FadeToBlack then
+        Wait(cfg.BlackTime)
+    end
+    SendShowMessage()
+    if cfg.FadeToBlack then
+        DoScreenFadeIn(cfg.FadeInTime)
+    end
+end
+
 local function HideDeathScreen()
+    local cfg = Config.DeathScreen
     deathScreenVisible = false
     deathScreenState = nil
-    if Config.DeathScreen.Grayscale then
-        ClearTimecycleModifier()
-    end
+    deathScreenToken = deathScreenToken + 1
+    local token = deathScreenToken
+
     SendNUIMessage({ action = 'hide' })
+    StopGameplayCamShaking(true)
+    if IsScreenFadedOut() or IsScreenFadingOut() then
+        DoScreenFadeIn(500)
+    end
+    if not cfg.Grayscale then return end
+
+    -- colour comes back smoothly
+    CreateThread(function()
+        local steps = 25
+        for i = steps - 1, 0, -1 do
+            if token ~= deathScreenToken then return end
+            SetDeathFilter(i / steps)
+            Wait(40)
+        end
+        if token ~= deathScreenToken then return end
+        ClearTimecycleModifier()
+        ClearExtraTimecycleModifier()
+    end)
 end
 
 local function UpdateDeathScreen()
@@ -138,6 +211,15 @@ local function UpdateDeathScreen()
         canRequestHelp = canRequestHelp,
     })
 end
+
+RegisterNUICallback('ready', function(_, cb)
+    nuiReady = true
+    if deathScreenVisible then
+        deathScreenState = nil
+        SendShowMessage()
+    end
+    cb('ok')
+end)
 
 -- Threads
 
@@ -216,6 +298,14 @@ CreateThread(function()
             EnableControlAction(0, 47, true)
 
             if isDead then
+                if not nuiReady and not isInHospitalBed then
+                    if deathTime > 0 then
+                        DrawTxt(0.93, 1.44, 1.0,1.0,0.6, Lang:t('info.respawn_txt', {deathtime = math.ceil(deathTime)}), 255, 255, 255, 255)
+                    else
+                        DrawTxt(0.865, 1.44, 1.0, 1.0, 0.6, Lang:t('info.respawn_revive', {holdtime = hold, cost = Config.BillCost}), 255, 255, 255, 255)
+                    end
+                end
+
                 if not isInHospitalBed and IsControlJustPressed(0, 47) and not emsNotified then
                     EMSAlert(Lang:t('info.civ_died'))
                     emsNotified = true
@@ -243,6 +333,15 @@ CreateThread(function()
                 SetCurrentPedWeapon(ped, `WEAPON_UNARMED`, true)
             elseif InLaststand then
                 sleep = 5
+
+                if not nuiReady then
+                    DrawTxt(0.845, 1.44, 1.0, 1.0, 0.6, Lang:t('info.bleed_out_help', {time = math.ceil(LaststandTime)}), 255, 255, 255, 255)
+                    if not emsNotified then
+                        DrawTxt(0.91, 1.40, 1.0, 1.0, 0.6, Lang:t('info.request_help'), 255, 255, 255, 255)
+                    else
+                        DrawTxt(0.90, 1.40, 1.0, 1.0, 0.6, Lang:t('info.help_requested'), 255, 255, 255, 255)
+                    end
+                end
 
                 if LaststandTime <= Config.MinimumRevive then
                     if IsControlJustPressed(0, 47) and not emsNotified then
@@ -300,7 +399,9 @@ CreateThread(function()
 end)
 
 AddEventHandler('onResourceStop', function(resource)
-    if resource == GetCurrentResourceName() and deathScreenVisible and Config.DeathScreen.Grayscale then
+    if resource == GetCurrentResourceName() and deathScreenVisible then
         ClearTimecycleModifier()
+        ClearExtraTimecycleModifier()
+        StopGameplayCamShaking(true)
     end
 end)
