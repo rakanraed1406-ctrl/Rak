@@ -138,3 +138,136 @@ body {
 .result-title { font-size: 30px; font-weight: 900; margin: 4px 0; }
 .result-sub { font-size: 16px; color: var(--ink-dim); }
 .result.win .result-title { color: var(--gold); }
+
+/* =====================================================================
+   Showroom card (top right when you walk up to a car) + test drive timer
+   dark blue  = the "price / insufficient funds" colour
+   blue       = bars, icons, highlights
+   ===================================================================== */
+.vscard, .vstd {
+    --vc-dark-blue: #2563eb;
+    --vc-blue: #3b9dfb;
+    --vc-teal: #22d3ee;
+    --vc-panel: rgba(13, 14, 17, 0.94);
+    --vc-box: rgba(255, 255, 255, 0.035);
+    --vc-line: rgba(255, 255, 255, 0.07);
+    --vc-ink: #f4f6f9;
+    --vc-dim: #8b919c;
+    font-family: 'Rajdhani', 'Tajawal', 'Segoe UI', sans-serif;
+    direction: ltr;
+}
+
+.vscard {
+    position: fixed;
+    top: 3vh;
+    right: 1.6vw;
+    width: 330px;
+    padding: 16px 16px 14px;
+    border-radius: 10px;
+    background: var(--vc-panel);
+    border: 1px solid var(--vc-line);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    animation: vcIn .32s var(--ease) both;
+}
+.vscard.swap { animation: vcSwap .28s var(--ease); }
+@keyframes vcIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: none; } }
+@keyframes vcSwap { from { opacity: .35; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+.vc-title {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+    color: var(--vc-ink);
+    overflow-wrap: anywhere;
+}
+.vc-chips { display: flex; gap: 6px; margin-top: 8px; }
+.vc-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 22px; padding: 0 8px; border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 12px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--vc-dim);
+}
+.vc-chip b { color: var(--vc-ink); }
+.vc-chip svg { width: 12px; height: 12px; fill: var(--vc-dim); }
+
+/* price box */
+.vc-pricebox {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-top: 14px; padding: 12px 14px;
+    border-radius: 7px; background: var(--vc-box); border: 1px solid var(--vc-line);
+}
+.vc-pricebox small, .vc-section {
+    display: block; font-size: 12px; font-weight: 700; letter-spacing: 1.6px; color: var(--vc-dim);
+}
+.vc-price {
+    margin-top: 2px;
+    font-size: 30px; font-weight: 700; line-height: 1;
+    color: var(--vc-dark-blue);
+    text-shadow: 0 0 18px rgba(37, 99, 235, 0.35);
+}
+.vc-wallet { display: flex; flex-direction: column; gap: 5px; }
+.vc-wallet div {
+    display: flex; align-items: center; justify-content: flex-end; gap: 5px;
+    font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--vc-dim);
+}
+.vc-wallet svg { width: 11px; height: 11px; fill: var(--vc-dim); }
+.vc-wallet b { font-size: 15px; letter-spacing: .3px; color: var(--vc-teal); min-width: 60px; text-align: right; }
+
+/* performance */
+.vc-section { margin: 16px 0 6px; }
+.vc-stat { margin-bottom: 8px; }
+.vc-row { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; letter-spacing: .8px; }
+.vc-row svg { width: 13px; height: 13px; fill: var(--vc-blue); flex: 0 0 auto; }
+.vc-row span { flex: 1; color: var(--vc-ink); }
+.vc-row b { color: var(--vc-ink); font-size: 14px; }
+.vc-bar { height: 3px; margin-top: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.vc-bar i {
+    display: block; height: 100%; width: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, #1d6fd1, var(--vc-blue));
+    transform-origin: 0 50%; transform: scaleX(0);
+    transition: transform .6s var(--ease);
+}
+
+/* actions */
+.vc-actions {
+    display: flex; flex-direction: column; gap: 6px;
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vc-line);
+}
+.vc-act {
+    display: flex; align-items: center; gap: 10px;
+    height: 34px; padding: 0 8px; border-radius: 6px;
+    background: var(--vc-box); border: 1px solid var(--vc-line);
+    font-size: 14px; font-weight: 700; letter-spacing: 1px; color: var(--vc-ink);
+    transition: border-color .15s, transform .12s;
+}
+.vc-act kbd {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 4px;
+    background: #1b1d22; border: 1px solid rgba(255, 255, 255, 0.12);
+    font-family: inherit; font-size: 13px; font-weight: 700; color: var(--vc-ink);
+}
+.vc-act b { color: var(--vc-ink); }
+.vc-act.no-money span { color: var(--vc-dark-blue); }
+.vc-act.no-money kbd { border-color: var(--vc-dark-blue); color: var(--vc-dark-blue); }
+.vc-act.press { transform: scale(.97); border-color: var(--vc-blue); }
+.vc-act.deny { animation: vcDeny .3s ease; }
+@keyframes vcDeny { 20% { transform: translateX(-4px); } 45% { transform: translateX(4px); } 70% { transform: translateX(-2px); } 100% { transform: none; } }
+
+/* test drive timer */
+.vstd {
+    position: fixed; top: 3vh; right: 1.6vw; width: 250px;
+    padding: 12px 14px 14px; border-radius: 10px;
+    background: var(--vc-panel); border: 1px solid var(--vc-line);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    animation: vcIn .32s var(--ease) both;
+}
+.vstd-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 700; letter-spacing: 1.6px; color: var(--vc-dim); }
+.vstd-row b { font-size: 24px; letter-spacing: .5px; color: var(--vc-ink); }
+.vstd-row b.low { color: var(--vc-dark-blue); }
+.vstd-car { margin-top: 2px; font-size: 16px; font-weight: 700; text-transform: uppercase; color: var(--vc-ink); }
+.vstd-bar { height: 3px; margin-top: 8px; border-radius: 3px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.vstd-bar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #1d6fd1, var(--vc-blue)); transform-origin: 0 50%; animation: vstdBar linear forwards; }
+@keyframes vstdBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }

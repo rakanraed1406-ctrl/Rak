@@ -1,4 +1,5 @@
---[[ stock/client.lua — stock showroom display cars + qb-target "Buy" (no test drive) ]]
+--[[ stock/client.lua — stock showroom display cars, the showroom card (top
+     right, E buy / G test drive), qb-target options and the test drive. ]]
 
 local QBCore = exports['qb-core']:GetCoreObject()
 local VSC = { nuiFocus = false }
@@ -123,6 +124,7 @@ local blips = {}
 local pendingBuy = nil  -- { storeId, slotId } while the confirm dialog is open
 
 local function key(storeId, slotId) return storeId .. '|' .. slotId end
+local requestTestDrive -- defined with the test drive below
 
 local function despawn(k)
     local veh = spawned[k]
@@ -155,16 +157,22 @@ local function spawnSlot(storeId, slot)
     local veh = VSC.SpawnDisplay(slot.model, slot.coords, 'FORSALE')
     if not veh then return end
     spawned[k] = veh
-    exports['qb-target']:AddTargetEntity(veh, {
-        options = {
-            {
-                icon = 'fas fa-dollar-sign',
-                label = Config.StockLang.buy_target:format(slot.label, VSC.FormatMoney(slot.price)),
-                action = function() openConfirm(storeId, slot.id) end,
-            },
+    local options = {
+        {
+            icon = 'fas fa-dollar-sign',
+            label = Config.StockLang.buy_target:format(slot.label, VSC.FormatMoney(slot.price)),
+            action = function() openConfirm(storeId, slot.id) end,
         },
-        distance = 3.0,
-    })
+    }
+    local td = Config.Stock.TestDrive
+    if td and td.Enabled then
+        options[#options + 1] = {
+            icon = 'fas fa-car-side',
+            label = Config.StockLang.testdrive_target:format(VSC.FormatMoney(td.Price or 0)),
+            action = function() requestTestDrive(storeId, slot.id) end,
+        }
+    end
+    exports['qb-target']:AddTargetEntity(veh, { options = options, distance = 3.0 })
 end
 
 -- Stream display cars in/out by distance (only nearby players render them).
@@ -186,10 +194,10 @@ CreateThread(function()
     end
 end)
 
--- Price text above the cars.
+-- Optional old 3D text above the cars (Config.Stock.Show3DText).
 CreateThread(function()
     while true do
-        local sleep = 1000
+        local sleep = 1500
         if Config.Stock.Show3DText then
             local pos = GetEntityCoords(PlayerPedId())
             for storeId, slots in pairs(stock) do
@@ -207,6 +215,234 @@ CreateThread(function()
         end
         Wait(sleep)
     end
+end)
+
+-- ---------------------------------------------------------------------------
+-- Showroom card (top right) — E buy, G test drive
+-- ---------------------------------------------------------------------------
+local testDrive = nil   -- active test drive (below)
+local cardKey = nil     -- "store|slot" shown on the card, nil = hidden
+local statCache = {}    -- measured stats per model hash
+
+local function measuredStats(model)
+    local hash = joaat(model)
+    local s = statCache[hash]
+    if not s then
+        local unit = (Config.Stock.Card.SpeedUnit == 'mph') and 2.236936 or 3.6
+        s = {
+            speed = GetVehicleModelEstimatedMaxSpeed(hash) * unit,
+            acceleration = GetVehicleModelAcceleration(hash),
+            braking = GetVehicleModelMaxBraking(hash),
+            handling = GetVehicleModelMaxTraction(hash),
+            seats = GetVehicleModelNumberOfSeats(hash),
+        }
+        statCache[hash] = s
+    end
+    return s
+end
+
+local function wallet()
+    local money = (QBCore.Functions.GetPlayerData() or {}).money or {}
+    return money.bank or 0, money.cash or 0
+end
+
+local function canAfford(price)
+    local bank, cash = wallet()
+    local mt = Config.Stock.MoneyType
+    return ((mt == 'cash') and cash or bank) >= price
+end
+
+local function showCard(storeId, slotId)
+    local slot = stock[storeId] and stock[storeId][slotId]
+    if not slot then return end
+    local m = measuredStats(slot.model)
+    local o = slot.stats or {}
+    local bank, cash = wallet()
+    local td = Config.Stock.TestDrive or {}
+    cardKey = key(storeId, slotId)
+    SendNUIMessage({
+        action = 'vsCard',
+        show = true,
+        data = {
+            label = slot.label,
+            category = slot.categoryLabel,
+            seats = m.seats,
+            price = slot.price,
+            bank = bank,
+            cash = cash,
+            canAfford = canAfford(slot.price),
+            unit = Config.Stock.Card.SpeedUnit == 'mph' and 'MPH' or 'KM/H',
+            stats = {
+                speed = o.speed or m.speed,
+                acceleration = o.acceleration or m.acceleration,
+                braking = o.braking or m.braking,
+                handling = o.handling or m.handling,
+            },
+            max = Config.Stock.Card.StatMax,
+            testDrive = { enabled = td.Enabled == true, price = td.Price or 0 },
+        },
+    })
+end
+
+local function hideCard()
+    if not cardKey then return end
+    cardKey = nil
+    SendNUIMessage({ action = 'vsCard', show = false })
+end
+
+CreateThread(function()
+    local lastMoney = 0
+    while true do
+        local sleep = 750
+        local card = Config.Stock.Card
+        local ped = PlayerPedId()
+        if card and card.Enabled and not testDrive and not VSC.nuiFocus and not IsPedInAnyVehicle(ped, false) then
+            local pos = GetEntityCoords(ped)
+            local bestStore, bestSlot, bestD
+            for storeId, slots in pairs(stock) do
+                for slotId, slot in pairs(slots) do
+                    if not slot.sold and spawned[key(storeId, slotId)] then
+                        local d = #(pos - vector3(slot.coords.x, slot.coords.y, slot.coords.z))
+                        if d < (card.Distance or 4.5) and (not bestD or d < bestD) then
+                            bestStore, bestSlot, bestD = storeId, slotId, d
+                        end
+                    end
+                end
+            end
+            if bestStore then
+                sleep = 0
+                if cardKey ~= key(bestStore, bestSlot) then showCard(bestStore, bestSlot) end
+
+                -- keep the money on the card fresh (once a second)
+                local now = GetGameTimer()
+                if now - lastMoney > 1000 then
+                    lastMoney = now
+                    local slot = stock[bestStore][bestSlot]
+                    local bank, cash = wallet()
+                    SendNUIMessage({ action = 'vsCardMoney', bank = bank, cash = cash, canAfford = canAfford(slot.price) })
+                end
+
+                DisableControlAction(0, card.KeyTestDrive or 47, true)
+                if IsControlJustPressed(0, card.KeyBuy or 38) then
+                    local slot = stock[bestStore][bestSlot]
+                    if canAfford(slot.price) then
+                        hideCard()
+                        openConfirm(bestStore, bestSlot)
+                    else
+                        SendNUIMessage({ action = 'vsCardDeny' })
+                        QBCore.Functions.Notify(Config.StockLang.insufficient, 'error')
+                    end
+                elseif IsDisabledControlJustPressed(0, card.KeyTestDrive or 47) then
+                    requestTestDrive(bestStore, bestSlot)
+                end
+            else
+                hideCard()
+            end
+        else
+            hideCard()
+        end
+        Wait(sleep)
+    end
+end)
+
+-- ---------------------------------------------------------------------------
+-- Test drive
+-- ---------------------------------------------------------------------------
+function requestTestDrive(storeId, slotId)
+    if testDrive then return QBCore.Functions.Notify(Config.StockLang.testdrive_busy, 'error') end
+    local td = Config.Stock.TestDrive
+    if not td or not td.Enabled then return QBCore.Functions.Notify(Config.StockLang.testdrive_off, 'error') end
+    SendNUIMessage({ action = 'vsCardPress', key = 'test' })
+    TriggerServerEvent('qb-vehicleshop:stock:server:testDrive', storeId, slotId)
+end
+
+local function endTestDrive(msgKey)
+    local td = testDrive
+    if not td then return end
+    testDrive = nil
+    SendNUIMessage({ action = 'vsTestDrive', show = false })
+    DoScreenFadeOut(300)
+    Wait(350)
+    local ped = PlayerPedId()
+    if td.veh and DoesEntityExist(td.veh) then
+        if GetVehiclePedIsIn(ped, false) == td.veh then TaskLeaveVehicle(ped, td.veh, 16) end
+        SetEntityAsMissionEntity(td.veh, true, true)
+        DeleteVehicle(td.veh)
+    end
+    TriggerServerEvent('qb-vehicleshop:stock:server:testDriveEnd') -- server deletes it too
+    SetEntityCoords(ped, td.prev.x, td.prev.y, td.prev.z - 0.9, false, false, false, false)
+    Wait(300)
+    DoScreenFadeIn(400)
+    QBCore.Functions.Notify(Config.StockLang[msgKey or 'testdrive_ended'], 'primary')
+end
+
+RegisterNetEvent('qb-vehicleshop:stock:client:startTestDrive', function(d)
+    if testDrive or type(d) ~= 'table' or not d.model or not d.spawn then return end
+    hideCard()
+    local ped = PlayerPedId()
+    testDrive = { prev = GetEntityCoords(ped), pending = true }
+    DoScreenFadeOut(250)
+    Wait(300)
+    QBCore.Functions.TriggerCallback('QBCore:Server:SpawnVehicle', function(netId)
+        local veh = NetToVeh(netId)
+        local timeout = GetGameTimer() + 5000
+        while not DoesEntityExist(veh) and GetGameTimer() < timeout do
+            Wait(10)
+            veh = NetToVeh(netId)
+        end
+        if not DoesEntityExist(veh) then
+            testDrive = nil
+            TriggerServerEvent('qb-vehicleshop:stock:server:testDriveFailed')
+            DoScreenFadeIn(300)
+            return
+        end
+
+        local plate = ('TEST%04d'):format(math.random(0, 9999))
+        SetVehicleNumberPlateText(veh, plate)
+        SetEntityHeading(veh, d.spawn.w or 0.0)
+        SetVehicleDirtLevel(veh, 0.0)
+        setFuel(veh)
+        TaskWarpPedIntoVehicle(ped, veh, -1)
+        Config.Stock.GiveKeys(veh, plate)
+        SetVehicleEngineOn(veh, true, true, false)
+
+        testDrive.veh = veh
+        testDrive.pending = false
+        testDrive.endsAt = GetGameTimer() + d.seconds * 1000
+        TriggerServerEvent('qb-vehicleshop:stock:server:testDriveSpawned', netId)
+        SendNUIMessage({ action = 'vsTestDrive', show = true, seconds = d.seconds, label = d.label })
+        Wait(300)
+        DoScreenFadeIn(300)
+        QBCore.Functions.Notify(Config.StockLang.testdrive_started:format(d.seconds), 'success')
+
+        -- watch the test drive (4x a second is plenty)
+        CreateThread(function()
+            local outSince = nil
+            local graceUntil = GetGameTimer() + 2000
+            while testDrive and testDrive.veh == veh do
+                local now = GetGameTimer()
+                if now >= testDrive.endsAt then endTestDrive('testdrive_ended') break end
+                if not DoesEntityExist(veh) or IsEntityDead(veh) then endTestDrive('testdrive_ended') break end
+                if now > graceUntil and GetPedInVehicleSeat(veh, -1) ~= PlayerPedId() then
+                    outSince = outSince or now
+                    if now - outSince > (d.leaveSeconds or 3) * 1000 then endTestDrive('testdrive_left') break end
+                else
+                    outSince = nil
+                end
+                Wait(250)
+            end
+        end)
+    end, d.model, vector4(d.spawn.x, d.spawn.y, d.spawn.z, d.spawn.w or 0.0), true)
+end)
+
+RegisterNetEvent('qb-vehicleshop:stock:client:forceEndTestDrive', function()
+    if testDrive and not testDrive.pending then endTestDrive('testdrive_ended') end
+end)
+
+AddEventHandler('onResourceStop', function(res)
+    if res ~= GetCurrentResourceName() or not testDrive then return end
+    if testDrive.veh and DoesEntityExist(testDrive.veh) then DeleteVehicle(testDrive.veh) end
+    DoScreenFadeIn(0)
 end)
 
 local function applyStock(newStock)

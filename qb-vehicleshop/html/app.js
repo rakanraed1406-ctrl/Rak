@@ -195,6 +195,88 @@ function showResult(r, me) {
 }
 
 // ---------------------------------------------------------------------------
+// Showroom card (top right) + test drive timer
+// ---------------------------------------------------------------------------
+let cardLabel = null;
+let tdTimer = null;
+
+function fmtStat(k, v, unit) {
+    v = Number(v) || 0;
+    return k === 'speed' ? Math.round(v) + ' ' + unit : v.toFixed(2);
+}
+
+function setMoney(d) {
+    $('vc-bank').textContent = money(d.bank);
+    $('vc-cash').textContent = money(d.cash);
+    const buy = $('vc-buy');
+    buy.classList.toggle('no-money', !d.canAfford);
+    $('vc-buy-text').textContent = d.canAfford ? 'PURCHASE' : 'INSUFFICIENT FUNDS';
+}
+
+function showCard(d) {
+    const card = $('vscard');
+    const wasHidden = card.classList.contains('hidden');
+    $('vc-label').textContent = d.label || '—';
+    $('vc-seats').textContent = d.seats || 0;
+    $('vc-cat').textContent = d.category || '—';
+    $('vc-price').textContent = money(d.price);
+    setMoney(d);
+
+    const td = d.testDrive || {};
+    $('vc-test').classList.toggle('hidden', !td.enabled);
+    $('vc-test-price').textContent = td.price > 0 ? money(td.price) : 'FREE';
+
+    const max = d.max || {};
+    const stats = d.stats || {};
+    card.querySelectorAll('.vc-stat').forEach((row) => {
+        const k = row.dataset.k;
+        $('vc-' + k).textContent = fmtStat(k, stats[k], d.unit || 'KM/H');
+        const bar = row.querySelector('.vc-bar i');
+        bar.style.transform = 'scaleX(0)';
+        const pct = Math.max(0.03, Math.min(1, (Number(stats[k]) || 0) / (Number(max[k]) || 1)));
+        requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transform = 'scaleX(' + pct + ')'; }));
+    });
+
+    if (wasHidden) {
+        show('vscard');
+    } else if (cardLabel !== d.label) {
+        card.classList.remove('swap');
+        void card.offsetWidth;
+        card.classList.add('swap');
+    }
+    cardLabel = d.label;
+}
+
+function flash(id, cls, ms) {
+    const el = $(id);
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), ms);
+}
+
+function testDriveTimer(m) {
+    clearInterval(tdTimer);
+    if (!m.show) { hide('vstd'); return; }
+    const ends = Date.now() + m.seconds * 1000;
+    $('vstd-car').textContent = m.label || '';
+    const bar = $('vstd-bar');
+    bar.style.animation = 'none';
+    void bar.offsetWidth;
+    bar.style.animation = '';
+    bar.style.animationDuration = m.seconds + 's';
+    const tick = () => {
+        const left = ends - Date.now();
+        $('vstd-time').textContent = mmss(left);
+        $('vstd-time').classList.toggle('low', left <= 10000);
+        if (left <= 0) clearInterval(tdTimer);
+    };
+    tick();
+    tdTimer = setInterval(tick, 250);
+    show('vstd');
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 window.addEventListener('message', (e) => {
@@ -212,6 +294,14 @@ window.addEventListener('message', (e) => {
         case 'auctionBid': bidToast(m.bid || {}, m.me); break;
         case 'auctionResult': showResult(m.result || {}, m.me); break;
         case 'closeAll': hide('buy'); hide('invite'); hide('admin'); break;
+        case 'vsCard':
+            if (m.show && m.data) showCard(m.data);
+            else { hide('vscard'); cardLabel = null; }
+            break;
+        case 'vsCardMoney': setMoney(m); break;
+        case 'vsCardDeny': flash('vc-buy', 'deny', 320); break;
+        case 'vsCardPress': flash(m.key === 'test' ? 'vc-test' : 'vc-buy', 'press', 160); break;
+        case 'vsTestDrive': testDriveTimer(m); break;
     }
 });
 
