@@ -2,7 +2,8 @@ local QBCore = exports['qb-core']:GetCoreObject()
 
 local deadAnimDict = "dead"
 local deadAnim = "dead_a"
-local hold = 5
+local respawnHold = 5
+local hold = respawnHold
 deathTime = 0
 
 -- Functions
@@ -60,14 +61,14 @@ function OnDeath()
 end
 
 function DeathTimer()
-    hold = 5
+    hold = respawnHold
     while isDead do
         Wait(1000)
         deathTime = deathTime - 1
         if deathTime <= 0 then
             if IsControlPressed(0, 38) and hold <= 0 and not isInHospitalBed then
                 TriggerEvent("hospital:client:RespawnAtHospital")
-                hold = 5
+                hold = respawnHold
             end
             if IsControlPressed(0, 38) then
                 if hold - 1 >= 0 then
@@ -77,24 +78,65 @@ function DeathTimer()
                 end
             end
             if IsControlReleased(0, 38) then
-                hold = 5
+                hold = respawnHold
             end
         end
     end
 end
 
-local function DrawTxt(x, y, width, height, scale, text, r, g, b, a, outline)
-    SetTextFont(4)
-    SetTextProportional(0)
-    SetTextScale(scale, scale)
-    SetTextColour(r, g, b, a)
-    SetTextDropShadow(0, 0, 0, 0,255)
-    SetTextEdge(2, 0, 0, 0, 255)
-    SetTextDropShadow()
-    SetTextOutline()
-    SetTextEntry("STRING")
-    AddTextComponentString(text)
-    DrawText(x - width/2, y - height/2 + 0.005)
+-- Death screen (html/)
+
+local deathScreenVisible = false
+local deathScreenState = nil
+
+local function ShowDeathScreen()
+    deathScreenVisible = true
+    deathScreenState = nil
+    if Config.DeathScreen.Grayscale then
+        SetTimecycleModifier(Config.DeathScreen.Timecycle)
+        SetTimecycleModifierStrength(Config.DeathScreen.TimecycleStrength)
+    end
+    SendNUIMessage({
+        action = 'show',
+        sound = Config.DeathScreen.Sound,
+        volume = Config.DeathScreen.Volume,
+        texts = {
+            bleeding = Lang:t('death_screen.bleeding'),
+            dead = Lang:t('death_screen.dead'),
+            request_help = Lang:t('death_screen.request_help'),
+            help_requested = Lang:t('death_screen.help_requested'),
+            respawn_wait = Lang:t('death_screen.respawn_wait'),
+            respawn_hold = Lang:t('death_screen.respawn_hold', {cost = Config.BillCost}),
+        }
+    })
+end
+
+local function HideDeathScreen()
+    deathScreenVisible = false
+    deathScreenState = nil
+    if Config.DeathScreen.Grayscale then
+        ClearTimecycleModifier()
+    end
+    SendNUIMessage({ action = 'hide' })
+end
+
+local function UpdateDeathScreen()
+    local time = math.max(0, math.ceil(isDead and deathTime or LaststandTime))
+    local canRespawn = isDead and deathTime <= 0
+    local canRequestHelp = not emsNotified and (isDead or LaststandTime <= Config.MinimumRevive)
+    local key = ('%s|%d|%s|%d|%s|%s'):format(isDead and 'dead' or 'bleeding', time, canRespawn, hold, emsNotified, canRequestHelp)
+    if key == deathScreenState then return end
+    deathScreenState = key
+    SendNUIMessage({
+        action = 'update',
+        mode = isDead and 'dead' or 'bleeding',
+        time = time,
+        canRespawn = canRespawn,
+        hold = hold,
+        holdMax = respawnHold,
+        helpRequested = emsNotified,
+        canRequestHelp = canRequestHelp,
+    })
 end
 
 -- Threads
@@ -174,12 +216,9 @@ CreateThread(function()
             EnableControlAction(0, 47, true)
 
             if isDead then
-                if not isInHospitalBed then
-                    if deathTime > 0 then
-                        DrawTxt(0.93, 1.44, 1.0,1.0,0.6, Lang:t('info.respawn_txt', {deathtime = math.ceil(deathTime)}), 255, 255, 255, 255)
-                    else
-                        DrawTxt(0.865, 1.44, 1.0, 1.0, 0.6, Lang:t('info.respawn_revive', {holdtime = hold, cost = Config.BillCost}), 255, 255, 255, 255)
-                    end
+                if not isInHospitalBed and IsControlJustPressed(0, 47) and not emsNotified then
+                    EMSAlert(Lang:t('info.civ_died'))
+                    emsNotified = true
                 end
 
                 if IsPedInAnyVehicle(ped, false) then
@@ -205,16 +244,7 @@ CreateThread(function()
             elseif InLaststand then
                 sleep = 5
 
-                if LaststandTime > Config.MinimumRevive then
-                    DrawTxt(0.94, 1.44, 1.0, 1.0, 0.6, Lang:t('info.bleed_out', {time = math.ceil(LaststandTime)}), 255, 255, 255, 255)
-                else
-                    DrawTxt(0.845, 1.44, 1.0, 1.0, 0.6, Lang:t('info.bleed_out_help', {time = math.ceil(LaststandTime)}), 255, 255, 255, 255)
-                    if not emsNotified then
-                        DrawTxt(0.91, 1.40, 1.0, 1.0, 0.6, Lang:t('info.request_help'), 255, 255, 255, 255)
-                    else
-                        DrawTxt(0.90, 1.40, 1.0, 1.0, 0.6, Lang:t('info.help_requested'), 255, 255, 255, 255)
-                    end
-
+                if LaststandTime <= Config.MinimumRevive then
                     if IsControlJustPressed(0, 47) and not emsNotified then
                         -- TriggerServerEvent('hospital:server:ambulanceAlert', Lang:t('info.civ_down'))
                         EMSAlert(Lang:t('info.civ_down'))
@@ -251,4 +281,26 @@ CreateThread(function()
 		end
         Wait(sleep)
 	end
+end)
+
+CreateThread(function()
+    while true do
+        local sleep = 500
+        if (isDead or InLaststand) and not isInHospitalBed then
+            sleep = 250
+            if not deathScreenVisible then
+                ShowDeathScreen()
+            end
+            UpdateDeathScreen()
+        elseif deathScreenVisible then
+            HideDeathScreen()
+        end
+        Wait(sleep)
+    end
+end)
+
+AddEventHandler('onResourceStop', function(resource)
+    if resource == GetCurrentResourceName() and deathScreenVisible and Config.DeathScreen.Grayscale then
+        ClearTimecycleModifier()
+    end
 end)

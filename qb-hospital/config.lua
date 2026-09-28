@@ -8,6 +8,15 @@ Config.BillCost = 100                                          ---- قيمة ت�
 Config.insurancepersent = 45                                   --  سعر تعبيئة البينات للمشترين التامين
 Config.insurancePrice = 250                                   -- قيمة التامين
 Config.DeathTime = 300
+
+-- شاشة الموت (html/)
+Config.DeathScreen = {
+    Grayscale = true,                   -- الشاشة تصير أبيض وأسود وقت الموت والإصابة
+    Timecycle = 'rply_saturation_neg',  -- فلتر اللعبة المستخدم للأبيض والأسود
+    TimecycleStrength = 1.0,            -- قوة الفلتر من 0.0 إلى 1.0
+    Sound = true,                       -- صوت جهاز دقات القلب
+    Volume = 0.15,                      -- مستوى الصوت من 0.0 إلى 1.0
+}
 Config.CheckTime = 10
 
 

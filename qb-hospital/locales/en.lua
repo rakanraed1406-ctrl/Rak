@@ -122,6 +122,14 @@ local Translations = {
         healing = 'Healing Wounds...',
         checking_in = 'Checking in...',
     },
+    death_screen = {
+        bleeding = 'BLEEDING OUT',
+        dead = 'NO PULSE',
+        request_help = 'اضغط لطلب المساعدة',
+        help_requested = 'تم إبلاغ المسعفين',
+        respawn_wait = 'الإنعاش في المستشفى متاح بعد انتهاء الوقت',
+        respawn_hold = 'اضغط مطولاً للإنعاش في المستشفى مقابل %{cost}$',
+    },
     logs = {
         death_log_title = "%{playername} (%{playerid}) is dead",
         death_log_message = "%{killername} has killed %{playername} with a **%{weaponlabel}** (%{weaponname})",
