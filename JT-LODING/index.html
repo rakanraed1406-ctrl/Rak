@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ar" dir="ltr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Loading</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Barlow+Condensed:wght@500;600;700&family=Tajawal:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- ================= background ================= -->
+    <div class="bg">
+        <div class="bg-slides" id="bg-slides"></div>
+        <div class="bg-orb orb-a"></div>
+        <div class="bg-orb orb-b"></div>
+        <div class="bg-grid"></div>
+        <canvas id="particles"></canvas>
+        <div class="bg-scan"></div>
+        <div class="bg-vignette"></div>
+    </div>
+
+    <!-- ================= top bar ================= -->
+    <header class="top">
+        <div class="brand">
+            <div class="brand-mark"><span id="logo-text">JT</span></div>
+            <div class="brand-text">
+                <b id="brand-name">Jinxed Town</b>
+                <small>LOADING INTO THE CITY</small>
+            </div>
+        </div>
+        <div class="top-right">
+            <div class="socials" id="socials"></div>
+            <div class="clock">
+                <b id="clock">00:00</b>
+                <small id="elapsed">00:00</small>
+            </div>
+        </div>
+    </header>
+
+    <!-- ================= center ================= -->
+    <main class="center">
+        <div class="welcome" id="welcome">WELCOME TO</div>
+        <h1 class="title" id="title"></h1>
+        <div class="tagline" id="tagline"></div>
+
+        <div class="tip">
+            <span class="tip-tag">TIP</span>
+            <div class="tip-text" id="tip-text"></div>
+            <div class="tip-dots" id="tip-dots"></div>
+        </div>
+
+        <div class="team" id="team"></div>
+    </main>
+
+    <!-- ================= bottom ================= -->
+    <footer class="bottom">
+        <section class="loader">
+            <div class="loader-head">
+                <div>
+                    <div class="stage" id="stage">Preparing</div>
+                    <div class="log" id="log">Connecting to the server…</div>
+                </div>
+                <div class="percent"><b id="percent">0</b><span>%</span></div>
+            </div>
+            <div class="bar">
+                <div class="bar-fill" id="bar-fill"><i class="bar-shine"></i></div>
+                <div class="bar-blocks"></div>
+            </div>
+            <div class="steps" id="steps">
+                <span data-s="INIT_CORE">CORE</span>
+                <span data-s="INIT_BEFORE_MAP_LOADED">RESOURCES</span>
+                <span data-s="MAP">MAP</span>
+                <span data-s="INIT_AFTER_MAP_LOADED">WORLD</span>
+                <span data-s="INIT_SESSION">SESSION</span>
+            </div>
+        </section>
+
+        <section class="player" id="player">
+            <div class="player-top">
+                <canvas id="viz" width="220" height="44"></canvas>
+                <div class="track">
+                    <b id="track-title">—</b>
+                    <small id="track-artist">—</small>
+                </div>
+            </div>
+            <div class="seek"><div id="seek-fill"></div></div>
+            <div class="player-row">
+                <div class="controls">
+                    <button class="btn" id="prev" title="Previous (P)">
+                        <svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+                    </button>
+                    <button class="btn play" id="play" title="Play / pause (Space)">
+                        <svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+                        <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                    <button class="btn" id="next" title="Next (N)">
+                        <svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+                    </button>
+                </div>
+                <div class="volume">
+                    <button class="btn small" id="mute" title="Mute (M)">
+                        <svg class="i-vol" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+                        <svg class="i-mute" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zm12.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z"/></svg>
+                    </button>
+                    <button class="btn small" id="vol-down" title="Volume down (↓)">−</button>
+                    <div class="vol-track" id="vol-track"><div id="vol-fill"></div><i id="vol-knob"></i></div>
+                    <button class="btn small" id="vol-up" title="Volume up (↑)">+</button>
+                    <b class="vol-val" id="vol-val">35%</b>
+                </div>
+            </div>
+            <div class="keys">
+                <span><kbd>SPACE</kbd> PLAY</span>
+                <span><kbd>↑</kbd><kbd>↓</kbd> VOLUME</span>
+                <span><kbd>M</kbd> MUTE</span>
+                <span><kbd>N</kbd><kbd>P</kbd> TRACK</span>
+            </div>
+        </section>
+    </footer>
+
+    <audio id="audio" preload="auto"></audio>
+
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
