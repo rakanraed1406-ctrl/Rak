@@ -213,6 +213,9 @@ local function UpdateDeathScreen()
 end
 
 RegisterNUICallback('ready', function(_, cb)
+    if not nuiReady then
+        print('^2[qb-hospital] death screen page loaded^7')
+    end
     nuiReady = true
     if deathScreenVisible then
         deathScreenState = nil
@@ -220,6 +223,37 @@ RegisterNUICallback('ready', function(_, cb)
     end
     cb('ok')
 end)
+
+RegisterNUICallback('pageError', function(data, cb)
+    print(('^1[qb-hospital] death screen page error (line %s): %s^7'):format(tostring(data.line), tostring(data.message)))
+    cb('ok')
+end)
+
+CreateThread(function()
+    Wait(20000)
+    if not nuiReady then
+        print('^1[qb-hospital] death screen page did not load. Run "refresh" then "ensure qb-hospital" in the server console and reconnect.^7')
+    end
+end)
+
+-- /deathscreen : preview the death screen for 10 seconds without dying
+RegisterCommand('deathscreen', function()
+    if isDead or InLaststand then return end
+    print(('[qb-hospital] death screen preview (page loaded: %s)'):format(tostring(nuiReady)))
+    SendShowMessage()
+    for t = 10, 0, -1 do
+        SendNUIMessage({
+            action = 'update', mode = t > 0 and 'bleeding' or 'dead', time = t,
+            canRespawn = t == 0, hold = respawnHold, holdMax = respawnHold,
+            helpRequested = false, canRequestHelp = true,
+        })
+        Wait(1000)
+    end
+    Wait(3000)
+    if not (isDead or InLaststand) then
+        SendNUIMessage({ action = 'hide' })
+    end
+end, false)
 
 -- Threads
 

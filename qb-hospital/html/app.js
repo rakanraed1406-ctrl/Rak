@@ -313,6 +313,11 @@ window.addEventListener('message', (event) => {
 });
 
 // tell the client script the page is loaded, so it stops using the fallback text
-if (typeof GetParentResourceName === 'function') {
-    fetch('https://' + GetParentResourceName() + '/ready', { method: 'POST', body: '{}' }).catch(() => {});
+// (retried, in case the page loads before the client script registered the callback)
+function sendReady(attempt) {
+    if (typeof GetParentResourceName !== 'function' || attempt > 30) return;
+    fetch('https://' + GetParentResourceName() + '/ready', { method: 'POST', body: '{}' })
+        .then((res) => { if (!res.ok) throw new Error('not ready'); })
+        .catch(() => setTimeout(() => sendReady(attempt + 1), 1000));
 }
+sendReady(1);
