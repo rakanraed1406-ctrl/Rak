@@ -199,27 +199,60 @@ function showResult(r, me) {
 // ---------------------------------------------------------------------------
 let cardLabel = null;
 let tdTimer = null;
+let lastWallet = { bank: null, cash: null };
 
 function fmtStat(k, v, unit) {
     v = Number(v) || 0;
     return k === 'speed' ? Math.round(v) + ' ' + unit : v.toFixed(2);
 }
 
+// numbers count up from 0 when the card opens / switches car (~0.45s)
+function countUp(el, to, format) {
+    const start = performance.now();
+    const dur = 450;
+    const step = (now) => {
+        const t = Math.min(1, (now - start) / dur);
+        const e = 1 - Math.pow(1 - t, 3);
+        el.textContent = format(to * e);
+        if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
+
+function setWalletValue(id, value) {
+    const el = $(id);
+    el.textContent = money(value);
+    const k = id === 'vc-bank' ? 'bank' : 'cash';
+    if (lastWallet[k] !== null && lastWallet[k] !== value) {
+        el.classList.remove('bump');
+        void el.offsetWidth;
+        el.classList.add('bump');
+    }
+    lastWallet[k] = value;
+}
+
 function setMoney(d) {
-    $('vc-bank').textContent = money(d.bank);
-    $('vc-cash').textContent = money(d.cash);
+    setWalletValue('vc-bank', d.bank);
+    setWalletValue('vc-cash', d.cash);
+
     const buy = $('vc-buy');
     buy.classList.toggle('no-money', !d.canAfford);
+    buy.classList.toggle('ok', !!d.canAfford);
     $('vc-buy-text').textContent = d.canAfford ? 'PURCHASE' : 'INSUFFICIENT FUNDS';
+    $('vc-buy-need').textContent = !d.canAfford && d.need > 0 ? 'NEED ' + money(d.need) : '';
+
+    $('vc-test').classList.toggle('no-money', d.testAfford === false);
 }
 
 function showCard(d) {
     const card = $('vscard');
     const wasHidden = card.classList.contains('hidden');
+    const changed = wasHidden || cardLabel !== d.label;
     $('vc-label').textContent = d.label || '—';
     $('vc-seats').textContent = d.seats || 0;
     $('vc-cat').textContent = d.category || '—';
-    $('vc-price').textContent = money(d.price);
+    if (changed) countUp($('vc-price'), Number(d.price) || 0, (v) => money(Math.round(v)));
+    else $('vc-price').textContent = money(d.price);
     setMoney(d);
 
     const td = d.testDrive || {};
@@ -228,18 +261,26 @@ function showCard(d) {
 
     const max = d.max || {};
     const stats = d.stats || {};
+    const unit = d.unit || 'KM/H';
     card.querySelectorAll('.vc-stat').forEach((row) => {
         const k = row.dataset.k;
-        $('vc-' + k).textContent = fmtStat(k, stats[k], d.unit || 'KM/H');
+        const val = Number(stats[k]) || 0;
+        if (changed) countUp($('vc-' + k), val, (v) => fmtStat(k, v, unit));
+        else $('vc-' + k).textContent = fmtStat(k, val, unit);
         const bar = row.querySelector('.vc-bar i');
-        bar.style.transform = 'scaleX(0)';
-        const pct = Math.max(0.03, Math.min(1, (Number(stats[k]) || 0) / (Number(max[k]) || 1)));
-        requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transform = 'scaleX(' + pct + ')'; }));
+        const tip = row.querySelector('.vc-bar em');
+        const pct = Math.max(0.03, Math.min(1, val / (Number(max[k]) || 1)));
+        if (changed) { bar.style.transform = 'scaleX(0)'; tip.style.left = '0%'; tip.style.opacity = '0'; }
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            bar.style.transform = 'scaleX(' + pct + ')';
+            tip.style.left = (pct * 100) + '%';
+            tip.style.opacity = '1';
+        }));
     });
 
     if (wasHidden) {
         show('vscard');
-    } else if (cardLabel !== d.label) {
+    } else if (changed) {
         card.classList.remove('swap');
         void card.offsetWidth;
         card.classList.add('swap');
@@ -296,7 +337,7 @@ window.addEventListener('message', (e) => {
         case 'closeAll': hide('buy'); hide('invite'); hide('admin'); break;
         case 'vsCard':
             if (m.show && m.data) showCard(m.data);
-            else { hide('vscard'); cardLabel = null; }
+            else { hide('vscard'); cardLabel = null; lastWallet = { bank: null, cash: null }; }
             break;
         case 'vsCardMoney': setMoney(m); break;
         case 'vsCardDeny': flash('vc-buy', 'deny', 320); break;

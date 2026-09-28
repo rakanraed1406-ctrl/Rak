@@ -252,12 +252,27 @@ local function canAfford(price)
     return ((mt == 'cash') and cash or bank) >= price
 end
 
+-- everything the card needs about the player's real money for this price
+local function moneyInfo(price)
+    local bank, cash = wallet()
+    local have = (Config.Stock.MoneyType == 'cash') and cash or bank
+    local tdPrice = (Config.Stock.TestDrive or {}).Price or 0
+    return {
+        bank = bank,
+        cash = cash,
+        canAfford = have >= price,
+        need = math.max(0, price - have),
+        -- the test drive pays from cash, or bank if cash isn't enough (server does the same)
+        testAfford = cash >= tdPrice or bank >= tdPrice,
+    }
+end
+
 local function showCard(storeId, slotId)
     local slot = stock[storeId] and stock[storeId][slotId]
     if not slot then return end
     local m = measuredStats(slot.model)
     local o = slot.stats or {}
-    local bank, cash = wallet()
+    local mi = moneyInfo(slot.price)
     local td = Config.Stock.TestDrive or {}
     cardKey = key(storeId, slotId)
     SendNUIMessage({
@@ -268,9 +283,11 @@ local function showCard(storeId, slotId)
             category = slot.categoryLabel,
             seats = m.seats,
             price = slot.price,
-            bank = bank,
-            cash = cash,
-            canAfford = canAfford(slot.price),
+            bank = mi.bank,
+            cash = mi.cash,
+            canAfford = mi.canAfford,
+            need = mi.need,
+            testAfford = mi.testAfford,
             unit = Config.Stock.Card.SpeedUnit == 'mph' and 'MPH' or 'KM/H',
             stats = {
                 speed = o.speed or m.speed,
@@ -317,9 +334,9 @@ CreateThread(function()
                 local now = GetGameTimer()
                 if now - lastMoney > 1000 then
                     lastMoney = now
-                    local slot = stock[bestStore][bestSlot]
-                    local bank, cash = wallet()
-                    SendNUIMessage({ action = 'vsCardMoney', bank = bank, cash = cash, canAfford = canAfford(slot.price) })
+                    local mi = moneyInfo(stock[bestStore][bestSlot].price)
+                    mi.action = 'vsCardMoney'
+                    SendNUIMessage(mi)
                 end
 
                 DisableControlAction(0, card.KeyTestDrive or 47, true)

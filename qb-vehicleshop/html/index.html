@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Vehicle Shop</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Rajdhani:wght@600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Barlow+Condensed:wght@600;700&display=swap">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -128,23 +128,23 @@
         <div class="vc-section">PERFORMANCE</div>
         <div class="vc-stat" data-k="speed">
             <div class="vc-row"><svg viewBox="0 0 24 24"><path d="M12 4a10 10 0 0 0-10 10c0 2 .6 3.9 1.6 5.4l1.6-1.2A8 8 0 1 1 20 14c0 1.5-.4 2.9-1.1 4.2l1.6 1.2A10 10 0 0 0 12 4zm4.6 4.2-5.8 5.1a1.8 1.8 0 1 0 2.5 2.5l3.3-7.6z"/></svg><span>TOP SPEED</span><b id="vc-speed">0</b></div>
-            <div class="vc-bar"><i></i></div>
+            <div class="vc-bar"><i></i><em></em></div>
         </div>
         <div class="vc-stat" data-k="acceleration">
             <div class="vc-row"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg><span>ACCELERATION</span><b id="vc-acceleration">0</b></div>
-            <div class="vc-bar"><i></i></div>
+            <div class="vc-bar"><i></i><em></em></div>
         </div>
         <div class="vc-stat" data-k="braking">
             <div class="vc-row"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12zm0 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg><span>BRAKING</span><b id="vc-braking">0</b></div>
-            <div class="vc-bar"><i></i></div>
+            <div class="vc-bar"><i></i><em></em></div>
         </div>
         <div class="vc-stat" data-k="handling">
             <div class="vc-row"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 3a7 7 0 0 1 6.9 6h-3.2a3.8 3.8 0 0 0-7.4 0H5.1A7 7 0 0 1 12 5zM5.1 13h3.4l2.5 5.9A7 7 0 0 1 5.1 13zm7.9 5.9 2.5-5.9h3.4a7 7 0 0 1-5.9 5.9z"/></svg><span>HANDLING</span><b id="vc-handling">0</b></div>
-            <div class="vc-bar"><i></i></div>
+            <div class="vc-bar"><i></i><em></em></div>
         </div>
 
         <div class="vc-actions">
-            <div class="vc-act" id="vc-buy"><kbd>E</kbd><span id="vc-buy-text">PURCHASE</span></div>
+            <div class="vc-act" id="vc-buy"><kbd>E</kbd><span id="vc-buy-text">PURCHASE</span><small id="vc-buy-need"></small></div>
             <div class="vc-act" id="vc-test"><kbd>G</kbd><span>TEST DRIVE · <b id="vc-test-price">$0</b></span></div>
         </div>
     </div>
