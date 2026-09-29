@@ -199,6 +199,7 @@ RegisterNetEvent("weapons:server:TakeBackWeapon", function(k)
     local itemdata = Config.WeaponRepairPoints[k].RepairingData.WeaponData
     itemdata.info.quality = 100
     itemdata.info.durabilityshots = 0
+    itemdata.info.durabilityquality = 100
     Player.Functions.AddItem(itemdata.name, 1, false, itemdata.info)
     TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[itemdata.name], "add")
     Config.WeaponRepairPoints[k].IsRepairing = false
@@ -213,6 +214,7 @@ RegisterNetEvent("weapons:server:SetWeaponQuality", function(data, hp)
     if not WeaponSlot then return end
     WeaponSlot.info.quality = hp
     WeaponSlot.info.durabilityshots = 0
+    WeaponSlot.info.durabilityquality = tonumber(hp)
     Player.Functions.SetInventory(Player.PlayerData.items, true)
 end)
 
@@ -230,29 +232,54 @@ RegisterNetEvent('weapons:server:UpdateWeaponQuality', function(data, RepeatAmou
     RepeatAmount = math.floor(tonumber(RepeatAmount) or 0)
     if RepeatAmount <= 0 then return end
 
+    -- الجودة الصحيحة محفوظة في info.durabilityquality
+    -- لو سكربت ثاني نقّص info.quality نرجعها للقيمة الصحيحة
+    -- ولو أحد صلّح السلاح (رفع الجودة) ناخذ القيمة الجديدة
+    local current = tonumber(WeaponSlot.info.quality) or 100
+    local tracked = tonumber(WeaponSlot.info.durabilityquality)
+    local quality
+    if tracked and tracked > current then
+        quality = tracked
+        if Config.DurabilityDebug then
+            print(('[qb-weapons] ^3another script lowered %s quality %s -> %s, restored to %s^7'):format(data.name, tracked, current, tracked))
+        end
+    else
+        quality = math.floor(current + 0.5)
+    end
+
     -- عداد الطلقات محفوظ داخل السلاح نفسه، وكل ShotsPerDurability طلقة تنقص الجودة
-    WeaponSlot.info.quality = WeaponSlot.info.quality or 100
     local shots = (tonumber(WeaponSlot.info.durabilityshots) or 0) + RepeatAmount
     local steps = math.floor(shots / Config.ShotsPerDurability)
     WeaponSlot.info.durabilityshots = shots % Config.ShotsPerDurability
-
     if steps > 0 then
-        -- تقريب الجودة لرقم صحيح (الأسلحة القديمة كان فيها كسور مثل 97.4)
-        local quality = math.floor(WeaponSlot.info.quality + 0.5) - (steps * DecreaseAmount)
-        if quality > 0 then
-            WeaponSlot.info.quality = quality
-        else
-            WeaponSlot.info.quality = 0
-            WeaponSlot.info.durabilityshots = 0
-            TriggerClientEvent('inventory:client:UseWeapon', src, data, false)
-            TriggerClientEvent('QBCore:Notify', src, Lang:t('error.weapon_broken_need_repair'), "error")
-        end
+        quality = math.max(quality - (steps * DecreaseAmount), 0)
+    end
+    WeaponSlot.info.quality = quality
+    WeaponSlot.info.durabilityquality = quality
+
+    if steps > 0 and quality == 0 then
+        WeaponSlot.info.durabilityshots = 0
+        TriggerClientEvent('inventory:client:UseWeapon', src, data, false)
+        TriggerClientEvent('QBCore:Notify', src, Lang:t('error.weapon_broken_need_repair'), "error")
     end
     if Config.DurabilityDebug then
         print(('[qb-weapons] %s (slot %s): +%s shots, counter %s/%s, quality %s'):format(
             data.name, data.slot, RepeatAmount, WeaponSlot.info.durabilityshots, Config.ShotsPerDurability, WeaponSlot.info.quality))
     end
     Player.Functions.SetInventory(Player.PlayerData.items, true)
+
+    -- لو سكربت ثاني نقّص الجودة بعدنا على نفس الطلقة، نرجعها بعد لحظة
+    SetTimeout(250, function()
+        local P = QBCore.Functions.GetPlayer(src)
+        if not P then return end
+        local Slot = P.PlayerData.items[data.slot]
+        if not Slot or Slot.name ~= WeaponSlot.name or not Slot.info then return end
+        if tonumber(Slot.info.durabilityquality) ~= quality then return end
+        if (tonumber(Slot.info.quality) or 100) < quality then
+            Slot.info.quality = quality
+            P.Functions.SetInventory(P.PlayerData.items, true)
+        end
+    end)
 end)
 
 RegisterNetEvent("weapons:server:EquipAttachment", function(ItemData, CurrentWeaponData, AttachmentData)
