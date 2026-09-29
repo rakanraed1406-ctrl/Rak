@@ -281,19 +281,42 @@ local function SetBedCam()
 
     DoScreenFadeOut(1000)
 
-    while not IsScreenFadedOut() do
+    local fadeTimeout = GetGameTimer() + 3000
+    while not IsScreenFadedOut() and GetGameTimer() < fadeTimeout do
         Wait(100)
     end
 
 	if IsPedDeadOrDying(player) then
 		local pos = GetEntityCoords(player, true)
 		NetworkResurrectLocalPlayer(pos.x, pos.y, pos.z, GetEntityHeading(player), true, false)
+        player = PlayerPedId()
+    end
+    if IsPedInAnyVehicle(player, false) then
+        ClearPedTasksImmediately(player) -- out of the car before the teleport
     end
 
-    bedObject = GetClosestObjectOfType(bedOccupyingData.coords.x, bedOccupyingData.coords.y, bedOccupyingData.coords.z, 1.0, bedOccupyingData.model, false, false, false)
-    FreezeEntityPosition(bedObject, true)
+    -- load the hospital (interior + collision) before putting the patient in the
+    -- bed, otherwise you can fall through the floor after a long-distance respawn
+    local c = bedOccupyingData.coords
+    FreezeEntityPosition(player, true)
+    SetEntityCoords(player, c.x, c.y, c.z + 0.02, false, false, false, false)
+    RequestCollisionAtCoord(c.x, c.y, c.z)
+    local interior = GetInteriorAtCoords(c.x, c.y, c.z)
+    if interior ~= 0 then
+        PinInteriorInMemory(interior)
+        local t = GetGameTimer() + 5000
+        while not IsInteriorReady(interior) and GetGameTimer() < t do Wait(50) end
+    end
+    local t = GetGameTimer() + 5000
+    while not HasCollisionLoadedAroundEntity(player) and GetGameTimer() < t do
+        RequestCollisionAtCoord(c.x, c.y, c.z)
+        Wait(50)
+    end
 
-    SetEntityCoords(player, bedOccupyingData.coords.x, bedOccupyingData.coords.y, bedOccupyingData.coords.z + 0.02)
+    bedObject = GetClosestObjectOfType(c.x, c.y, c.z, 1.0, bedOccupyingData.model, false, false, false)
+    if bedObject ~= 0 then FreezeEntityPosition(bedObject, true) end
+
+    SetEntityCoords(player, c.x, c.y, c.z + 0.02, false, false, false, false)
     --SetEntityInvincible(PlayerPedId(), true)
     Wait(500)
     FreezeEntityPosition(player, true)
@@ -819,8 +842,10 @@ end)
 
 RegisterNetEvent('hospital:client:RespawnAtHospital', function()
     TriggerServerEvent("hospital:server:RespawnAtHospital")
-    if exports["qb-police"]:IsHandcuffed() then
-        TriggerEvent("police:client:GetCuffed", -1)
+    -- qb-police is optional (the export used to throw an error without it)
+    if GetResourceState('qb-police') == 'started' then
+        local ok, cuffed = pcall(function() return exports["qb-police"]:IsHandcuffed() end)
+        if ok and cuffed then TriggerEvent("police:client:GetCuffed", -1) end
     end
     TriggerEvent("police:client:DeEscort")
 end)

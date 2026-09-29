@@ -26,6 +26,28 @@ function HospitalHasInsurance(Player)
 	return ts > os.time()
 end
 
+-- Respawn without insurance: everything goes except Config.KeepItemsOnRespawn.
+-- (the old code also wrote an empty inventory straight to the database, which
+-- deleted the kept items too and could be overwritten by the next player save)
+function WipeInventory(src, Player)
+	local keep = Config.KeepItemsOnRespawn or {}
+	if GetResourceState('ox_inventory') == 'started' then
+		exports.ox_inventory:ClearInventory(src, keep)
+		return
+	end
+	if #keep == 0 then
+		Player.Functions.ClearInventory()
+		return
+	end
+	local keepSet = {}
+	for _, name in ipairs(keep) do keepSet[name] = true end
+	local kept = {}
+	for slot, item in pairs(Player.PlayerData.items or {}) do
+		if item and keepSet[item.name] then kept[slot] = item end
+	end
+	Player.Functions.SetInventory(kept)
+end
+
 local BedOwners = { beds = {}, bedssandy = {} } -- [list][bedId] = source
 local BED_EVENT = { beds = 'hospital:client:SetBed', bedssandy = 'hospital:client:SetBedsandy' }
 
@@ -133,9 +155,10 @@ RegisterNetEvent('hospital:server:RespawnAtHospital', function()
 	SetBedTaken('beds', k, src)
 
 	if Config.WipeInventoryOnRespawn and not insured then
-		Player.Functions.ClearInventory()
-		MySQL.Async.execute('UPDATE players SET inventory = ? WHERE citizenid = ?', { json.encode({}), Player.PlayerData.citizenid })
-		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.possessions_taken'), 'error')
+		WipeInventory(src, Player)
+		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.possessions_taken'), 'error', 7000)
+	elseif Config.WipeInventoryOnRespawn then
+		TriggerClientEvent('QBCore:Notify', src, Lang:t('success.insurance_kept'), 'success', 7000)
 	end
 	local cost = insured and Config.insurancepersent or Config.BillCost
 	Player.Functions.RemoveMoney("bank", cost, "respawned-at-hospital")

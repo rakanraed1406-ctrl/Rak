@@ -1,7 +1,10 @@
 Config = {}
 
 Config.MinimalDoctors = 1
-Config.WipeInventoryOnRespawn = true
+Config.WipeInventoryOnRespawn = true                          -- لما تتحلل (رسبن) وأنت مو مأمّن تروح أغراضك
+Config.KeepItemsOnRespawn = {                                -- أغراض ما تنشال حتى لو مو مأمّن
+    'phone', 'id_card', 'driver_license', 'weaponlicense', 'lawyerpass',
+}
 Config.ReviveInterval = 60                                  -- How long the timer is for players to revive a player in laststand
 Config.MinimumRevive = 300                                   -- How long the timer is for players to revive a player in laststand
 Config.BillCost = 100                                          ---- قيمة تعبيئة البينات الي مب شارين التامين
