@@ -1,0 +1,74 @@
+# qb-ems-tools — أدوات الإسعاف الميدانية
+
+سكربت حصري للمسعفين: أدوات علاج كل وحدة لها **انميشن + بروب**، **شاشة علامات حيوية حيّة** (ECG)، **نقالة** تنحط بالإسعاف، **كرسي متحرك**، **شنطة إسعاف** تنحط بالأرض، و**إنعاش قلبي (CPR)** لأي أحد.
+مربوط بـ `qb-hospital` (النزيف والإصابات والـ Last stand) وبتابلت الإسعاف `mdt-ems-tablet` (كل علاج ينكتب بسجل المريض تلقائي).
+
+> شاشة الموت ما انلمست.
+
+## التركيب
+1. حط المجلد بالسيرفر، وبالـ `server.cfg` **بعد** `qb-hospital` و `qb-target` و `ox_lib`:
+   ```
+   ensure qb-hospital
+   ensure mdt-ems-tablet
+   ensure qb-ems-tools
+   ```
+2. **الأيتمات**: موجودة جاهزة بملف `qb-core/shared/items.lua` اللي بالريبو.
+   - ox_inventory؟ انسخ `install/ox_inventory_items.lua`.
+3. **الصور**: انسخ كل اللي في `install/images/` إلى `qb-inventory/html/images/` (أو `ox_inventory/web/images/`).
+4. الأدوات موجودة بخزنة المستشفى (Locker) — `Config.Items` في `qb-hospital/config.lua`.
+5. Radial menu → EMS: **Vitals Monitor / Treat Patient / CPR** (مضافة بـ `qb-radialmenu`).
+
+## الأدوات
+| الأيتم | الاسم | على مين | للمسعفين بس | وش يسوي | الانميشن / البروب |
+|---|---|---|---|---|---|
+| `ems_gauze` | Hemostatic Gauze | نفسك / مريض | لا | ينقص النزيف درجتين + 5 صحة | لف الجرح / ركوع + شنطة إسعاف بالأرض |
+| `ems_tourniquet` | Tourniquet | نفسك / مريض | لا | يوقف النزيف كامل | لف / ركوع + شنطة |
+| `ems_splint` | SAM Splint | نفسك / مريض | لا | يعالج كسور الرجول والإيدين (يرجع الجري) | ركوع + شنطة + عدة |
+| `ems_coldpack` | Cold Pack | نفسك / مريض | لا | مسكن خفيف + يعالج الكدمات الخفيفة | لف |
+| `ems_morphine` | Morphine | نفسك / مريض | ✅ | مسكن قوي (3 جرعات) + 15 صحة | إبرة باليد |
+| `adrenaline` | Adrenaline | مريض **ينزف** | ✅ | يزيد وقت النزيف 90 ثانية (أقصى 4 دقايق) | ركوع + إبرة + شنطة |
+| `ems_saline` | IV Saline | مريض | ✅ | يرجع 60 صحة على مهل + ينقص النزيف | ركوع + إبرة + كيس محلول + شنطة |
+| `ems_suture` | Suture Kit | مريض (صاحي) | ✅ | يخيط الجروح (يعالج الإصابات لين درجة 3) | ركوع + عدة |
+| `ems_oxygen` | Oxygen Mask | مريض | ✅ | +25 صحة ويشيل الإغماء — **القناع يتركب على وجه المريض** 45 ثانية | ركوع + أسطوانة أكسجين بالأرض |
+| `ems_monitor` | Vitals Monitor | مريض | ✅ | يفتح الشاشة الحيوية | المسعف ماسك تابلت |
+| `ems_stretcher` | Stretcher | — | ✅ | نقالة: دف، حط مريض، دخلها الإسعاف، طلعها، طوّها | |
+| `ems_wheelchair` | Wheelchair | — | لا | كرسي متحرك: اجلس، دف، طوّه | |
+| `ems_medbag` | Trauma Bag | — | ✅ | شنطة تنحط بالأرض وفيها خزنة (20 خانة) — نفس الأغراض ترجع معك لما تشيلها | |
+
+كل شي (المدة، الانميشن، البروب، التأثير، مين يقدر يستخدمه) يتعدل من `config.lua`.
+
+### الاستخدام
+- **من الانفنتوري**: استخدم الأيتم → لو فيه أحد جنبك يسألك (على نفسك / على المريض).
+- **بالتارقت على المريض** (المسعف): `Examine (vitals monitor)` · `Treat patient` (قائمة بكل أدواتك) · `Put on stretcher` · `Put in wheelchair`.
+- **CPR**: أي لاعب يقدر يسويه لواحد ينزف (Last stand) → يضيف 45 ثانية، 3 مرات كحد أقصى (`Config.CPR`)، والمريض ياخذ انميشن الإنعاش.
+- الأوامر: `/emsmonitor`.
+
+## 🩺 الشاشة الحيوية (Vitals Monitor)
+- تخطيط قلب **ECG** حي + **Pleth** (الأكسجين) + التنفس، مع صوت بيب يتغير حسب نسبة الأكسجين.
+- **HR · SpO2 · RR · ضغط الدم · الحرارة · GCS** محسوبة من حالة المريض الحقيقية: الصحة، درجة النزيف، إصابة الراس، المسكنات.
+- **بدون نبض**: أول 90 ثانية **V-FIB (قابل للصعق)** وبعدها **ASYSTOLE** (خط مستقيم) + إنذار.
+- **Triage** (أخضر / أصفر / أحمر)، خريطة الجسم بالإصابات ودرجتها، سبب الإصابة (السلاح).
+- ما تاخذ الماوس — تقدر تعالج وهي مفتوحة. `BACKSPACE` تقفلها، وتنفصل لو ابتعدت 10 متر.
+
+## 🛏️ النقالة والكرسي
+- النقالة: `Push stretcher` (E تتركها) → `Load into ambulance` → `Unload` → `Take patient off` → `Fold`.
+- المريض الميت يبقى بانميشن الموت عليها، والينزف ينسدح (ما يرجع يتلوّى).
+- المريض الصاحي يقوم منها بـ `X`.
+- الموديل الافتراضي من اللعبة (`v_med_emptybed`) — عندك موديل نقالة مخصص؟ حطه أول القائمة بـ `Config.Stretcher.Models` وعدّل الـ Offsets.
+- الأيتم ينشال من الانفنتوري وقت ما تحطها ويرجع لما تطويها (ما في تكرار)، ولو صار خطأ وقت الرسبن يرجع لك تلقائي.
+
+## 📋 ربط التابلت
+كل علاج (الأدوات، CPR، النقالة، والإنعاش بالـ First aid / Defibrillator من `qb-hospital`) يتجمع لكل مسعف + مريض،
+وبعد 3 دقايق من آخر علاج ينحفظ **تقرير Treatment** بسجل المريض (Patient Records) بالتابلت.
+البروتوكولات بالتابلت انحدثت بالأدوات الجديدة.
+
+## للمطورين
+```lua
+-- من السيرفر: تطبيق علاج على لاعب (نفس اللي تسويه الأدوات)
+TriggerClientEvent('hospital:client:ApplyTreatment', src, 'stopbleed', {})
+TriggerClientEvent('hospital:client:ApplyTreatment', src, 'limbs', { parts = { 'legs' } })
+-- kinds: bleed {amount} · stopbleed · limbs {parts, max} · minor · painkiller {doses} · health {amount} · oxygen {health} · stabilize {seconds, max}
+
+-- من الكلاينت: حالة اللاعب نفسه
+exports['qb-hospital']:GetLocalState() -- { dead, laststand, laststandTime, bleeding, painkillers, inBed }
+```

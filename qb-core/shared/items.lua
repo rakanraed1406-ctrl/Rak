@@ -1,7 +1,3 @@
--- سكربتات حصرية وكل شيء مجانا و ملفات و مبات
--- https://discord.gg/rsmqe67qjN
--- حياكم الله دس
--- https://discord.gg/rsmqe67qjN
 QBShared = QBShared or {}
 QBShared.Items = {
 	-- WEAPONS
@@ -117,7 +113,6 @@ QBShared.Items = {
 	['weapon_grenade'] 				 = {['name'] = 'weapon_grenade', 		      	['label'] = 'Grenade', 					['weight'] = 1000, 		['type'] = 'weapon', 	['ammotype'] = nil,						['image'] = 'weapon_grenade.png', 		['unique'] = true, 		['useable'] = false, 	['description'] = 'A handheld throwable bomb'},
 	['weapon_bzgas'] 				 = {['name'] = 'weapon_bzgas', 			      	['label'] = 'BZ Gas', 					['weight'] = 1000, 		['type'] = 'weapon', 	['ammotype'] = nil,						['image'] = 'weapon_bzgas.png', 		['unique'] = true, 		['useable'] = false, 	['description'] = 'A cannister of gas that causes extreme pain'},
 	['weapon_molotov'] 				 = {['name'] = 'weapon_molotov', 		      	['label'] = 'Molotov', 					['weight'] = 1000, 		['type'] = 'weapon', 	['ammotype'] = nil,						['image'] = 'weapon_molotov.png', 		['unique'] = true, 		['useable'] = false, 	['description'] = 'A crude bomb made of a bottle filled with a flammable liquid and fitted with a wick for lighting'},
-	['c4_bomb'] = {['name'] = 'c4_bomb', ['label'] = 'C4 Explosive', ['weight'] = 1000, ['type'] = 'item', ['ammotype'] = nil,['image'] = 'weapon_stickybomb.png', 	['unique'] = true, 		['useable'] = false, 	['description'] = 'A high-yield, timed explosive charge..'},
 	['weapon_stickybomb'] 			 = {['name'] = 'weapon_stickybomb', 		    ['label'] = 'C4', 						['weight'] = 1000, 		['type'] = 'weapon', 	['ammotype'] = nil,						['image'] = 'weapon_stickybomb.png', 	['unique'] = true, 		['useable'] = false, 	['description'] = 'An explosive charge covered with an adhesive that when thrown against an object sticks until it explodes'},
 	['weapon_proxmine'] 			 = {['name'] = 'weapon_proxmine', 		 	  	['label'] = 'Proxmine Grenade', 		['weight'] = 1000, 		['type'] = 'weapon', 	['ammotype'] = nil,						['image'] = 'weapon_proximitymine.png', ['unique'] = true, 		['useable'] = false, 	['description'] = 'A bomb placed on the ground that detonates when going within its proximity'},
 	['weapon_snowball'] 		     = {['name'] = 'weapon_snowball', 		 	  	['label'] = 'Snowball', 				['weight'] = 1000, 		['type'] = 'weapon', 	['ammotype'] = nil,						['image'] = 'weapon_snowball.png', 		['unique'] = true, 		['useable'] = false, 	['description'] = 'A ball of packed snow, especially one made for throwing at other people for fun'},
@@ -459,7 +454,6 @@ QBShared.Items = {
 	['qfmdt'] 				 		 = {['name'] = 'qfmdt', 			  	  		['label'] = 'MDT', 					['weight'] = 2000, 		['type'] = 'item', 		['image'] = 'mdt.png', 				['unique'] = false, 	['useable'] = true, 	['shouldClose'] = true,	   ['combinable'] = nil,   ['description'] = 'Expensive mdt', ['created'] = nil, ['decay'] = 14.0},
 	['mdt'] 					 = {['name'] = 'mdt', 			 	  	  	['label'] = 'mdt', 					['weight'] = 0, 		['type'] = 'item', 		['image'] = 'mdt.png', 				['unique'] = true, 		['useable'] = true, 	['shouldClose'] = false,   ['combinable'] = nil,   ['description'] = 'mdt for police officers'},
 	['ems_tablet'] 					 = {['name'] = 'ems_tablet', 			 	  	  	['label'] = 'EMS Tablet', 					['weight'] = 0, 		['type'] = 'item', 		['image'] = 'ems_tablet.png', 				['unique'] = true, 		['useable'] = true, 	['shouldClose'] = false,   ['combinable'] = nil,   ['description'] = 'EMS Tablet'},
-	['hacking_device'] 					 = {['name'] = 'hacking_device', 			 	  	  	['label'] = 'Hacking Device', 					['weight'] = 1000, 		['type'] = 'item', 		['image'] = 'laptop2.png', 				['unique'] = true, 		['useable'] = true, 	['shouldClose'] = false,   ['combinable'] = nil,   ['description'] = 'Device For Hacking'},
 	['id_card'] 					 = {['name'] = 'id_card', 			 	  	  	['label'] = 'ID Card', 					['weight'] = 0, 		['type'] = 'item', 		['image'] = 'id_card.png', 				['unique'] = true, 		['useable'] = true, 	['shouldClose'] = false,   ['combinable'] = nil,   ['description'] = 'A card containing all your information to identify yourself'},
 	['driver_license'] 				 = {['name'] = 'driver_license', 			  	['label'] = 'Drivers License', 			['weight'] = 0, 		['type'] = 'item', 		['image'] = 'driver_license.png', 		['unique'] = true, 		['useable'] = true, 	['shouldClose'] = false,   ['combinable'] = nil,   ['description'] = 'Permit to show you can drive a vehicle'},
 	['lawyerpass'] 					 = {['name'] = 'lawyerpass', 			 	  	['label'] = 'Lawyer Pass', 				['weight'] = 0, 		['type'] = 'item', 		['image'] = 'lawyerpass.png', 			['unique'] = true, 		['useable'] = true, 	['shouldClose'] = false,   ['combinable'] = nil,   ['description'] = 'Pass exclusive to lawyers to show they can represent a suspect'},
@@ -687,6 +681,19 @@ phone_sim = { name = 'phone_sim', label = 'SIM Card', weight = 45, type = 'item'
 	['bandage'] 			 		 = {['name'] = 'bandage', 						['label'] = 'Bandage', 					['weight'] = 0, 		["created"] = nil,      ["decay"] = 15.0,                       ["isDecay"] = true,     ['type'] = 'item', 		['image'] = 'bandage.png', 				['unique'] = false, 	['useable'] = true, 	['shouldClose'] = true,    ['combinable'] = nil,   ['description'] = 'A bandage works every time'},
     ['ifaks']                        = {['name'] = 'ifaks',                         ['label'] = 'ifaks',                    ['weight'] = 200,       ["created"] = nil,      ["decay"] = 15.0,                       ["isDecay"] = true,     ['type'] = 'item',       ['image'] = 'ifaks.png',                ['unique'] = false,     ['useable'] = true,     ['shouldClose'] = true,    ['combinable'] = nil,   ['description'] = 'ifaks for healing and a complete stress remover.'},
 	['painkillers'] 			 	 = {['name'] = 'painkillers', 					['label'] = 'Painkillers', 				['weight'] = 0, 		["created"] = nil,      ["decay"] = 15.0,                       ["isDecay"] = true,     ['type'] = 'item', 		['image'] = 'painkillers.png', 			['unique'] = false, 	['useable'] = true, 	['shouldClose'] = true,    ['combinable'] = nil,   ['description'] = 'For pain you can\'t stand anymore, take this pill that\'d make you feel great again'},
+	-- EMS field tools (qb-ems-tools)
+	['ems_gauze'] = {['name'] = 'ems_gauze', ['label'] = 'Hemostatic Gauze', ['weight'] = 100, ['type'] = 'item', ['image'] = 'ems_gauze.png', ['unique'] = false, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Packs a wound and slows the bleeding. Works on yourself or a patient'},
+	['ems_tourniquet'] = {['name'] = 'ems_tourniquet', ['label'] = 'Tourniquet', ['weight'] = 200, ['type'] = 'item', ['image'] = 'ems_tourniquet.png', ['unique'] = false, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Stops heavy bleeding completely'},
+	['ems_splint'] = {['name'] = 'ems_splint', ['label'] = 'SAM Splint', ['weight'] = 300, ['type'] = 'item', ['image'] = 'ems_splint.png', ['unique'] = false, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Splints a broken arm or leg so the patient can walk again'},
+	['ems_coldpack'] = {['name'] = 'ems_coldpack', ['label'] = 'Cold Pack', ['weight'] = 150, ['type'] = 'item', ['image'] = 'ems_coldpack.png', ['unique'] = false, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Eases pain and light bruises'},
+	['ems_morphine'] = {['name'] = 'ems_morphine', ['label'] = 'Morphine Auto-Injector', ['weight'] = 100, ['type'] = 'item', ['image'] = 'ems_morphine.png', ['unique'] = false, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Strong painkiller. Paramedics only'},
+	['ems_saline'] = {['name'] = 'ems_saline', ['label'] = 'IV Saline Bag', ['weight'] = 500, ['type'] = 'item', ['image'] = 'ems_saline.png', ['unique'] = false, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'IV drip that restores lost blood over time. Paramedics only'},
+	['ems_suture'] = {['name'] = 'ems_suture', ['label'] = 'Suture Kit', ['weight'] = 400, ['type'] = 'item', ['image'] = 'ems_suture.png', ['unique'] = false, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Stitches up wounds. Paramedics only'},
+	['ems_oxygen'] = {['name'] = 'ems_oxygen', ['label'] = 'Oxygen Mask', ['weight'] = 2500, ['type'] = 'item', ['image'] = 'ems_oxygen.png', ['unique'] = true, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Portable oxygen tank and mask. Paramedics only'},
+	['ems_monitor'] = {['name'] = 'ems_monitor', ['label'] = 'Vitals Monitor', ['weight'] = 1500, ['type'] = 'item', ['image'] = 'ems_monitor.png', ['unique'] = true, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Portable ECG / SpO2 / blood pressure monitor. Paramedics only'},
+	['ems_stretcher'] = {['name'] = 'ems_stretcher', ['label'] = 'Stretcher', ['weight'] = 8000, ['type'] = 'item', ['image'] = 'ems_stretcher.png', ['unique'] = true, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Folding stretcher, can be loaded into the ambulance'},
+	['ems_wheelchair'] = {['name'] = 'ems_wheelchair', ['label'] = 'Wheelchair', ['weight'] = 6000, ['type'] = 'item', ['image'] = 'ems_wheelchair.png', ['unique'] = true, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Folding wheelchair'},
+	['ems_medbag'] = {['name'] = 'ems_medbag', ['label'] = 'Trauma Bag', ['weight'] = 3000, ['type'] = 'item', ['image'] = 'ems_medbag.png', ['unique'] = true, ['useable'] = true, ['shouldClose'] = true, ['combinable'] = nil, ['description'] = 'Drop it at the scene and keep your supplies inside'},
 	['walkstick'] 				 	 = {['name'] = 'walkstick', 			  	  	['label'] = 'Walking Stick', 			['weight'] = 1000, 		['type'] = 'item', 		['image'] = 'walkstick.png', 			['unique'] = false, 	['useable'] = true, 	['shouldClose'] = true,	   ['combinable'] = nil,   ['description'] = 'Walking stick for ya\'ll grannies out there.. HAHA'},
 	["gps"] 				 		 = {["name"] = "gps", 			  	  			["label"] = "GPS", 				["weight"] = 1000, 	["type"] = "item", 		["image"] = "gps.png", 				["unique"] = false, 	["useable"] = true, 	["shouldClose"] = true,	   ["combinable"] = nil,    ["description"] =  "Gps"},
 	-- Communication
@@ -890,18 +897,6 @@ phone_sim = { name = 'phone_sim', label = 'SIM Card', weight = 45, type = 'item'
 		['shouldClose'] = false,
 		['combinable'] = nil,
 		['description'] = 'Cod'
-	},
-	['mackerel'] = {
-		['name'] = 'mackerel',
-		['label'] = 'Mackerel',
-		['weight'] = 2500,
-		['type'] = 'item',
-		['image'] = 'mackerel.png',
-		['unique'] = false,
-		['useable'] = false,
-		['shouldClose'] = false,
-		['combinable'] = nil,
-		['description'] = 'Mackerel'
 	},
 	['bass'] = {
 		['name'] = 'bass',
@@ -1344,18 +1339,6 @@ phone_sim = { name = 'phone_sim', label = 'SIM Card', weight = 45, type = 'item'
 		["combinable"] = nil,
 		["description"] = "Refined steel"
 	},
-	["mechanic_tools"] = {
-		["name"] = "mechanic_tools",
-		["label"] = "Mechanic tools",
-		["weight"] = 100,
-		["type"] = "item",
-		["image"] = "mechanic_tools.png",
-		["unique"] = false,
-		["useable"] = false,
-		["shouldClose"] = false,
-		["combinable"] = nil,
-		["description"] = "Mechanic tools"
-	},
 	["silverdiamond"] = {
 		["name"] = "silverdiamond",
 		["label"] = "Silver diamond",
@@ -1379,18 +1362,6 @@ phone_sim = { name = 'phone_sim', label = 'SIM Card', weight = 45, type = 'item'
 		["shouldClose"] = false,
 		["combinable"] = nil,
 		["description"] = "Blue diamond"
-	},
-	["toolbox"] = {
-		["name"] = "toolbox",
-		["label"] = "Tool box",
-		["weight"] = 100,
-		["type"] = "item",
-		["image"] = "toolbox.png",
-		["unique"] = false,
-		["useable"] = false,
-		["shouldClose"] = false,
-		["combinable"] = nil,
-		["description"] = "Tool box"
 	},
 	["coffeebeans"] = {
 		["name"] = "coffeebeans",
@@ -2212,18 +2183,6 @@ phone_sim = { name = 'phone_sim', label = 'SIM Card', weight = 45, type = 'item'
 		["combinable"] = nil,
 		["description"] = "Used to emit a electric shock to stabilize the heart beat"
 	},
-	["sardine"] = {
-		["name"] = "sardine",
-		["label"] = "Sardine",
-		["weight"] = 0,
-		["type"] = "item",
-		["image"] = "sardine.png",
-		["unique"] = false,
-		["useable"] = false,
-		["shouldClose"] = false,
-		["combinable"] = nil,
-		["description"] = "Sardine"
-	},
 	["sardinebait"] = {
 		["name"] = "sardinebait",
 		["label"] = "Fish net",
@@ -2742,7 +2701,6 @@ phone_sim = { name = 'phone_sim', label = 'SIM Card', weight = 45, type = 'item'
 	['blacktealeaf'] 		    	= {['name'] = 'blacktealeaf', 			    	['label'] = 'Black Tea Leaf', 	        ['weight'] = 100, 		['type'] = 'item', 		['image'] = 'blacktealeaf.png', 	    		['unique'] = false, 	['useable'] = false, 	['shouldClose'] = false,	   	['combinable'] = nil,   ['description'] = 'Cup of tea guvernor..'},
 	['greentealeaf'] 		    	= {['name'] = 'greentealeaf', 			    	['label'] = 'Green Tea Leaf', 	        ['weight'] = 100, 		['type'] = 'item', 		['image'] = 'greentealeaf.png', 	    		['unique'] = false, 	['useable'] = false, 	['shouldClose'] = false,	   	['combinable'] = nil,   ['description'] = 'Cup of tea guvernor..'},
 	['rice']              	 	 	= {['name'] = 'rice',               			['label'] = 'Rice',                		['weight'] = 100,       ['type'] = 'item',      ['image'] = 'rice.png',        					['unique'] = false,     ['useable'] = false,    ['shouldClose'] = false,    	['combinable'] = nil,   ['description'] = 'Rice, rice, baby..'},
-	['lettuce'] 		        	= {['name'] = 'lettuce', 			        	['label'] = 'Lettuce', 	                ['weight'] = 100, 		['type'] = 'item', 		['image'] = 'lettuce.png', 	            		['unique'] = false, 	['useable'] = false, 	['shouldClose'] = false,	   	['combinable'] = nil,   ['description'] = 'Ice, ice, iceberg lettuce?..'},
 	['ramennoodles']     		 	= {['name'] = 'ramennoodles',      				['label'] = 'Ramen Noodles',         	['weight'] = 100,       ['type'] = 'item',      ['image'] = 'ramennoodles.png', 				['unique'] = false,     ['useable'] = false,    ['shouldClose'] = false,    	['combinable'] = nil,   ['description'] = 'Ramen noodles.'},
 	['seaweed']              	 	= {['name'] = 'seaweed',               			['label'] = 'Seaweed',                  ['weight'] = 10,        ['type'] = 'item',      ['image'] = 'seaweed.png',        				['unique'] = false,     ['useable'] = false,    ['shouldClose'] = false,    	['combinable'] = nil,   ['description'] = 'Oh no! The seaweed.. Get it?'},
 	['meat_deer']                	= {['name'] = 'meat_deer',                 		['label'] = 'Venison',                  ['weight'] = 850,       ['type'] = 'item',      ['image'] = 'meat_deer.png',            		['unique'] = false,     ['useable'] = false, 	['shouldClose'] = false,    	['combinable'] = nil,   ['description'] = 'Deer meat!'},
@@ -3273,10 +3231,10 @@ phone_sim = { name = 'phone_sim', label = 'SIM Card', weight = 45, type = 'item'
 		['type'] = 'item',
 		['image'] = 'adrenaline.png',
 		['unique'] = false,
-		['useable'] = false,
+		['useable'] = true,
 		['shouldClose'] = true,
 		['combinable'] = nil,
-		['description'] = ''
+		['description'] = 'Buys a bleeding-out patient more time. Paramedics only'
 	},
 
 	---bighouse
@@ -5093,8 +5051,3 @@ phone_sim = { name = 'phone_sim', label = 'SIM Card', weight = 45, type = 'item'
 
 
 }
-
--- سكربتات حصرية وكل شيء مجانا و ملفات و مبات
--- https://discord.gg/rsmqe67qjN
--- حياكم الله دس
--- https://discord.gg/rsmqe67qjN

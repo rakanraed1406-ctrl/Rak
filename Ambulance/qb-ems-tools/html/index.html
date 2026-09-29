@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EMS Vitals Monitor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="monitor" class="hidden">
+        <header>
+            <div class="brand"><span class="pulse-dot"></span>LSMS <b>VITALS</b></div>
+            <div class="patient">
+                <span id="p-name">—</span>
+                <span class="chip" id="p-id">#0</span>
+                <span class="chip" id="p-meta">—</span>
+                <span class="chip blood" id="p-blood">?</span>
+            </div>
+            <div class="triage" id="triage">STABLE</div>
+        </header>
+
+        <section class="main">
+            <div class="waves">
+                <div class="wave">
+                    <span class="wave-label ecg">II &nbsp;ECG</span>
+                    <canvas id="ecg"></canvas>
+                </div>
+                <div class="wave">
+                    <span class="wave-label spo2">PLETH</span>
+                    <canvas id="pleth"></canvas>
+                </div>
+                <div class="wave">
+                    <span class="wave-label resp">RESP</span>
+                    <canvas id="resp"></canvas>
+                </div>
+            </div>
+
+            <div class="numbers">
+                <div class="num ecg">
+                    <div class="k">HR <small>bpm</small></div>
+                    <div class="v" id="v-hr">--</div>
+                    <div class="heart" id="heart">&#9829;</div>
+                </div>
+                <div class="num spo2">
+                    <div class="k">SpO<sub>2</sub> <small>%</small></div>
+                    <div class="v" id="v-spo2">--</div>
+                </div>
+                <div class="num resp">
+                    <div class="k">RR <small>/min</small></div>
+                    <div class="v small" id="v-rr">--</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="strip">
+            <div class="cell">
+                <div class="k">NIBP <small>mmHg</small></div>
+                <div class="v" id="v-bp">--/--</div>
+            </div>
+            <div class="cell">
+                <div class="k">TEMP <small>&deg;C</small></div>
+                <div class="v" id="v-temp">--</div>
+            </div>
+            <div class="cell">
+                <div class="k">GCS</div>
+                <div class="v" id="v-gcs">--</div>
+            </div>
+            <div class="cell">
+                <div class="k">BODY</div>
+                <div class="v" id="v-health">--%</div>
+            </div>
+            <div class="cell">
+                <div class="k">ARMOR</div>
+                <div class="v" id="v-armor">--</div>
+            </div>
+        </section>
+
+        <section class="bottom">
+            <svg class="body" viewBox="0 0 100 200" aria-hidden="true">
+                <circle id="b-HEAD" cx="50" cy="16" r="12"/>
+                <rect id="b-NECK" x="45" y="28" width="10" height="7" rx="2"/>
+                <rect id="b-UPPER_BODY" x="32" y="36" width="36" height="34" rx="6"/>
+                <rect id="b-SPINE" x="47" y="38" width="6" height="52" rx="3"/>
+                <rect id="b-LOWER_BODY" x="34" y="70" width="32" height="24" rx="6"/>
+                <rect id="b-LARM" x="18" y="38" width="12" height="44" rx="6"/>
+                <rect id="b-RARM" x="70" y="38" width="12" height="44" rx="6"/>
+                <rect id="b-LHAND" x="17" y="83" width="12" height="11" rx="5"/>
+                <rect id="b-RHAND" x="71" y="83" width="12" height="11" rx="5"/>
+                <rect id="b-LFINGER" x="18" y="95" width="10" height="6" rx="3"/>
+                <rect id="b-RFINGER" x="72" y="95" width="10" height="6" rx="3"/>
+                <rect id="b-LLEG" x="35" y="95" width="13" height="72" rx="6"/>
+                <rect id="b-RLEG" x="52" y="95" width="13" height="72" rx="6"/>
+                <rect id="b-LFOOT" x="33" y="168" width="15" height="9" rx="4"/>
+                <rect id="b-RFOOT" x="52" y="168" width="15" height="9" rx="4"/>
+            </svg>
+            <div class="findings">
+                <div class="rhythm" id="rhythm">NORMAL SINUS RHYTHM</div>
+                <div class="tags" id="tags"></div>
+                <ul id="injuries"></ul>
+            </div>
+        </section>
+
+        <footer>
+            <span id="clock">00:00:00</span>
+            <span>BACKSPACE &mdash; disconnect</span>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

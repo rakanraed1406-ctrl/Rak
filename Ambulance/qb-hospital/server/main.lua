@@ -318,17 +318,23 @@ RegisterNetEvent('hospital:server:RevivePlayer', function(playerId, isOldMan)
 	local meta = Patient.PlayerData.metadata
 	if not (meta["isdead"] or meta["inlaststand"]) then return end
 
-	if isOldMan and not Player.Functions.RemoveMoney("cash", 5000, "revived-player") then
-		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.not_enough_money'), "error")
-		return
-	end
-
 	if meta["isdead"] then
 		if not IsEms(Player) or not Player.Functions.GetItemByName('defibrillator') then
 			TriggerClientEvent('QBCore:Notify', src, Lang:t('error.no_defib'), "error")
 			return
 		end
-	else
+	elseif not Player.Functions.GetItemByName('firstaid') then
+		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.no_firstaid'), "error")
+		return
+	end
+
+	-- paid revive: only charged once we know the revive can happen
+	if isOldMan and not Player.Functions.RemoveMoney("cash", 5000, "revived-player") then
+		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.not_enough_money'), "error")
+		return
+	end
+
+	if not meta["isdead"] then
 		if not Player.Functions.RemoveItem('firstaid', 1) then
 			TriggerClientEvent('QBCore:Notify', src, Lang:t('error.no_firstaid'), "error")
 			return

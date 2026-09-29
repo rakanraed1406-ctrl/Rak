@@ -1,0 +1,15 @@
+-- لو تستخدم ox_inventory: انسخ هذي لـ ox_inventory/data/items.lua
+-- والصور من install/images لـ ox_inventory/web/images
+['ems_gauze']      = { label = 'Hemostatic Gauze',       weight = 100,  stack = true,  close = true, description = 'Packs a wound and slows the bleeding' },
+['ems_tourniquet'] = { label = 'Tourniquet',             weight = 200,  stack = true,  close = true, description = 'Stops heavy bleeding completely' },
+['ems_splint']     = { label = 'SAM Splint',             weight = 300,  stack = true,  close = true, description = 'Splints a broken arm or leg' },
+['ems_coldpack']   = { label = 'Cold Pack',              weight = 150,  stack = true,  close = true, description = 'Eases pain and light bruises' },
+['ems_morphine']   = { label = 'Morphine Auto-Injector', weight = 100,  stack = true,  close = true, description = 'Strong painkiller. Paramedics only' },
+['adrenaline']     = { label = 'Adrenaline Syringe',     weight = 50,   stack = true,  close = true, description = 'Buys a bleeding-out patient more time' },
+['ems_saline']     = { label = 'IV Saline Bag',          weight = 500,  stack = true,  close = true, description = 'Restores lost blood over time' },
+['ems_suture']     = { label = 'Suture Kit',             weight = 400,  stack = true,  close = true, description = 'Stitches up wounds' },
+['ems_oxygen']     = { label = 'Oxygen Mask',            weight = 2500, stack = false, close = true, description = 'Portable oxygen tank and mask' },
+['ems_monitor']    = { label = 'Vitals Monitor',         weight = 1500, stack = false, close = true, description = 'Portable ECG / SpO2 / blood pressure monitor' },
+['ems_stretcher']  = { label = 'Stretcher',              weight = 8000, stack = false, close = true, description = 'Folding stretcher' },
+['ems_wheelchair'] = { label = 'Wheelchair',             weight = 6000, stack = false, close = true, description = 'Folding wheelchair' },
+['ems_medbag']     = { label = 'Trauma Bag',             weight = 3000, stack = false, close = true, description = 'Drop it at the scene and keep your supplies inside' },

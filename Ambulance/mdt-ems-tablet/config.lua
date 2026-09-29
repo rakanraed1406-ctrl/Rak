@@ -254,28 +254,38 @@ Config.Alerts = {
 Config.Protocols = {
     {
         title = 'Unconscious — no pulse (10-69)', icon = 'fa-heart-pulse', level = 'high',
-        steps = { 'Secure the scene (call police if armed suspects).', 'Use the defibrillator on the patient.', 'Stabilise, then transport to the hospital for treatment.' },
-        items = { 'defibrillator' },
+        steps = { 'Secure the scene (call police if armed suspects).', 'Attach the vitals monitor: V-FIB = shock now, ASYSTOLE = keep trying.', 'Use the defibrillator on the patient.', 'Stretcher → load into the ambulance → hospital.' },
+        items = { 'defibrillator', 'ems_monitor', 'ems_stretcher' },
     },
     {
         title = 'Bleeding out / last stand (10-47)', icon = 'fa-user-injured', level = 'medium',
-        steps = { 'Reach the patient before the timer runs out.', 'Use a First Aid kit to get them back up.', 'Treat wounds with bandages, then transport if needed.' },
-        items = { 'firstaid', 'bandage' },
+        steps = { 'Reach the patient before the timer runs out — bystanders can do CPR to buy time.', 'Adrenaline adds time, a tourniquet stops the bleeding.', 'Use a First Aid kit to get them back up.' },
+        items = { 'adrenaline', 'ems_tourniquet', 'firstaid' },
     },
     {
         title = 'Wounds / pain', icon = 'fa-kit-medical', level = 'low',
-        steps = { 'Check the patient status (injuries show on their body).', 'Treat wounds (bandage) — heals all injuries.', 'Painkillers for pain, IFAKs for stress + minor bleeding.' },
-        items = { 'bandage', 'painkillers', 'ifaks' },
+        steps = { 'Examine the patient (vitals monitor shows every injury on the body map).', 'Gauze / suture kit for wounds, IV saline if they lost a lot of blood.', 'Morphine for strong pain, painkillers or a cold pack for light pain.' },
+        items = { 'ems_gauze', 'ems_suture', 'ems_saline', 'ems_morphine', 'bandage' },
+    },
+    {
+        title = 'Fracture / can\'t walk', icon = 'fa-bone', level = 'low',
+        steps = { 'Legs or arms injured = limp and no sprint.', 'Apply a SAM splint — the patient can walk again.', 'Wheelchair for the ones who still can\'t stand.' },
+        items = { 'ems_splint', 'ems_wheelchair', 'ems_coldpack' },
+    },
+    {
+        title = 'Breathing problems / smoke', icon = 'fa-lungs', level = 'medium',
+        steps = { 'Move the patient out of the smoke / water.', 'Oxygen mask (low SpO2 on the monitor).', 'Transport if SpO2 stays under 94%.' },
+        items = { 'ems_oxygen', 'ems_monitor' },
     },
     {
         title = 'Traffic collision (10-50)', icon = 'fa-car-burst', level = 'medium',
-        steps = { 'Park the ambulance to block traffic, lights on.', 'Triage every occupant — worst first.', 'Request police for traffic control if needed.' },
-        items = { 'firstaid', 'bandage' },
+        steps = { 'Park the ambulance to block traffic, lights on.', 'Triage every occupant with the monitor — RED first.', 'Drop a trauma bag for supplies, request police for traffic control.' },
+        items = { 'ems_medbag', 'ems_stretcher', 'ems_splint', 'firstaid' },
     },
     {
         title = 'Mass casualty (MCI)', icon = 'fa-people-group', level = 'high',
-        steps = { 'First unit on scene takes Scene command.', 'Triage: RED (critical) → YELLOW → GREEN.', 'Dispatcher assigns Transport units; notify the hospital (CODE RED).' },
-        items = { 'defibrillator', 'firstaid', 'bandage' },
+        steps = { 'First unit on scene takes Scene command.', 'Triage: RED (critical) → YELLOW → GREEN (monitor triage badge).', 'Dispatcher assigns Transport units; notify the hospital (CODE RED).' },
+        items = { 'defibrillator', 'adrenaline', 'ems_tourniquet', 'ems_stretcher' },
     },
 }
 

@@ -69,3 +69,69 @@ RegisterNetEvent('ems-mdt:server:DeleteReport', function(reportId)
         end)
     end)
 end)
+
+--[[
+    Field treatment log (qb-ems-tools / qb-hospital revives).
+    Every tool a medic uses on a patient is collected, and once the medic has been
+    done with that patient for a few minutes it is filed as one "Treatment" report,
+    so it shows up in Patient Records without anyone typing it.
+      exports['mdt-ems-tablet']:LogFieldTreatment(medicSrc, patientSrc, 'Tourniquet')
+]]
+local FIELD_FLUSH_SECONDS = 180
+local fieldLogs = {} -- ["medicCid:patientCid"] = { ... }
+
+local function FlushFieldLog(key)
+    local log = fieldLogs[key]
+    fieldLogs[key] = nil
+    if not log or #log.lines == 0 then return end
+    local details = ('Field treatment by %s (automatic log)\n\n%s'):format(log.medicName, table.concat(log.lines, '\n'))
+    exports.oxmysql:execute(
+        'INSERT INTO ' .. MDT.Tables.Reports .. ' (citizenid, author_name, report_type, title, patient_name, patient_cid, involved, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        { log.medicCid, log.medicName, 'Treatment', ('Field treatment — %s'):format(log.patientName):sub(1, 150),
+          log.patientName, log.patientCid, '', details:sub(1, 2000) }
+    )
+end
+
+local function LogFieldTreatment(medicSrc, patientSrc, text)
+    local Medic = QBCore.Functions.GetPlayer(tonumber(medicSrc) or -1)
+    local Patient = QBCore.Functions.GetPlayer(tonumber(patientSrc) or -1)
+    if not MDT.IsEmployee(Medic) or not Patient then return end
+    local key = Medic.PlayerData.citizenid .. ':' .. Patient.PlayerData.citizenid
+    local log = fieldLogs[key]
+    if not log then
+        log = {
+            medicSrc = Medic.PlayerData.source, patientSrc = Patient.PlayerData.source,
+            medicCid = Medic.PlayerData.citizenid, medicName = MDT.GetName(Medic),
+            patientCid = Patient.PlayerData.citizenid, patientName = MDT.GetName(Patient),
+            lines = {},
+        }
+        fieldLogs[key] = log
+    end
+    if #log.lines < 40 then
+        log.lines[#log.lines + 1] = ('[%s] %s'):format(os.date('%H:%M'), MDT.Clean(text, 120))
+    end
+    log.lastAt = os.time()
+end
+exports('LogFieldTreatment', LogFieldTreatment)
+
+CreateThread(function()
+    while true do
+        Wait(30000)
+        local now = os.time()
+        for key, log in pairs(fieldLogs) do
+            if now - (log.lastAt or now) >= FIELD_FLUSH_SECONDS then FlushFieldLog(key) end
+        end
+    end
+end)
+
+AddEventHandler('playerDropped', function()
+    local src = source
+    for key, log in pairs(fieldLogs) do
+        if log.medicSrc == src or log.patientSrc == src then FlushFieldLog(key) end
+    end
+end)
+
+AddEventHandler('onResourceStop', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    for key in pairs(fieldLogs) do FlushFieldLog(key) end
+end)
