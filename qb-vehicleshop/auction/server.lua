@@ -177,15 +177,64 @@ local function notifyAuction(msg, kind)
     for src in pairs(A.accepted) do send(src) end
 end
 
-local function removeBidItem(src)
+-- Inventory helpers. Newer qb-core moved the item functions (GetItemByName,
+-- AddItem, RemoveItem...) out of Player.Functions into qb-inventory, so use
+-- the inventory resource when it is there and fall back to the old API.
+local function started(name) return GetResourceState(name) == 'started' end
+
+local function itemExists(name)
+    if QBCore.Shared.Items[name] then return true end
+    if started('ox_inventory') then
+        local ok, item = pcall(function() return exports.ox_inventory:Items(name) end)
+        return ok and item ~= nil
+    end
+    return false
+end
+
+local function itemCount(src, name)
+    if started('ox_inventory') then
+        return exports.ox_inventory:GetItemCount(src, name) or 0
+    end
+    if started('qb-inventory') then
+        local ok, n = pcall(function() return exports['qb-inventory']:GetItemCount(src, name) end)
+        if ok and n then return n end
+    end
     local Player = QBCore.Functions.GetPlayer(src)
-    if not Player then return end
-    local item = Player.Functions.GetItemByName(ACfg.BidItem)
-    if item then
-        Player.Functions.RemoveItem(ACfg.BidItem, item.amount or 1)
-        if QBCore.Shared.Items[ACfg.BidItem] then
-            TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[ACfg.BidItem], 'remove')
-        end
+    if Player and Player.Functions.GetItemByName then
+        local item = Player.Functions.GetItemByName(name)
+        return item and (item.amount or item.count or 1) or 0
+    end
+    return 0
+end
+
+local function addItem(src, name, amount)
+    if started('ox_inventory') then
+        return exports.ox_inventory:AddItem(src, name, amount) and true or false
+    end
+    if started('qb-inventory') then
+        local ok, res = pcall(function() return exports['qb-inventory']:AddItem(src, name, amount, false, false, 'qb-vehicleshop:auction') end)
+        if ok then return res and true or false end
+    end
+    local Player = QBCore.Functions.GetPlayer(src)
+    return (Player and Player.Functions.AddItem and Player.Functions.AddItem(name, amount)) and true or false
+end
+
+local function removeItem(src, name, amount)
+    if started('ox_inventory') then
+        return exports.ox_inventory:RemoveItem(src, name, amount) and true or false
+    end
+    if started('qb-inventory') then
+        local ok, res = pcall(function() return exports['qb-inventory']:RemoveItem(src, name, amount, false, 'qb-vehicleshop:auction') end)
+        if ok then return res and true or false end
+    end
+    local Player = QBCore.Functions.GetPlayer(src)
+    return (Player and Player.Functions.RemoveItem and Player.Functions.RemoveItem(name, amount)) and true or false
+end
+
+local function removeBidItem(src)
+    local count = itemCount(src, ACfg.BidItem)
+    if count > 0 and removeItem(src, ACfg.BidItem, count) and QBCore.Shared.Items[ACfg.BidItem] then
+        TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[ACfg.BidItem], 'remove')
     end
 end
 
@@ -236,9 +285,11 @@ local function startRunning()
     for src in pairs(A.accepted) do
         if inZone(src) then
             local Player = QBCore.Functions.GetPlayer(src)
-            if Player and Player.Functions.AddItem(ACfg.BidItem, 1) then
+            if Player and addItem(src, ACfg.BidItem, 1) then
                 A.participants[src] = VS.CharName(Player)
-                TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[ACfg.BidItem], 'add')
+                if QBCore.Shared.Items[ACfg.BidItem] then
+                    TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[ACfg.BidItem], 'add')
+                end
             end
         end
     end
@@ -356,7 +407,7 @@ RegisterNetEvent('qb-vehicleshop:auction:server:auctionCreate', function(data)
     local locIndex = math.floor(tonumber(data.location) or 0)
     local location = ACfg.Locations[locIndex]
     if not location then return end
-    if not QBCore.Shared.Items[ACfg.BidItem] then
+    if not itemExists(ACfg.BidItem) then
         return VS.Notify(src, Config.AuctionLang.auction_missing_item:format(ACfg.BidItem), 'error', 9000)
     end
 
