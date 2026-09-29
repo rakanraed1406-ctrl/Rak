@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <title>Star of Life</title>
+  <defs>
+    <linearGradient id="arm" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f86ea"/>
+      <stop offset="1" stop-color="#1455b0"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(100 100)" stroke="#ffffff" stroke-width="7" stroke-linejoin="round">
+    <rect x="-24" y="-92" width="48" height="184" rx="6" fill="url(#arm)"/>
+    <rect x="-24" y="-92" width="48" height="184" rx="6" fill="url(#arm)" transform="rotate(60)"/>
+    <rect x="-24" y="-92" width="48" height="184" rx="6" fill="url(#arm)" transform="rotate(120)"/>
+  </g>
+  <!-- inner fill again so the white outlines only show on the outside edges -->
+  <g transform="translate(100 100)" fill="url(#arm)">
+    <rect x="-20.5" y="-88.5" width="41" height="177" rx="4"/>
+    <rect x="-20.5" y="-88.5" width="41" height="177" rx="4" transform="rotate(60)"/>
+    <rect x="-20.5" y="-88.5" width="41" height="177" rx="4" transform="rotate(120)"/>
+  </g>
+  <!-- Rod of Asclepius -->
+  <g fill="none" stroke="#ffffff" stroke-linecap="round">
+    <line x1="100" y1="34" x2="100" y2="168" stroke-width="7"/>
+    <path d="M100 150 C 80 146, 80 128, 100 124 C 120 120, 120 102, 100 98 C 80 94, 80 76, 100 72 C 112 70, 116 62, 110 56" stroke-width="6"/>
+  </g>
+  <circle cx="108" cy="54" r="5.5" fill="#ffffff"/>
+</svg>

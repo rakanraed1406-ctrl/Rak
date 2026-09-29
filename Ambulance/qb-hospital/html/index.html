@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>qb-hospital death screen</title>
+    <!-- loaded without blocking the page, falls back to system fonts if it fails -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="death-screen" class="hidden">
+        <div class="vignette"></div>
+        <div class="pulse" id="pulse"></div>
+        <div class="flash" id="flash"></div>
+
+        <div class="content">
+            <div class="monitor">
+                <canvas id="ecg"></canvas>
+                <div class="timer" id="timer">00:00</div>
+            </div>
+
+            <div class="status" id="status"></div>
+            <div class="sub" id="sub"></div>
+
+            <div class="actions">
+                <div class="action" id="help">
+                    <div class="key"><span>G</span></div>
+                    <div class="label" id="help-label"></div>
+                </div>
+
+                <div class="action" id="respawn">
+                    <div class="key">
+                        <svg class="ring" viewBox="0 0 40 40">
+                            <rect class="ring-fill" id="respawn-ring" x="1.5" y="1.5" width="37" height="37" rx="8" pathLength="100"></rect>
+                        </svg>
+                        <span>E</span>
+                    </div>
+                    <div class="label" id="respawn-label"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onerror = function (msg, src, line) {
+            if (typeof GetParentResourceName !== 'function') return;
+            fetch('https://' + GetParentResourceName() + '/pageError', {
+                method: 'POST',
+                body: JSON.stringify({ message: String(msg), line: line || 0 })
+            }).catch(function () {});
+        };
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>

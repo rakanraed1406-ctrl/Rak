@@ -1,21 +1,22 @@
 --[[
-    server/dispatch.lua — built-in dispatch / CAD (replaces sk1-hub).
+    server/dispatch.lua — EMS dispatch / CAD (same engine as the police tablet).
 
     Priorities (3 tiers, each with its own colour + sound on the client):
         low    = سهل    (BLUE)
         medium = متوسط  (YELLOW)
         high   = صعب    (RED)
 
-    Notifications go to every officer that is on duty AND has the MDT item in
+    Notifications go to every medic that is on duty AND has the EMS tablet in
     their inventory (both configurable in Config.Dispatch), even while the
     tablet is closed.
 
     Entry points:
-        MDT.Dispatch.Create(data, dept)                    -- server Lua
-        exports['<this resource>']:CreateDispatchCall(dept, data)
-        exports['sk1-hub']:CreateDispatchCall(dept, data)   -- compatibility shim
-        TriggerServerEvent('sk1-hub:server:createCall', dept, data) / client export
-        /911 /919 commands, and the legacy cd_dispatch / ps-dispatch / qb events
+        MDT.Dispatch.Create(data, dept)                          -- server Lua
+        exports['mdt-ems-tablet']:CreateDispatchCall('ambulance', data)
+        TriggerEvent('ems-mdt:server:CreateDispatchCall', data)   -- server, no folder name needed
+        TriggerEvent('ems-mdt:client:CreateDispatchCall', data)   -- client
+        /997 /911ems /997a commands (+ /997r reply), qb-hospital alerts,
+        and EMS-targeted cd_dispatch / ps-dispatch / qb-dispatch events
 ]]
 
 local QBCore = MDT.QBCore
@@ -28,7 +29,9 @@ MDT.Dispatch = {
 }
 local D = MDT.Dispatch
 
-local IGNORED_DEPARTMENTS = { ambulance = true, ems = true, doctor = true, fire = true, paramedic = true }
+-- Calls explicitly addressed to a police department are not ours (the police MDT takes them).
+local IGNORED_DEPARTMENTS = { police = true, sheriff = true, bcso = true, sasp = true, lspd = true, state = true, trooper = true }
+local EMS_JOBS = { ambulance = true, ems = true, doctor = true, fire = true, paramedic = true, medical = true, [Config.JobName] = true }
 local VALID_STATUS = { pending = true, active = true, contained = true, closed = true }
 local VALID_ROLE = {}
 for _, r in ipairs(DCfg.UnitRoles or {}) do VALID_ROLE[r] = true end
@@ -63,7 +66,8 @@ function D.NormalizePriority(priority, code, title)
     end
 
     local t = tostring(title or ''):lower()
-    if t:find('shot') or t:find('panic') or t:find('officer down') or t:find('robbery') or t:find('hostage') then
+    if t:find('pulse') or t:find('unconscious') or t:find('panic') or t:find('cardiac') or t:find('mass casualty')
+        or t:find('shot') or t:find('died') or t:find('dead') or t:find('critical') then
         return 'high'
     end
     return 'medium'
@@ -95,7 +99,7 @@ local function findUnit(call, src)
     end
 end
 
---- Officers that should get dispatch notifications (duty + tablet item, per config).
+--- Medics that should get dispatch notifications (duty + tablet item, per config).
 function D.IsEligible(Player)
     if not MDT.IsEmployee(Player) then return false end
     if DCfg.RequireDutyForAlerts ~= false and not Player.PlayerData.job.onduty then return false end
@@ -111,10 +115,11 @@ function D.ForEachEligible(fn)
 end
 
 local function publicCall(call)
-    if not call.callerSource then return call end
+    if not call.callerSource and not call.patientSource then return call end
     local copy = {}
     for k, v in pairs(call) do copy[k] = v end
-    copy.callerSource = nil -- keeps anonymous tips anonymous
+    copy.callerSource = nil  -- keeps anonymous callers anonymous
+    copy.patientSource = nil
     return copy
 end
 
@@ -129,11 +134,11 @@ local function sortedActive()
     return list
 end
 
---- Sends the whole CAD state to one officer (only if they have the tablet open).
+--- Sends the whole CAD state to one medic (only if they have the tablet open).
 function D.SyncTo(src)
     local Player = QBCore.Functions.GetPlayer(src)
     if not MDT.IsEmployee(Player) then return end
-    TriggerClientEvent('police:client:DispatchSync', src, {
+    TriggerClientEvent('ems-mdt:client:DispatchSync', src, {
         calls = sortedActive(),
         history = (function()
             local list = {}
@@ -152,7 +157,7 @@ function D.Broadcast()
     local count = 0
     for _ in pairs(D.calls) do count = count + 1 end
     D.ForEachEligible(function(src)
-        TriggerClientEvent('police:client:DispatchCount', src, count)
+        TriggerClientEvent('ems-mdt:client:DispatchCount', src, count)
     end)
 end
 
@@ -173,17 +178,11 @@ end
 
 function D.Create(data, dept)
     if type(data) ~= 'table' then return nil end
-    if type(dept) == 'string' and IGNORED_DEPARTMENTS[dept:lower()] then
-        -- Medical calls belong to the EMS tablet (mdt-ems-tablet) — hand them over instead of dropping them.
-        if GetResourceState('mdt-ems-tablet') == 'started' then
-            TriggerEvent('ems-mdt:server:CreateDispatchCall', data, 'ambulance')
-        end
-        return nil
-    end
+    if type(dept) == 'string' and IGNORED_DEPARTMENTS[dept:lower()] then return nil end
 
     local code = clean(data.code, 20, '10-00'):upper()
     local title = clean(data.title or data.message, 90, 'Dispatch Alert')
-    local id = 'C' .. D.nextId
+    local id = tostring(DCfg.CallPrefix or 'E'):sub(1, 3) .. D.nextId
     D.nextId = D.nextId + 1
 
     local tags = {}
@@ -218,6 +217,7 @@ function D.Create(data, dept)
         origin = clean(data.origin, 20, 'system'),
         createdBy = clean(data.createdBy, 60, nil),
         callerSource = tonumber(data.callerSource), -- never sent to clients (see publicCall)
+        patientSource = tonumber(data.patientSource), -- qb-hospital patient (server only, see publicCall)
         canReply = data.callerSource ~= nil,
         createdAt = now,
         updatedAt = now,
@@ -234,14 +234,14 @@ function D.Create(data, dept)
     D.calls[id] = call
 
     D.ForEachEligible(function(src)
-        TriggerClientEvent('police:client:DispatchNotify', src, publicCall(call), os.time())
+        TriggerClientEvent('ems-mdt:client:DispatchNotify', src, publicCall(call), os.time())
     end)
     D.Broadcast()
     return id
 end
 
 -- ---------------------------------------------------------------------------
--- Officer actions (any on-duty officer)
+-- Medic actions (any on-duty medic)
 -- ---------------------------------------------------------------------------
 
 local function onDutyEmployee(src)
@@ -250,14 +250,14 @@ local function onDutyEmployee(src)
     return Player
 end
 
-RegisterNetEvent('police:server:DispatchRespond', function(callId)
+RegisterNetEvent('ems-mdt:server:DispatchRespond', function(callId)
     local src = source
     local Player = onDutyEmployee(src)
     local call = Player and D.calls[callId]
     if not call then return end
 
     if not findUnit(call, src) then
-        local entry = unitEntry(src, #call.units == 0 and 'Primary unit' or 'Awaiting role')
+        local entry = unitEntry(src, #call.units == 0 and 'Lead paramedic' or 'Awaiting role')
         if entry then call.units[#call.units + 1] = entry end
     end
     if call.status == 'pending' then call.status = 'active' end
@@ -265,7 +265,7 @@ RegisterNetEvent('police:server:DispatchRespond', function(callId)
     D.Broadcast()
 end)
 
-RegisterNetEvent('police:server:DispatchDetach', function(callId)
+RegisterNetEvent('ems-mdt:server:DispatchDetach', function(callId)
     local src = source
     local call = onDutyEmployee(src) and D.calls[callId]
     if not call then return end
@@ -294,13 +294,13 @@ local function manager(src)
     local Player = onDutyEmployee(src)
     if not Player then return nil end
     if not MDT.Hub.CanManageDispatch(Player) then
-        TriggerClientEvent('QBCore:Notify', src, 'Take Dispatch (or Commander) in the Command Hub to manage calls.', 'error')
+        TriggerClientEvent('QBCore:Notify', src, 'Take Dispatch (or Supervisor) in the EMS Hub to manage calls.', 'error')
         return nil
     end
     return Player
 end
 
-RegisterNetEvent('police:server:DispatchUpdate', function(data)
+RegisterNetEvent('ems-mdt:server:DispatchUpdate', function(data)
     local src = source
     if type(data) ~= 'table' then return end
     local call = D.calls[data.callId]
@@ -312,7 +312,7 @@ RegisterNetEvent('police:server:DispatchUpdate', function(data)
     local isManager = MDT.Hub.CanManageDispatch(Player)
     local isSupervisor = call.supervisor == src
     if not isManager and not (isSupervisor and data.field == 'status') then
-        TriggerClientEvent('QBCore:Notify', src, 'Take Dispatch (or Commander) in the Command Hub to manage calls.', 'error')
+        TriggerClientEvent('QBCore:Notify', src, 'Take Dispatch (or Supervisor) in the EMS Hub to manage calls.', 'error')
         return
     end
 
@@ -352,7 +352,7 @@ RegisterNetEvent('police:server:DispatchUpdate', function(data)
                     local entry = target and unitEntry(s, 'Awaiting role')
                     if entry then
                         newUnits[#newUnits + 1] = entry
-                        TriggerClientEvent('police:client:DispatchAssigned', s, publicCall(call), MDT.GetName(Player))
+                        TriggerClientEvent('ems-mdt:client:DispatchAssigned', s, publicCall(call), MDT.GetName(Player))
                     end
                 end
             end
@@ -368,7 +368,7 @@ RegisterNetEvent('police:server:DispatchUpdate', function(data)
     D.Broadcast()
 end)
 
-RegisterNetEvent('police:server:DispatchCreateManual', function(data)
+RegisterNetEvent('ems-mdt:server:DispatchCreateManual', function(data)
     local src = source
     local Player = manager(src)
     if not Player or type(data) ~= 'table' then return end
@@ -383,28 +383,21 @@ RegisterNetEvent('police:server:DispatchCreateManual', function(data)
         return
     end
 
-    local coords = coordsOf(data.coords)
-    if not coords then
-        local ped = GetPlayerPed(src)
-        local c = ped ~= 0 and GetEntityCoords(ped) or vector3(0.0, 0.0, 0.0)
-        coords = { x = c.x, y = c.y, z = c.z }
-    end
-
     D.Create({
-        code = clean(data.code, 20, '10-00'),
+        code = clean(data.code, 20, '10-52'),
         title = title,
         description = clean(data.description, 400, title),
         street = clean(data.street, 80, nil),
         priority = PRIORITY_RANK[data.priority] and data.priority or 'medium',
-        coords = coords,
+        coords = coordsOf(data.coords) or MDT.PedCoords(src),
         origin = 'dispatcher',
         createdBy = MDT.GetName(Player),
         tags = { { icon = 'fa-headset', label = 'Dispatcher: ' .. MDT.Hub.GetCallsign(Player) } },
-    }, 'police')
+    }, 'ambulance')
     MDT.LogMdtAction(Player, 'Created Dispatch Call', title)
 end)
 
-RegisterNetEvent('police:server:DispatchRequestSync', function()
+RegisterNetEvent('ems-mdt:server:DispatchRequestSync', function()
     D.SyncTo(source)
 end)
 
@@ -428,60 +421,59 @@ CreateThread(function()
 end)
 
 -- ---------------------------------------------------------------------------
--- Command features that used to be the whole "Dispatch" app
--- (alert level / emergency broadcast / all-units alert)
+-- Command features (hospital alert level / emergency broadcast / all-units)
 -- ---------------------------------------------------------------------------
 
-local function playerCoords(src)
-    local ped = GetPlayerPed(src)
-    local c = ped ~= 0 and GetEntityCoords(ped) or vector3(0.0, 0.0, 0.0)
-    return { x = c.x, y = c.y, z = c.z }
-end
-
-RegisterNetEvent('police:server:BroadcastEmergencyAlert', function(message)
+RegisterNetEvent('ems-mdt:server:BroadcastEmergencyAlert', function(message)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
     if not MDT.IsBoss(Player) then return end
-    if type(message) ~= 'string' or message:gsub('%s+', '') == '' then return end
+    if type(message) ~= 'string' or message:gsub('%s+', '') == '' or not MDT.IsCleanText(message) then return end
     message = message:sub(1, 250)
 
     D.Create({
-        code = 'BROADCAST', title = 'Command Broadcast', priority = 'high',
-        description = message, coords = playerCoords(src), origin = 'command',
-        tags = { { icon = 'fa-shield', label = MDT.GetName(Player) } }
-    }, 'police')
+        code = 'BROADCAST', title = 'EMS Command Broadcast', priority = 'high',
+        description = message, coords = MDT.PedCoords(src), origin = 'command',
+        tags = { { icon = 'fa-star-of-life', label = MDT.GetName(Player) } }
+    }, 'ambulance')
 
     MDT.LogMdtAction(Player, 'Sent Emergency Broadcast', message)
 end)
 
-RegisterNetEvent('police:server:SetAlertLevel', function(level)
+local LEVEL_TEXT = {
+    green = 'Normal operations',
+    yellow = 'High patient load — non-urgent calls may wait',
+    red = 'Mass casualty / hospital at capacity — all hands',
+}
+
+RegisterNetEvent('ems-mdt:server:SetAlertLevel', function(level)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
     if not MDT.IsBoss(Player) then return end
-    if level ~= 'green' and level ~= 'yellow' and level ~= 'red' then return end
+    if not LEVEL_TEXT[level] then return end
 
     MDT.State.alertLevel = level
 
     D.Create({
-        code = 'ALERT-LEVEL', title = 'Department Alert Level: CODE ' .. level:upper(),
+        code = 'ALERT-LEVEL', title = 'Hospital Alert Level: CODE ' .. level:upper(),
         priority = level == 'red' and 'high' or (level == 'yellow' and 'medium' or 'low'),
-        description = 'Department alert level has been changed to CODE ' .. level:upper() .. '.',
-        coords = playerCoords(src), origin = 'command'
-    }, 'police')
+        description = 'Hospital alert level changed to CODE ' .. level:upper() .. ' — ' .. LEVEL_TEXT[level] .. '.',
+        coords = MDT.PedCoords(src), origin = 'command'
+    }, 'ambulance')
 
     for _, v in pairs(QBCore.Functions.GetQBPlayers()) do
         if v and v.PlayerData.job.name == Config.JobName then
-            TriggerClientEvent('police:client:AlertLevelChanged', v.PlayerData.source, level)
+            TriggerClientEvent('ems-mdt:client:AlertLevelChanged', v.PlayerData.source, level)
         end
     end
 
     MDT.LogMdtAction(Player, 'Changed Alert Level', level)
 end)
 
-RegisterNetEvent('police:server:SendUnitsAlert', function(message)
+RegisterNetEvent('ems-mdt:server:SendUnitsAlert', function(message)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
-    if not MDT.IsEmployee(Player) then return end
+    if not MDT.IsEmployee(Player) or not Player.PlayerData.job.onduty then return end
     if type(message) ~= 'string' or message:gsub('%s+', '') == '' then return end
     if not MDT.IsCleanText(message) then return end
     message = message:sub(1, 200)
@@ -493,37 +485,32 @@ RegisterNetEvent('police:server:SendUnitsAlert', function(message)
 
     D.Create({
         code = 'ALL-UNITS', title = 'All Units — ' .. MDT.Hub.GetCallsign(Player), priority = 'low',
-        description = message, coords = playerCoords(src), origin = 'officer',
+        description = message, coords = MDT.PedCoords(src), origin = 'medic',
         tags = { { icon = 'fa-bullhorn', label = MDT.GetName(Player) } }
-    }, 'police')
+    }, 'ambulance')
 
     MDT.LogMdtAction(Player, 'Sent All-Units Alert', message)
 end)
 
 -- ---------------------------------------------------------------------------
--- Exports + sk1-hub compatibility
+-- Exports / events for other resources
 -- ---------------------------------------------------------------------------
 
 local function exportCreate(dept, data)
-    -- Accept both (dept, data) like sk1-hub and (data) alone.
-    if type(dept) == 'table' and data == nil then data, dept = dept, 'police' end
+    -- Accept both (dept, data) and (data) alone.
+    if type(dept) == 'table' and data == nil then data, dept = dept, 'ambulance' end
     return D.Create(data, dept)
 end
 
 exports('CreateDispatchCall', exportCreate)
 exports('GetActiveCalls', function() return sortedActive() end)
 
--- Same thing as an event, so other SERVER scripts don't need to know this
--- resource's folder name:  TriggerEvent('mdt:server:CreateDispatchCall', data)
-AddEventHandler('mdt:server:CreateDispatchCall', function(data, dept)
-    exportCreate(dept or 'police', data)
+-- Server scripts:  TriggerEvent('ems-mdt:server:CreateDispatchCall', { code = '10-52', title = '...', coords = ... })
+AddEventHandler('ems-mdt:server:CreateDispatchCall', function(data, dept)
+    exportCreate(dept or 'ambulance', data)
 end)
 
-if DCfg.Sk1HubCompat then
-    AddEventHandler('__cfx_export_sk1-hub_CreateDispatchCall', function(setCB) setCB(exportCreate) end)
-end
-
--- Client-side creators (client export / legacy event) — rate limited.
+-- Client-side creators (client export / legacy events) — rate limited, coords from the server.
 local clientCallCooldown = {}
 local function clientCreate(src, dept, data)
     if type(data) ~= 'table' then return end
@@ -536,96 +523,110 @@ local function clientCreate(src, dept, data)
         local c = GetEntityCoords(ped)
         data.coords = { x = c.x, y = c.y, z = c.z }
     end
+    data.callerSource = nil -- only the /997 commands may set a caller (reply channel)
     return D.Create(data, dept)
 end
+MDT.Dispatch.ClientCreate = clientCreate
 
-RegisterNetEvent('police:server:ClientDispatchCall', function(dept, data) clientCreate(source, dept, data) end)
-RegisterNetEvent('sk1-hub:server:createCall', function(dept, data) clientCreate(source, dept, data) end)
+RegisterNetEvent('ems-mdt:server:ClientDispatchCall', function(dept, data) clientCreate(source, dept, data) end)
 
 AddEventHandler('playerDropped', function() clientCallCooldown[source] = nil end)
 
 -- ---------------------------------------------------------------------------
--- 911 / 919 citizen calls
+-- /997 citizen medical calls (+ anonymous) and /997r replies
 -- ---------------------------------------------------------------------------
 
-local function handle911(source, args, anonymous)
+local function handle997(src, args, anonymous)
     local message = table.concat(args or {}, ' ')
     if message:gsub('%s+', '') == '' then
-        TriggerClientEvent('QBCore:Notify', source, 'Usage: /911 [what is happening]', 'error')
+        TriggerClientEvent('QBCore:Notify', src, 'Usage: /' .. ((DCfg.Commands911 or { '997' })[1]) .. ' [what is the medical emergency?]', 'error')
         return
     end
     if not MDT.IsCleanText(message) then
-        TriggerClientEvent('QBCore:Notify', source, 'Links, URLs and HTML are not allowed.', 'error')
+        TriggerClientEvent('QBCore:Notify', src, 'Links, URLs and HTML are not allowed.', 'error')
         return
     end
 
-    local Player = QBCore.Functions.GetPlayer(source)
+    local Player = QBCore.Functions.GetPlayer(src)
     local tags
     if anonymous then
         tags = { { icon = 'fa-user-secret', label = 'Anonymous caller' } }
     else
         local callerName = Player and MDT.GetName(Player) or 'Unknown'
         local phone = Player and Player.PlayerData.charinfo and Player.PlayerData.charinfo.phone or 'Hidden'
-        tags = { { icon = 'fa-user', label = callerName }, { icon = 'fa-phone', label = tostring(phone) } }
+        tags = { { icon = 'fa-user', label = callerName }, { icon = 'fa-phone', label = tostring(phone) }, { icon = 'fa-hashtag', label = 'ID ' .. src } }
     end
 
-    clientCallCooldown[source] = nil
-    local callId = clientCreate(source, 'police', {
-        code = anonymous and '911-ANON' or '911-CALL',
-        title = anonymous and 'Anonymous Tip (911)' or 'Citizen Emergency Call (911)',
+    clientCallCooldown[src] = nil
+    local ped = GetPlayerPed(src)
+    local c = ped ~= 0 and GetEntityCoords(ped) or nil
+    local callId = D.Create({
+        code = anonymous and '997-ANON' or '997-CALL',
+        title = anonymous and 'Anonymous Medical Call (997)' or 'Medical Emergency Call (997)',
         description = message:sub(1, 300),
-        origin = '911',
+        coords = c and { x = c.x, y = c.y, z = c.z } or nil,
+        origin = '997',
         tags = tags,
-        callerSource = source,
-    })
+        callerSource = src,
+    }, 'ambulance')
     if callId then
-        TriggerClientEvent('police:client:Request911Street', source, callId)
-        TriggerClientEvent('QBCore:Notify', source,
-            ('Your %s call (%s) has been sent to the police.'):format(anonymous and 'anonymous' or '911', callId), 'success', 7000)
+        TriggerClientEvent('ems-mdt:client:Request911Street', src, callId)
+        TriggerClientEvent('QBCore:Notify', src,
+            ('Your %s call (%s) has been sent to EMS.'):format(anonymous and 'anonymous' or '997', callId), 'success', 7000)
     end
 end
 
-for _, cmd in ipairs(DCfg.Commands911 or { '911' }) do
-    QBCore.Commands.Add(cmd, 'Send an emergency call to the police', { { name = 'message', help = 'What is happening?' } }, false,
-        function(source, args) handle911(source, args, false) end)
+for _, cmd in ipairs(DCfg.Commands911 or { '997' }) do
+    QBCore.Commands.Add(cmd, 'Call EMS (medical emergency)', { { name = 'message', help = 'What is the medical emergency?' } }, false,
+        function(source, args) handle997(source, args, false) end)
 end
 for _, cmd in ipairs(DCfg.CommandsAnonymous or {}) do
-    QBCore.Commands.Add(cmd, 'Send an anonymous tip to the police', { { name = 'message', help = 'What is happening?' } }, false,
-        function(source, args) handle911(source, args, true) end)
+    QBCore.Commands.Add(cmd, 'Anonymous call to EMS', { { name = 'message', help = 'What is the medical emergency?' } }, false,
+        function(source, args) handle997(source, args, true) end)
 end
 
--- Officer replies to the citizen who made a 911 call: /reply C1001 message
+-- Medic replies to a caller: /997r E1001 message   (or /997r [player id] message, like qb-hospital's old /997r)
 if DCfg.ReplyCommand and DCfg.ReplyCommand ~= '' then
-    QBCore.Commands.Add(DCfg.ReplyCommand, 'Reply to a 911 caller', {
-        { name = 'call', help = 'Call ID, e.g. C1001' }, { name = 'message', help = 'Your reply' },
+    QBCore.Commands.Add(DCfg.ReplyCommand, 'Reply to a 997 caller', {
+        { name = 'call', help = 'Call ID (e.g. E1001) or player ID' }, { name = 'message', help = 'Your reply' },
     }, true, function(source, args)
         local Player = QBCore.Functions.GetPlayer(source)
-        if not MDT.IsEmployee(Player) or not Player.PlayerData.job.onduty then return end
-        local id = tostring(args[1] or ''):upper()
-        local call = D.calls[id]
-        if not call then
-            for _, h in ipairs(D.history) do if h.id == id then call = h break end end
-        end
-        if not call or not call.callerSource then
-            TriggerClientEvent('QBCore:Notify', source, 'No 911 caller found for ' .. id, 'error')
+        if not MDT.IsEmployee(Player) then
+            TriggerClientEvent('QBCore:Notify', source, 'Only EMS can reply to 997 calls.', 'error')
             return
         end
+        local key = tostring(args[1] or ''):upper()
+        local call = D.calls[key]
+        if not call then
+            for _, h in ipairs(D.history) do if h.id == key then call = h break end end
+        end
+
+        local target, label
+        if call and call.callerSource then
+            target, label = call.callerSource, key
+        elseif tonumber(key) and QBCore.Functions.GetPlayer(tonumber(key)) then
+            target, label = tonumber(key), '997'
+        else
+            TriggerClientEvent('QBCore:Notify', source, 'No 997 caller found for ' .. key, 'error')
+            return
+        end
+
         local text = table.concat(args, ' ', 2):sub(1, 200)
         if text:gsub('%s+', '') == '' or not MDT.IsCleanText(text) then return end
-        if not QBCore.Functions.GetPlayer(call.callerSource) then
+        if not QBCore.Functions.GetPlayer(target) then
             TriggerClientEvent('QBCore:Notify', source, 'The caller is no longer in the city.', 'error')
             return
         end
-        local from = ('Police %s'):format(MDT.Hub.GetCallsign(Player))
-        TriggerClientEvent('QBCore:Notify', call.callerSource, ('[%s] %s: %s'):format(id, from, text), 'primary', 12000)
-        TriggerClientEvent('chat:addMessage', call.callerSource, { color = { 59, 157, 251 }, args = { from .. ' (' .. id .. ')', text } })
-        TriggerClientEvent('QBCore:Notify', source, 'Reply sent to the caller of ' .. id, 'success')
-        MDT.LogMdtAction(Player, 'Replied to 911 Caller', id .. ': ' .. text)
+        local from = ('EMS %s'):format(MDT.Hub.GetCallsign(Player))
+        TriggerClientEvent('QBCore:Notify', target, ('[%s] %s: %s'):format(label, from, text), 'primary', 12000)
+        TriggerClientEvent('chat:addMessage', target, { color = { 225, 29, 72 }, args = { from .. ' (' .. label .. ')', text } })
+        TriggerClientEvent('QBCore:Notify', source, 'Reply sent to the caller of ' .. label, 'success')
+        MDT.LogMdtAction(Player, 'Replied to 997 Caller', label .. ': ' .. text)
     end)
 end
 
--- The caller's client answers with its street name so the 911 call has a real address.
-RegisterNetEvent('police:server:Update911Street', function(callId, street)
+-- The caller's client answers with its street name so the 997 call has a real address.
+RegisterNetEvent('ems-mdt:server:Update911Street', function(callId, street)
     local src = source
     local call = D.calls[callId]
     if not call or call.callerSource ~= src or type(street) ~= 'string' then return end
@@ -635,87 +636,52 @@ RegisterNetEvent('police:server:Update911Street', function(callId, street)
 end)
 
 -- ---------------------------------------------------------------------------
--- Legacy dispatch events (what sk1-hub used to catch)
+-- Legacy dispatch events — only the ones addressed to EMS (the police MDT
+-- takes the police ones). cd_dispatch itself is no longer needed for EMS.
 -- ---------------------------------------------------------------------------
 
 if DCfg.LegacyEvents ~= false then
-    -- true only when the alert is addressed to EMS alone (the EMS tablet takes those).
-    -- Mixed lists like { 'police', 'ambulance' } now reach both tablets.
-    local function hasEms(list)
+    local function forEms(list)
         if type(list) ~= 'table' then return false end
-        local any, onlyEms = false, true
         for k, v in pairs(list) do
-            local job = type(v) == 'string' and v or (type(k) == 'string' and k or nil)
-            if job then
-                any = true
-                if not IGNORED_DEPARTMENTS[job:lower()] then onlyEms = false end
-            end
+            if (type(v) == 'string' and EMS_JOBS[v:lower()]) or (type(k) == 'string' and EMS_JOBS[k:lower()]) then return true end
         end
-        return any and onlyEms
+        return false
     end
 
+    -- exports['cd_dispatch']:GetPlayerInfo() + TriggerServerEvent('cd_dispatch:AddNotification', { job_table = { 'ambulance' }, ... })
     RegisterNetEvent('cd_dispatch:AddNotification', function(data)
-        if type(data) ~= 'table' or hasEms(data.job_table) then return end
-        local title = data.title or 'Police Alert'
-        clientCreate(source, 'police', {
-            code = title:match('10%-%d+') or '10-90', title = title,
-            priority = (data.flash == 1 or data.flash == true) and 'high' or 'medium',
+        if type(data) ~= 'table' or not forEms(data.job_table) then return end
+        local title = tostring(data.title or 'Medical Alert')
+        local code = title:match('10%-%d+') or '10-52'
+        -- "10-69 - Civilan Down" → "Civilan Down"
+        local cleanTitle = title:gsub('^%s*10%-%d+%s*[-–:]?%s*', '')
+        if cleanTitle == '' then cleanTitle = title end
+        clientCreate(source, 'ambulance', {
+            code = code, title = cleanTitle,
+            priority = (data.flash == 1 or data.flash == true) and 'high' or nil,
             street = data.street, description = data.message or title, coords = data.coords,
-            tags = { { icon = 'fa-shield-halved', label = title } }
-        })
-    end)
-
-    RegisterNetEvent('cd_dispatch:pdalerts:Gunshots', function(data, weaponName, inVehicle)
-        if type(data) ~= 'table' then return end
-        local tags = { { icon = 'fa-gun', label = tostring(weaponName or 'Gunfire'), isWeapon = true } }
-        if inVehicle and data.vehicle_label then tags[#tags + 1] = { icon = 'fa-car', label = data.vehicle_label } end
-        if inVehicle and data.vehicle_plate then tags[#tags + 1] = { icon = 'fa-id-card', label = data.vehicle_plate } end
-        clientCreate(source, 'police', {
-            code = inVehicle and '10-60' or '10-11', title = inVehicle and 'Vehicle Shots Fired' or 'Shots Fired',
-            street = data.street, coords = data.coords, tags = tags,
-            description = 'Gunfire reported near ' .. tostring(data.street or 'the area') .. '.'
-        })
-    end)
-
-    RegisterNetEvent('cd_dispatch:pdalerts:Stolencar', function(data)
-        if type(data) ~= 'table' then return end
-        clientCreate(source, 'police', {
-            code = '10-35', title = 'Stolen Vehicle', street = data.street, coords = data.coords,
-            description = 'A vehicle theft has been reported.',
-            tags = { { icon = 'fa-car', label = data.vehicle_label or 'Vehicle' }, { icon = 'fa-id-card', label = data.vehicle_plate or 'Plate' } }
-        })
-    end)
-
-    RegisterNetEvent('police:server:gunshotAlert', function(street, coords, inVehicle)
-        clientCreate(source, 'police', {
-            code = inVehicle and '10-60' or '10-11', title = inVehicle and 'Vehicle Shots Fired' or 'Shots Fired',
-            street = street, coords = coords, description = 'Gunfire reported near ' .. tostring(street or 'the area') .. '.',
-            tags = { { icon = 'fa-gun', label = 'Gunfire', isWeapon = true } }
+            tags = { { icon = 'fa-truck-medical', label = cleanTitle } }
         })
     end)
 
     RegisterNetEvent('ps-dispatch:server:notify', function(data)
-        if type(data) ~= 'table' or hasEms(data.jobs) then return end
+        if type(data) ~= 'table' or not forEms(data.jobs) then return end
         local tags = {}
-        if data.weapon then tags[#tags + 1] = { icon = 'fa-gun', label = data.weapon, isWeapon = true } end
+        if data.name then tags[#tags + 1] = { icon = 'fa-user', label = tostring(data.name) } end
         if data.vehicle then tags[#tags + 1] = { icon = 'fa-car', label = data.vehicle } end
-        if data.plate then tags[#tags + 1] = { icon = 'fa-id-card', label = data.plate } end
-        clientCreate(source, 'police', {
-            code = data.code or '10-90', title = data.message or 'Police Alert', priority = data.priority,
+        clientCreate(source, 'ambulance', {
+            code = data.code or '10-52', title = data.message or 'Medical Alert', priority = data.priority,
             street = data.street, description = data.message, coords = data.coords, tags = tags
         })
     end)
 
     RegisterNetEvent('qb-dispatch:server:NewAlert', function(data)
-        if type(data) ~= 'table' or hasEms(data.jobs) then return end
-        clientCreate(source, 'police', {
-            code = data.code or '10-90', title = data.callname or 'Incident Alert',
+        if type(data) ~= 'table' or not forEms(data.jobs) then return end
+        clientCreate(source, 'ambulance', {
+            code = data.code or '10-52', title = data.callname or 'Medical Alert',
             description = (data.info and data.info[1] and data.info[1].label) or data.callname,
             coords = data.coords
         })
-    end)
-
-    RegisterNetEvent('police:server:policeAlert', function(text)
-        clientCreate(source, 'police', { code = '10-90', title = 'Police Alert', description = text, priority = 'high' })
     end)
 end

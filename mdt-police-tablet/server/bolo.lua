@@ -27,7 +27,7 @@ RegisterNetEvent('police:server:SubmitBolo', function(data)
 
     local citizenid = Player.PlayerData.citizenid
     local now = os.time()
-    if MDT.Cooldowns.bolo[citizenid] and (now - MDT.Cooldowns.bolo[citizenid]) < BOLO_COOLDOWN then
+    if MDT.Cooldowns.bolo[citizenid] and (now - MDT.Cooldowns.bolo[citizenid]) < MDT.COOLDOWN_SECONDS.bolo then
         TriggerClientEvent('QBCore:Notify', src, 'Please wait a moment before posting another BOLO.', 'error')
         return
     end

@@ -31,7 +31,8 @@ RegisterNetEvent('police:server:ToggleLockdown', function()
     local Player = QBCore.Functions.GetPlayer(src)
     if not MDT.IsBoss(Player) then return end
 
-    deptLockdown = not deptLockdown
+    MDT.State.lockdown = not MDT.State.lockdown
+    local deptLockdown = MDT.State.lockdown
     MDT.NotifyAllPolice(
         ('Police HQ: Facility lockdown has been %s.'):format(deptLockdown and 'ENGAGED' or 'LIFTED'),
         deptLockdown and 'error' or 'success'
@@ -43,7 +44,7 @@ end)
 -- Exposed so other resources (armory doors, garages, evidence lockers, etc.) can
 -- check lockdown state without needing their own event wiring.
 exports('IsDepartmentLocked', function()
-    return deptLockdown
+    return MDT.State.lockdown
 end)
 
 RegisterNetEvent('police:server:RequestGlobalBackup', function()

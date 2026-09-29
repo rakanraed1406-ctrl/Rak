@@ -27,7 +27,7 @@ RegisterNetEvent('police:server:PostDirective', function(data)
 
     local citizenid = Player.PlayerData.citizenid
     local now = os.time()
-    if MDT.Cooldowns.directive[citizenid] and (now - MDT.Cooldowns.directive[citizenid]) < DIRECTIVE_COOLDOWN then
+    if MDT.Cooldowns.directive[citizenid] and (now - MDT.Cooldowns.directive[citizenid]) < MDT.COOLDOWN_SECONDS.directive then
         TriggerClientEvent('QBCore:Notify', src, 'Please wait a moment before publishing another directive.', 'error')
         return
     end

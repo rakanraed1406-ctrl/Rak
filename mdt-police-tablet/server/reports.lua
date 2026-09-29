@@ -27,7 +27,7 @@ RegisterNetEvent('police:server:SubmitReport', function(data)
 
     local citizenid = Player.PlayerData.citizenid
     local now = os.time()
-    if MDT.Cooldowns.report[citizenid] and (now - MDT.Cooldowns.report[citizenid]) < REPORT_COOLDOWN then
+    if MDT.Cooldowns.report[citizenid] and (now - MDT.Cooldowns.report[citizenid]) < MDT.COOLDOWN_SECONDS.report then
         TriggerClientEvent('QBCore:Notify', src, 'Please wait a moment before filing another report.', 'error')
         return
     end
