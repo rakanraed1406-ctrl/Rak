@@ -33,7 +33,7 @@ function OnDeath()
             local ped = PlayerPedId()
             if IsPedInAnyVehicle(ped) then
                 local veh = GetVehiclePedIsIn(ped)
-                local vehseats = GetVehicleModelNumberOfSeats(GetHashKey(GetEntityModel(veh)))
+                local vehseats = GetVehicleModelNumberOfSeats(GetEntityModel(veh))
                 for i = -1, vehseats do
                     local occupant = GetPedInVehicleSeat(veh, i)
                     if occupant == ped then

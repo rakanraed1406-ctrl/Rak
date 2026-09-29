@@ -51,6 +51,26 @@ BodyParts = {
 
 -- Functions
 
+-- Fuel for EMS vehicles: works with LegacyFuel, cdn-fuel, ps-fuel, ox_fuel... or none.
+function SetFuel(veh, amount)
+    for _, res in ipairs({ 'LegacyFuel', 'cdn-fuel', 'ps-fuel', 'lj-fuel' }) do
+        if GetResourceState(res) == 'started' then
+            if pcall(function() exports[res]:SetFuel(veh, amount) end) then return end
+        end
+    end
+    if Entity then Entity(veh).state.fuel = amount end -- ox_fuel
+    SetVehicleFuelLevel(veh, amount)
+end
+
+-- Sends this player's injuries to the server (EMS tablet, vitals monitor, /status).
+function SyncInjuries()
+    TriggerServerEvent('hospital:server:SyncInjuries', {
+        limbs = BodyParts,
+        isBleeding = tonumber(isBleeding) or 0,
+        onPainKillers = onPainKillers == true,
+    })
+end
+
 local function GetAvailableBed(bedId)
     local pos = GetEntityCoords(PlayerPedId())
     local retval = nil
@@ -143,6 +163,7 @@ local function ApplyBleed(level)
             isBleeding = isBleeding + level
         end
         DoBleedAlert()
+        SyncInjuries()
     end
 end
 
@@ -210,19 +231,13 @@ function ResetPartial()
         blackoutTimer = 0
     end
 
-    TriggerServerEvent('hospital:server:SyncInjuries', {
-        limbs = BodyParts,
-        isBleeding = tonumber(isBleeding)
-    })
+    SyncInjuries()
 
     ProcessRunStuff(PlayerPedId())
     DoLimbAlert()
     DoBleedAlert()
 
-    TriggerServerEvent('hospital:server:SyncInjuries', {
-        limbs = BodyParts,
-        isBleeding = tonumber(isBleeding)
-    })
+    SyncInjuries()
 end
 
 exports('GetPlayerBleeding', function()
@@ -246,10 +261,7 @@ local function ResetAll()
         v.severity = 0
     end
 
-    TriggerServerEvent('hospital:server:SyncInjuries', {
-        limbs = BodyParts,
-        isBleeding = tonumber(isBleeding)
-    })
+    SyncInjuries()
 
     CurrentDamageList = {}
     TriggerServerEvent('hospital:server:SetWeaponDamage', CurrentDamageList)
@@ -258,10 +270,7 @@ local function ResetAll()
     DoLimbAlert()
     DoBleedAlert()
 
-    TriggerServerEvent('hospital:server:SyncInjuries', {
-        limbs = BodyParts,
-        isBleeding = tonumber(isBleeding)
-    })
+    SyncInjuries()
     TriggerServerEvent("hospital:server:SetMetaData")
     -- TriggerServerEvent("QBCore:Server:SetMetaData", "hunger", 100)
     -- TriggerServerEvent("QBCore:Server:SetMetaData", "thirst", 100)
@@ -487,10 +496,7 @@ local function CheckDamage(ped, bone, weapon, damageDone)
             end
         end
 
-        TriggerServerEvent('hospital:server:SyncInjuries', {
-            limbs = BodyParts,
-            isBleeding = tonumber(isBleeding)
-        })
+        SyncInjuries()
 
         ProcessRunStuff(ped)
     end
@@ -725,10 +731,7 @@ RegisterNetEvent('hospital:client:SetPain', function()
         }
     end
 
-    TriggerServerEvent('hospital:server:SyncInjuries', {
-        limbs = BodyParts,
-        isBleeding = tonumber(isBleeding)
-    })
+    SyncInjuries()
 end)
 
 RegisterNetEvent('hospital:client:KillPlayer', function()
@@ -753,10 +756,7 @@ local function ResetPlayer()
         v.severity = 0
     end
 
-    TriggerServerEvent('hospital:server:SyncInjuries', {
-        limbs = BodyParts,
-        isBleeding = tonumber(isBleeding)
-    })
+    SyncInjuries()
 
     CurrentDamageList = {}
     TriggerServerEvent('hospital:server:SetWeaponDamage', CurrentDamageList)
@@ -769,10 +769,7 @@ local function ResetPlayer()
     DoLimbAlert()
     DoBleedAlert()
 
-    TriggerServerEvent('hospital:server:SyncInjuries', {
-        limbs = BodyParts,
-        isBleeding = tonumber(isBleeding)
-    })
+    SyncInjuries()
     TriggerServerEvent("hospital:server:SetMetaData")
     -- TriggerServerEvent("QBCore:Server:SetMetaData", "hunger", 100)
     -- TriggerServerEvent("QBCore:Server:SetMetaData", "thirst", 100)
@@ -887,10 +884,7 @@ local function AdminResetAll()
         v.severity = 0
     end
 
-    TriggerServerEvent('hospital:server:SyncInjuries', {
-        limbs = BodyParts,
-        isBleeding = tonumber(isBleeding)
-    })
+    SyncInjuries()
 
     CurrentDamageList = {}
     TriggerServerEvent('hospital:server:SetWeaponDamage', CurrentDamageList)
@@ -899,10 +893,7 @@ local function AdminResetAll()
     DoLimbAlert()
     DoBleedAlert()
 
-    TriggerServerEvent('hospital:server:SyncInjuries', {
-        limbs = BodyParts,
-        isBleeding = tonumber(isBleeding)
-    })
+    SyncInjuries()
     TriggerServerEvent("QBCore:Server:SetMetaData", "hunger", 100)
     TriggerServerEvent("QBCore:Server:SetMetaData", "thirst", 100)
 end
@@ -943,8 +934,8 @@ end)
 
 RegisterNetEvent('QBCore:Client:OnPlayerUnload', function()
     local ped = PlayerPedId()
-    TriggerServerEvent("hospital:server:SetDeathStatus", false)
-    TriggerServerEvent('hospital:server:SetLaststandStatus', false)
+    -- The dead / last stand state is NOT cleared any more: logging out used to be a free
+    -- revive. OnPlayerLoaded already puts you back on the ground when you come back.
     TriggerServerEvent("hospital:server:SetArmor", GetPedArmour(ped))
     if bedOccupying then
         TriggerServerEvent("hospital:server:LeaveBed", bedOccupying)
@@ -1192,7 +1183,8 @@ end
 
 RegisterNetEvent('hospital:client:leanonbed', function(data)
     if GetAvailableBed(data.ID) then
-        TriggerServerEvent("hospital:server:SendToBedsandy", data.ID, false)
+        -- was sending the Pillbox bed id to the Sandy event (wrong bed / nothing happened)
+        TriggerServerEvent("hospital:server:SendToBed", data.ID, false)
     else
         QBCore.Functions.Notify(Lang:t('error.beds_taken'), "error")
     end
@@ -1273,7 +1265,7 @@ RegisterNetEvent('hospital:client:CheckIn', function(data)
                 TriggerEvent('animations:client:EmoteCommandStart', {"c"})
                 local bedId = GetAvailableBed()
                 if bedId then
-                    TriggerServerEvent("hospital:server:SendToBed", bedId, true, true)
+                    TriggerServerEvent("hospital:server:SendToBed", bedId, true)
                 else
                     QBCore.Functions.Notify(Lang:t('error.beds_taken'), "error")
                 end
@@ -1307,7 +1299,7 @@ RegisterNetEvent('hospital:client:CheckInsandy', function(data)
                 TriggerEvent('animations:client:EmoteCommandStart', {"c"})
                 local bedId = GetAvailableBedsandy()
                 if bedId then
-                    TriggerServerEvent("hospital:server:SendToBedsandy", bedId, true, true)
+                    TriggerServerEvent("hospital:server:SendToBedsandy", bedId, true)
                 else
                     QBCore.Functions.Notify(Lang:t('error.beds_taken'), "error")
                 end
@@ -1329,13 +1321,13 @@ RegisterNetEvent('hospital:client:Heli', function(data)
         end
     else
         local PlayerData = QBCore.Functions.GetPlayerData()
-        if PlayerData.metadata.ems.iswing then 
+        if (PlayerData.metadata.ems or {}).iswing then 
             local coords = vector4(313.43, -1465.6, 46.51, 347.9)
             QBCore.Functions.SpawnVehicle(Config.Helicopter, function(veh)
                 SetVehicleNumberPlateText(veh, Lang:t('info.heli_plate')..tostring(math.random(1000, 9999)))
                 SetEntityHeading(veh, coords.w)
                 SetVehicleLivery(veh, 1) -- Ambulance Livery
-                exports['LegacyFuel']:SetFuel(veh, 100.0)
+                SetFuel(veh, 100.0)
                 TaskWarpPedIntoVehicle(ped, veh, -1)
                 TriggerEvent("vehiclekeys:client:SetOwner", QBCore.Functions.GetPlate(veh))
                 SetVehicleEngineOn(veh, true, true)
@@ -1370,7 +1362,7 @@ end)
 
 RegisterNetEvent('hospital:ToggleDispatch', function()
     local PlayerData = QBCore.Functions.GetPlayerData()
-    if PlayerData.metadata['ems']['dispatch'] then 
+    if (PlayerData.metadata['ems'] or {})['dispatch'] then 
         TriggerServerEvent('hospital:ToggleDispatchoff')
     else
         QBCore.Functions.TriggerCallback('hospital:server:DispatchCheck', function(DispatchCheck)
@@ -1384,10 +1376,12 @@ RegisterNetEvent('hospital:ToggleDispatch', function()
 end)
 
 Citizen.CreateThread(function()
+    -- Pillbox and Sandy both used "bed1", "bed2"... as zone names, so the Sandy
+    -- zones replaced the Pillbox ones in qb-target. Each zone now has its own name.
     for k, v in pairs (Config.Locations["beds"]) do 
         local BedID = v.target
-        exports['qb-target']:AddBoxZone(BedID.name, BedID.coords, BedID.info1, BedID.info2, {
-            name= BedID.name,
+        exports['qb-target']:AddBoxZone('hospital_bed_' .. k, BedID.coords, BedID.info1, BedID.info2, {
+            name= 'hospital_bed_' .. k,
             heading= BedID.heading,
             debugPoly= BedID.debugPoly,
             minZ= BedID.minZ,
@@ -1407,8 +1401,8 @@ Citizen.CreateThread(function()
     end
     for k, v in pairs (Config.Locations["bedssandy"]) do 
         local BedID = v.target
-        exports['qb-target']:AddBoxZone(BedID.name, BedID.coords, BedID.info1, BedID.info2, {
-            name= BedID.name,
+        exports['qb-target']:AddBoxZone('hospital_bedsandy_' .. k, BedID.coords, BedID.info1, BedID.info2, {
+            name= 'hospital_bedsandy_' .. k,
             heading= BedID.heading,
             debugPoly= BedID.debugPoly,
             minZ= BedID.minZ,
@@ -1525,14 +1519,16 @@ Citizen.CreateThread(function()
                 { 
                     type = "client", 
                     event = "qb-clothing:client:openMenu",  
-                    icon = 'fas fa-example', 
+                    icon = 'fas fa-shirt', 
                     label = 'Clothes', 
+                    job = 'ambulance',
                 },
                 { 
                     type = "client", 
                     event = "qb-clothing:client:openOutfitMenu",  
-                    icon = 'fas fa-example', 
+                    icon = 'fas fa-shirt', 
                     label = 'Clothes Locker', 
+                    job = 'ambulance',
                 }
             },
             distance = 2.5, 

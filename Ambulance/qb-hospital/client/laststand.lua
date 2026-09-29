@@ -56,7 +56,7 @@ function SetLaststand(bool, killid, killerWeapon)
         local ped = PlayerPedId()
         if IsPedInAnyVehicle(ped) then
             local veh = GetVehiclePedIsIn(ped)
-            local vehseats = GetVehicleModelNumberOfSeats(GetHashKey(GetEntityModel(veh)))
+            local vehseats = GetVehicleModelNumberOfSeats(GetEntityModel(veh))
             for i = -1, vehseats do
                 local occupant = GetPedInVehicleSeat(veh, i)
                 if occupant == ped then
@@ -164,25 +164,20 @@ RegisterNetEvent('hospital:client:CanHelp', function(helperId)
 end)
 
 RegisterNetEvent('hospital:client:HelpPerson', function(targetId)
-    local ped = PlayerPedId()
-    isHealingPerson = true
-    QBCore.Functions.Progressbar("hospital_revive", Lang:t('progress.revive'), math.random(30000, 60000), false, true, {
-        disableMovement = false,
-        disableCarMovement = false,
+    local time = math.random(30000, 60000)
+    local targetPlayer = GetPlayerFromServerId(targetId)
+    HealAnim(time, 'cpr', targetPlayer ~= -1 and GetPlayerPed(targetPlayer) or nil)
+    QBCore.Functions.Progressbar("hospital_revive", Lang:t('progress.revive'), time, false, true, {
+        disableMovement = true,
+        disableCarMovement = true,
         disableMouse = false,
         disableCombat = true,
-    }, {
-        animDict = healAnimDict,
-        anim = healAnim,
-        flags = 1,
-    }, {}, {}, function() -- Done
-        isHealingPerson = false
-        ClearPedTasks(ped)
+    }, {}, {}, {}, function() -- Done
+        StopHealAnim()
         QBCore.Functions.Notify(Lang:t('success.revived'), 'success')
         TriggerServerEvent("hospital:server:RevivePlayer", targetId)
     end, function() -- Cancel
-        isHealingPerson = false
-        ClearPedTasks(ped)
+        StopHealAnim()
         QBCore.Functions.Notify(Lang:t('error.canceled'), "error")
     end)
 end)

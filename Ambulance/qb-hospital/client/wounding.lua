@@ -10,14 +10,18 @@ local function DoBleedAlert()
     end
 end
 
-local function RemoveBleed(level)
+function RemoveBleed(level)
     if isBleeding ~= 0 then
         if isBleeding - level < 0 then
             isBleeding = 0
         else
             isBleeding = isBleeding - level
         end
+        if isBleeding == 0 then
+            bleedTickTimer, advanceBleedTimer, fadeOutTimer, blackoutTimer = 0, 0, 0, 0
+        end
         DoBleedAlert()
+        SyncInjuries()
     end
 end
 
@@ -29,13 +33,42 @@ local function ApplyBleed(level)
             isBleeding = isBleeding + level
         end
         DoBleedAlert()
+        SyncInjuries()
     end
+end
+
+-- Painkiller doses (each dose = Config.PainkillerInterval seconds, max 3 stacked)
+function AddPainkillerDose(doses)
+    onPainKillers = true
+    painkillerAmount = math.min(3, painkillerAmount + (doses or 1))
+    SyncInjuries()
+end
+
+-- Prop in the hand while using a medical item
+local function HoldProp(model, bone, offset, rot)
+    local hash = joaat(model)
+    if not IsModelInCdimage(hash) then return nil end
+    RequestModel(hash)
+    local timeout = GetGameTimer() + 3000
+    while not HasModelLoaded(hash) and GetGameTimer() < timeout do Wait(10) end
+    if not HasModelLoaded(hash) then return nil end
+    local ped = PlayerPedId()
+    local c = GetEntityCoords(ped)
+    local obj = CreateObject(hash, c.x, c.y, c.z + 0.2, true, true, false)
+    AttachEntityToEntity(obj, ped, GetPedBoneIndex(ped, bone), offset.x, offset.y, offset.z, rot.x, rot.y, rot.z, true, true, false, true, 1, true)
+    SetModelAsNoLongerNeeded(hash)
+    return obj
+end
+
+local function DropProp(obj)
+    if obj and DoesEntityExist(obj) then DeleteEntity(obj) end
 end
 
 -- Events
 
 RegisterNetEvent('hospital:client:UseIfaks', function()
     local ped = PlayerPedId()
+    local prop = HoldProp('prop_cs_pills', 58866, vector3(0.11, -0.01, 0.0), vector3(-60.0, 0.0, 0.0))
     QBCore.Functions.Progressbar("use_bandage", Lang:t('progress.ifaks'), 3000, false, true, {
         disableMovement = false,
         disableCarMovement = false,
@@ -47,48 +80,46 @@ RegisterNetEvent('hospital:client:UseIfaks', function()
 		flags = 49,
     }, {}, {}, function() -- Done
         StopAnimTask(ped, "mp_suicide", "pill", 1.0)
-        TriggerServerEvent("QBCore:Server:RemoveItem", "ifaks", 1)
-        TriggerEvent("inventory:client:ItemBox", QBCore.Shared.Items["ifaks"], "remove")
+        DropProp(prop)
+        TriggerServerEvent("hospital:server:ConsumeItem", "ifaks")
         TriggerServerEvent('hud:server:RelieveStress', math.random(12, 24))
-        SetEntityHealth(ped, GetEntityHealth(ped) + 10)
-        onPainKillers = true
-        if painkillerAmount < 3 then
-            painkillerAmount = painkillerAmount + 1
-        end
+        SetEntityHealth(ped, math.min(GetEntityMaxHealth(ped), GetEntityHealth(ped) + 10))
+        AddPainkillerDose(1)
         if math.random(1, 100) < 50 then
             RemoveBleed(1)
         end
     end, function() -- Cancel
         StopAnimTask(ped, "mp_suicide", "pill", 1.0)
+        DropProp(prop)
         QBCore.Functions.Notify(Lang:t('error.canceled'), "error")
     end)
 end)
 
 local healcount = 0
+local isHealingLoop = false
 
-local function AddHealth(amount)
+-- +1 HP per second. Was starting a new loop on every call (the flag was local),
+-- so two bandages healed twice as fast.
+function AddHealth(amount)
     healcount = healcount + amount
-    local isHealingLoop = false
-    if not isHealingLoop then 
-        isHealingLoop = true
-        CreateThread(function()
-            while healcount > 0 do
-                Wait(1000)
-                healcount = healcount - 1
-                SetEntityHealth(PlayerPedId(), GetEntityHealth(PlayerPedId()) + 1)
-                if healcount <= 0 then 
-                    healcount = 0
-                    isHealingLoop = false
-                    break
-                end
-            end
-        end)
-    end
+    if isHealingLoop then return end
+    isHealingLoop = true
+    CreateThread(function()
+        while healcount > 0 do
+            Wait(1000)
+            healcount = healcount - 1
+            local ped = PlayerPedId()
+            if isDead or InLaststand then healcount = 0 break end
+            SetEntityHealth(ped, math.min(GetEntityMaxHealth(ped), GetEntityHealth(ped) + 1))
+        end
+        healcount = 0
+        isHealingLoop = false
+    end)
 end
 
 RegisterNetEvent('hospital:client:UseBandage', function()
     local ped = PlayerPedId()
-    QBCore.Functions.AddProp('HealthPack')
+    local prop = HoldProp('prop_ld_health_pack', 18905, vector3(0.12, 0.02, 0.06), vector3(-90.0, 0.0, 0.0))
     QBCore.Functions.Progressbar("use_bandage", Lang:t('progress.bandage'), 4000, false, true, {
         disableMovement = false,
         disableCarMovement = false,
@@ -100,9 +131,8 @@ RegisterNetEvent('hospital:client:UseBandage', function()
 		flags = 49,
     }, {}, {}, function() -- Done
         StopAnimTask(ped, "amb@world_human_clipboard@male@idle_a", "idle_c", 1.0)
-        QBCore.Functions.RemoveProp()
-        TriggerServerEvent("QBCore:Server:RemoveItem", "bandage", 1)
-        TriggerEvent("inventory:client:ItemBox", QBCore.Shared.Items["bandage"], "remove")
+        DropProp(prop)
+        TriggerServerEvent("hospital:server:ConsumeItem", "bandage")
         if math.random(1, 100) < 50 then
             RemoveBleed(1)
         end
@@ -112,13 +142,14 @@ RegisterNetEvent('hospital:client:UseBandage', function()
         AddHealth(10)
     end, function() -- Cancel
         StopAnimTask(ped, "amb@world_human_clipboard@male@idle_a", "idle_c", 1.0)
-        QBCore.Functions.RemoveProp()
+        DropProp(prop)
         QBCore.Functions.Notify(Lang:t('error.canceled'), "error")
     end)
 end)
 
 RegisterNetEvent('hospital:client:UsePainkillers', function()
     local ped = PlayerPedId()
+    local prop = HoldProp('prop_cs_pills', 58866, vector3(0.11, -0.01, 0.0), vector3(-60.0, 0.0, 0.0))
     QBCore.Functions.Progressbar("use_bandage", Lang:t('progress.painkillers'), 3000, false, true, {
         disableMovement = false,
         disableCarMovement = false,
@@ -130,14 +161,12 @@ RegisterNetEvent('hospital:client:UsePainkillers', function()
 		flags = 49,
     }, {}, {}, function() -- Done
         StopAnimTask(ped, "mp_suicide", "pill", 1.0)
-        TriggerServerEvent("QBCore:Server:RemoveItem", "painkillers", 1)
-        TriggerEvent("inventory:client:ItemBox", QBCore.Shared.Items["painkillers"], "remove")
-        onPainKillers = true
-        if painkillerAmount < 3 then
-            painkillerAmount = painkillerAmount + 1
-        end
+        DropProp(prop)
+        TriggerServerEvent("hospital:server:ConsumeItem", "painkillers")
+        AddPainkillerDose(1)
     end, function() -- Cancel
         StopAnimTask(ped, "mp_suicide", "pill", 1.0)
+        DropProp(prop)
         QBCore.Functions.Notify(Lang:t('error.canceled'), "error")
     end)
 end)
@@ -153,6 +182,7 @@ CreateThread(function()
             if painkillerAmount <= 0 then
                 painkillerAmount = 0
                 onPainKillers = false
+                SyncInjuries()
             end
         else
             Wait(3000)

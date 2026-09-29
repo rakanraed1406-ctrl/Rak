@@ -1,11 +1,14 @@
 local QBCore = exports[Rc2store.Core]:GetCoreObject()
 
+-- Wait a full shift period BEFORE the first point (it used to give one right away,
+-- so reconnecting was a free point every time).
 CreateThread(function()
     while true do
-        if QBCore.Functions.GetPlayerData().job and QBCore.Functions.GetPlayerData().job.name and QBCore.Functions.GetPlayerData().job.name == 'ambulance' and QBCore.Functions.GetPlayerData().job.onduty then
-                TriggerServerEvent('qb-ambulance:addpoints')
-            end
         Wait(Rc2store.Minutes * 60 * 1000)
+        local job = QBCore.Functions.GetPlayerData().job
+        if job and job.name == 'ambulance' and job.onduty then
+            TriggerServerEvent('qb-ambulance:addpoints')
+        end
     end
 end)
 

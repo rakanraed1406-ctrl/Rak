@@ -34,6 +34,14 @@ local function GetClosestPlayer()
 	return closestPlayer, closestDistance
 end
 
+local function HasItem(item)
+    if QBCore.Functions.HasItem then return QBCore.Functions.HasItem(item) end
+    for _, v in pairs(QBCore.Functions.GetPlayerData().items or {}) do
+        if v and v.name == item then return true end
+    end
+    return false
+end
+
 local function DrawText3D(x, y, z, text)
     SetTextScale(0.35, 0.35)
     SetTextFont(4)
@@ -54,7 +62,7 @@ function TakeOutVehicle(vehicleInfo)
     QBCore.Functions.SpawnVehicle(vehicleInfo, function(veh)
         SetVehicleNumberPlateText(veh, Lang:t('info.amb_plate')..tostring(math.random(1000, 9999)))
         SetEntityHeading(veh, coords.w)
-        exports['LegacyFuel']:SetFuel(veh, 100.0)
+        SetFuel(veh, 100.0)
         TaskWarpPedIntoVehicle(PlayerPedId(), veh, -1)
         if Config.VehicleSettings[vehicleInfo] ~= nil then
             QBCore.Shared.SetDefaultVehicleExtras(veh, Config.VehicleSettings[vehicleInfo].extras)
@@ -73,7 +81,7 @@ function MenuGarage()
         }
     }
 
-    local authorizedVehicles = Config.AuthorizedVehicles[QBCore.Functions.GetPlayerData().job.grade.level]
+    local authorizedVehicles = Config.AuthorizedVehicles[QBCore.Functions.GetPlayerData().job.grade.level] or Config.AuthorizedVehicles[0] or {}
     for veh, label in pairs(authorizedVehicles) do
         vehicleMenu[#vehicleMenu+1] = {
             header = label,
@@ -155,110 +163,83 @@ end)
 
 RegisterNetEvent('hospital:client:CheckStatus', function()
     local player, distance = GetClosestPlayer()
-    if player ~= -1 and distance < 5.0 then
-        local playerId = GetPlayerServerId(player)
-        statusCheckPed = GetPlayerPed(player)
-        QBCore.Functions.TriggerCallback('hospital:GetPlayerStatus', function(result)
-            if result then
-                for k, v in pairs(result) do
-                    if k ~= "BLEED" and k ~= "WEAPONWOUNDS" then
-                        statusChecks[#statusChecks+1] = {bone = Config.BoneIndexes[k], label = v.label .." (".. Config.WoundStates[v.severity] ..")"}
-                    elseif result["WEAPONWOUNDS"] then
-                        for k, v in pairs(result["WEAPONWOUNDS"]) do
-                            TriggerEvent('chat:addMessage', {
-                                color = { 255, 0, 0},
-                                multiline = false,
-                                args = {Lang:t('info.status'), (QBCore.Shared.Weapons[v] and QBCore.Shared.Weapons[v].damagereason) or tostring(v)}
-                            })
-                        end
-                    elseif result["BLEED"] > 0 then
-                        TriggerEvent('chat:addMessage', {
-                            color = { 255, 0, 0},
-                            multiline = false,
-                            args = {Lang:t('info.status'), Lang:t('info.is_status', {status = Config.BleedingStates[v].label})}
-                        })
-                    else
-                        QBCore.Functions.Notify(Lang:t('success.healthy_player'), 'success','error',3000)
-                    end
-                end
-                isStatusChecking = true
-                statusCheckTime = Config.CheckTime
-            end
-        end, playerId)
-    else
+    if player == -1 or distance >= 5.0 then
         QBCore.Functions.Notify(Lang:t('error.no_player'), 'error')
+        return
     end
+    local playerId = GetPlayerServerId(player)
+    statusCheckPed = GetPlayerPed(player)
+    QBCore.Functions.TriggerCallback('hospital:GetPlayerStatus', function(result)
+        if not result then return end
+        -- the old loop mixed up the keys: bleeding was never shown and gunshot
+        -- wounds were printed once per injured limb
+        statusChecks = {}
+        local healthy = true
+        for k, v in pairs(result) do
+            if k ~= "BLEED" and k ~= "WEAPONWOUNDS" and Config.BoneIndexes[k] then
+                healthy = false
+                statusChecks[#statusChecks+1] = {bone = Config.BoneIndexes[k], label = v.label .." (".. (Config.WoundStates[v.severity] or '') ..")"}
+            end
+        end
+        for _, weapon in pairs(result["WEAPONWOUNDS"] or {}) do
+            healthy = false
+            TriggerEvent('chat:addMessage', {
+                color = { 255, 0, 0},
+                multiline = false,
+                args = {Lang:t('info.status'), (QBCore.Shared.Weapons[weapon] and QBCore.Shared.Weapons[weapon].damagereason) or tostring(weapon)}
+            })
+        end
+        local bleed = tonumber(result["BLEED"]) or 0
+        if bleed > 0 and Config.BleedingStates[bleed] then
+            healthy = false
+            TriggerEvent('chat:addMessage', {
+                color = { 255, 0, 0},
+                multiline = false,
+                args = {Lang:t('info.status'), Lang:t('info.is_status', {status = Config.BleedingStates[bleed].label})}
+            })
+        end
+        if healthy then
+            QBCore.Functions.Notify(Lang:t('success.healthy_player'), 'success', 3000)
+        end
+        isStatusChecking = true
+        statusCheckTime = Config.CheckTime
+    end, playerId)
 end)
 
 RegisterNetEvent('hospital:client:RevivePlayer', function()
     local player, distance = GetClosestPlayer()
-    local RandomTime = math.random(10000, 15000)
-    if player ~= -1 and distance < 5.0 then
-        local playerId = GetPlayerServerId(player)
-        QBCore.Functions.TriggerCallback('hospital:server:GetPlayerStatus', function(isdead, inlaststand)
-            if inlaststand then 
-                QBCore.Functions.TriggerCallback('QBCore:HasItem', function(hasItem)
-                    if hasItem then
-                        local player, distance = GetClosestPlayer()
-                        local RandomTime = math.random(10000, 15000)
-                        if player ~= -1 and distance < 5.0 then
-                            local playerId = GetPlayerServerId(player)
-                            isHealingPerson = true
-                            HealAnim(RandomTime)
-                            QBCore.Functions.Progressbar("hospital_revive", "Helping Person", RandomTime, false, true, {
-                                disableMovement = true,
-                                disableCarMovement = true,
-                                disableMouse = false,
-                                disableCombat = true,
-                            }, {}, {}, {}, function() -- Done
-                                isHealingPerson = false
-                                QBCore.Functions.Notify(Lang:t('success.revived'), 'success')
-                                TriggerServerEvent("hospital:server:RevivePlayer", playerId, false, true)
-                            end, function() -- Cancel
-                                isHealingPerson = false
-                                QBCore.Functions.Notify("Cancled", "error")
-                            end)
-                        else
-                            QBCore.Functions.Notify(Lang:t('error.no_player'), "error")
-                        end
-                    else
-                        QBCore.Functions.Notify(Lang:t('error.no_firstaid'), "error")
-                    end
-                end, 'firstaid')
-            elseif isdead then 
-                QBCore.Functions.TriggerCallback('QBCore:HasItem', function(hasItem)
-                    if hasItem then
-                        local player, distance = GetClosestPlayer()
-                        local RandomTime = math.random(10000, 15000)
-                        if player ~= -1 and distance < 5.0 then
-                            local playerId = GetPlayerServerId(player)
-                            isHealingPerson = true
-                            HealAnim(RandomTime)
-                            QBCore.Functions.Progressbar("hospital_revive", "Defibing", RandomTime, false, true, {
-                                disableMovement = true,
-                                disableCarMovement = true,
-                                disableMouse = false,
-                                disableCombat = true,
-                            }, {}, {}, {}, function() -- Done
-                                isHealingPerson = false
-                                QBCore.Functions.Notify(Lang:t('success.revived'), 'success')
-                                TriggerServerEvent("hospital:server:RevivePlayer", playerId, false, false)
-                            end, function() -- Cancel
-                                isHealingPerson = false
-                                QBCore.Functions.Notify("Cancled", "error")
-                            end)
-                        else
-                            QBCore.Functions.Notify(Lang:t('error.no_player'), "error")
-                        end
-                    else
-                        QBCore.Functions.Notify("You don\'t have defibrillator", "error")
-                    end
-                end, 'defibrillator')
-            end
-        end, playerId)
-    else
+    if player == -1 or distance >= 5.0 then
         QBCore.Functions.Notify(Lang:t('error.no_player'), "error")
+        return
     end
+    local playerId = GetPlayerServerId(player)
+    QBCore.Functions.TriggerCallback('hospital:server:GetPlayerStatus', function(isdead, inlaststand)
+        if not isdead and not inlaststand then
+            QBCore.Functions.Notify(Lang:t('error.cant_help'), "error")
+            return
+        end
+        local item = isdead and 'defibrillator' or 'firstaid'
+        if not HasItem(item) then
+            QBCore.Functions.Notify(isdead and Lang:t('error.no_defib') or Lang:t('error.no_firstaid'), "error")
+            return
+        end
+        local time = math.random(10000, 15000)
+        isHealingPerson = true
+        HealAnim(time, isdead and 'defib' or 'cpr', GetPlayerPed(player))
+        QBCore.Functions.Progressbar("hospital_revive", isdead and "Defibrillating..." or "Helping person...", time, false, true, {
+            disableMovement = true,
+            disableCarMovement = true,
+            disableMouse = false,
+            disableCombat = true,
+        }, {}, {}, {}, function() -- Done
+            StopHealAnim()
+            QBCore.Functions.Notify(Lang:t('success.revived'), 'success')
+            TriggerServerEvent("hospital:server:RevivePlayer", playerId, false)
+        end, function() -- Cancel
+            StopHealAnim()
+            QBCore.Functions.Notify(Lang:t('error.canceled'), "error")
+        end)
+    end, playerId)
 end)
 
 RegisterNetEvent('hospital:client:TreatWounds', function()
@@ -269,20 +250,18 @@ RegisterNetEvent('hospital:client:TreatWounds', function()
                 local playerId = GetPlayerServerId(player)
                 local RandomTime = math.random(10000, 15000)
                 isHealingPerson = true
-                HealAnim(RandomTime)
+                HealAnim(RandomTime, 'treat', GetPlayerPed(player))
                 QBCore.Functions.Progressbar("hospital_healwounds", Lang:t('progress.healing'), RandomTime, false, true, {
-                    disableMovement = false,
-                    disableCarMovement = false,
+                    disableMovement = true,
+                    disableCarMovement = true,
                     disableMouse = false,
                     disableCombat = true,
                 }, {}, {}, {}, function() -- Done
-                    isHealingPerson = false
-                    -- StopAnimTask(PlayerPedId(), healAnimDict, "exit", 1.0)
+                    StopHealAnim()
                     QBCore.Functions.Notify(Lang:t('success.helped_player'), 'success')
                     TriggerServerEvent("hospital:server:TreatWounds", playerId)
                 end, function() -- Cancel
-                    isHealingPerson = false
-                    -- StopAnimTask(PlayerPedId(), healAnimDict, "exit", 1.0)
+                    StopHealAnim()
                     QBCore.Functions.Notify(Lang:t('error.canceled'), "error")
                 end)
             else
@@ -294,21 +273,75 @@ RegisterNetEvent('hospital:client:TreatWounds', function()
     end, 'bandage')
 end)
 
-function HealAnim(time)
-    time = time / 1000
-    QBCore.Functions.RequestAnimationDict("weapons@first_person@aim_rng@generic@projectile@thermal_charge@")
-    TaskPlayAnim(PlayerPedId(), "weapons@first_person@aim_rng@generic@projectile@thermal_charge@", "plant_floor" ,3.0, 3.0, -1, 16, 0, false, false, false)
-    Healing = true
-    Citizen.CreateThread(function()
-        while isHealingPerson do
-            TaskPlayAnim(PlayerPedId(), "weapons@first_person@aim_rng@generic@projectile@thermal_charge@", "plant_floor", 3.0, 3.0, -1, 16, 0, 0, 0, 0)
-            Citizen.Wait(2000)
-            time = time - 2
-            if time <= 0 then
-                isHealingPerson = false
-                StopAnimTask(PlayerPedId(), "weapons@first_person@aim_rng@generic@projectile@thermal_charge@", "plant_floor", 1.0)
+-- Medic animations with props (see Config.HealAnims): CPR for first aid, kneel +
+-- trauma bag for wound care, defibrillator with shocks for a patient without pulse.
+local healProps = {}
+
+local function SpawnHealProp(model, onGround, bone, offset, rot, ped)
+    local hash = type(model) == 'number' and model or joaat(model)
+    if not IsModelInCdimage(hash) then return end
+    RequestModel(hash)
+    local timeout = GetGameTimer() + 3000
+    while not HasModelLoaded(hash) and GetGameTimer() < timeout do Wait(10) end
+    if not HasModelLoaded(hash) then return end
+    local c = GetEntityCoords(ped)
+    local obj = CreateObject(hash, c.x, c.y, c.z - 1.0, true, true, false)
+    if onGround then
+        local pos = GetOffsetFromEntityInWorldCoords(ped, offset.x, offset.y, offset.z)
+        SetEntityCoords(obj, pos.x, pos.y, pos.z, false, false, false, false)
+        SetEntityHeading(obj, GetEntityHeading(ped) + (rot and rot.z or 0.0))
+        PlaceObjectOnGroundProperly(obj)
+        FreezeEntityPosition(obj, true)
+    else
+        AttachEntityToEntity(obj, ped, GetPedBoneIndex(ped, bone), offset.x, offset.y, offset.z, rot.x, rot.y, rot.z, true, true, false, true, 1, true)
+    end
+    SetModelAsNoLongerNeeded(hash)
+    healProps[#healProps + 1] = obj
+end
+
+function StopHealAnim()
+    isHealingPerson = false
+    local ped = PlayerPedId()
+    for _, obj in ipairs(healProps) do
+        if DoesEntityExist(obj) then DeleteEntity(obj) end
+    end
+    healProps = {}
+    ClearPedTasks(ped)
+end
+
+function HealAnim(time, kind, patientPed)
+    local cfg = (Config.HealAnims or {})[kind or 'treat'] or (Config.HealAnims or {}).treat
+    local ped = PlayerPedId()
+    if not cfg then return end
+    -- face the patient
+    if patientPed and DoesEntityExist(patientPed) then
+        TaskTurnPedToFaceEntity(ped, patientPed, 800)
+        Wait(800)
+    end
+    for _, p in ipairs(cfg.props or {}) do
+        SpawnHealProp(p.model, p.ground, p.bone or 57005, p.offset or vector3(0.0, 0.0, 0.0), p.rotation or vector3(0.0, 0.0, 0.0), ped)
+    end
+    loadAnimDict(cfg.dict)
+    isHealingPerson = true
+    local endAt = GetGameTimer() + time
+    CreateThread(function()
+        local nextShock = GetGameTimer() + (cfg.shockEvery or 0)
+        while isHealingPerson and GetGameTimer() < endAt do
+            if not IsEntityPlayingAnim(ped, cfg.dict, cfg.anim, 3) then
+                TaskPlayAnim(ped, cfg.dict, cfg.anim, 3.0, 3.0, -1, cfg.flag or 1, 0, false, false, false)
             end
+            if cfg.shockEvery and GetGameTimer() >= nextShock then
+                nextShock = GetGameTimer() + cfg.shockEvery
+                PlaySoundFrontend(-1, "Hack_Success", "DLC_HEIST_BIOLAB_PREP_HACKING_SOUNDS", true)
+                if patientPed and DoesEntityExist(patientPed) then
+                    local pc = GetEntityCoords(patientPed)
+                    UseParticleFxAssetNextCall("core")
+                    StartParticleFxNonLoopedAtCoord("ent_sht_electrical_box", pc.x, pc.y, pc.z - 0.6, 0.0, 0.0, 0.0, 0.35, false, false, false)
+                end
+            end
+            Wait(250)
         end
+        if isHealingPerson then StopHealAnim() end
     end)
 end
 

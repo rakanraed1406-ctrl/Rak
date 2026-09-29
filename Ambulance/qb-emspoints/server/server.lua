@@ -9,7 +9,7 @@ QBCore.Commands.Add(Rc2store.CheckPointsCommand, 'Check your ambulance points', 
             'error', 7000)
     end
 end)
-QBCore.Commands.Add(Rc2store.emsmenucommand, 'Manage player police points', {}, false, function(source, args)
+QBCore.Commands.Add(Rc2store.emsmenucommand, 'Manage EMS points', {}, false, function(source, args)
     local xPlayer = QBCore.Functions.GetPlayer(source)
     if xPlayer.PlayerData.job.name == 'ambulance' and xPlayer.PlayerData.job.isboss then
         TriggerClientEvent('qb-emspoints:client:openmenu', source)

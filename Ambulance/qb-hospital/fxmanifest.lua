@@ -5,6 +5,7 @@ description 'JT'
 version '1.0.0'
 
 shared_scripts {
+	'@ox_lib/init.lua',
 	'@qb-core/shared/locale.lua',
 	'locales/en.lua',
 	'config.lua'
@@ -17,7 +18,7 @@ client_scripts {
 	'client/job.lua',
 	'client/dead.lua',
 	'client/insurance.lua',
-	'@ox_lib/init.lua',
+	'client/treatment.lua',
 }
 
 server_scripts {
@@ -28,6 +29,7 @@ server_scripts {
 
 exports {
 	'isPlayerDead',
+	'GetLocalState',
 }
 
 ui_page 'html/index.html'

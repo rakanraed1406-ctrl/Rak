@@ -33,6 +33,38 @@ Config.DeathScreen = {
 }
 Config.CheckTime = 10
 
+Config.CheckInBlockDoctors = 2      -- الاستقبال الذاتي (Check-in) يتقفل لو فيه هالعدد من المسعفين على الدوام
+Config.CheckInDistance = 60.0       -- لازم تكون قريب من السرير بهالمسافة عشان تنحط فيه (حماية من التلبورت)
+
+-- ==========================================================================
+-- انميشن المسعف وهو يعالج (مع البروبات)
+--   cpr    = إنعاش مريض ينزف (First Aid)
+--   treat  = علاج الجروح (Bandage)
+--   defib  = صعق مريض بدون نبض (Defibrillator) — صوت + شرارة كل shockEvery
+-- props: model = اسم البروب، ground = ينحط على الأرض جنب المسعف، أو bone = يمسكه بيده
+-- ==========================================================================
+Config.HealAnims = {
+    cpr = {
+        dict = 'mini@cpr@char_a@cpr_str', anim = 'cpr_pumpchest', flag = 1,
+        props = {
+            { model = 'prop_ld_health_pack', ground = true, offset = vector3(0.55, 0.30, 0.0) },
+        },
+    },
+    treat = {
+        dict = 'amb@medic@standing@tendtodead@idle_a', anim = 'idle_a', flag = 1,
+        props = {
+            { model = 'xm_prop_x17_bag_med_01a', ground = true, offset = vector3(0.60, 0.25, 0.0), rotation = vector3(0.0, 0.0, 90.0) },
+        },
+    },
+    defib = {
+        dict = 'amb@medic@standing@tendtodead@idle_a', anim = 'idle_a', flag = 1, shockEvery = 4000,
+        props = {
+            { model = 'xm_prop_x17_bag_med_01a', ground = true, offset = vector3(0.60, 0.25, 0.0), rotation = vector3(0.0, 0.0, 90.0) },
+            { model = 'prop_ld_health_pack', ground = true, offset = vector3(-0.50, 0.35, 0.0) },
+        },
+    },
+}
+
 -- ==========================================================================
 -- تابلت الإسعاف (mdt-ems-tablet) — بدال cd_dispatch
 -- كل إشعارات المستشفى (مواطن مصاب / بدون نبض، /997، مريض ينتظر بالاستقبال)
