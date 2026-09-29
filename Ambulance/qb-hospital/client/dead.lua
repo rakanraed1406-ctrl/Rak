@@ -54,40 +54,59 @@ function OnDeath()
                 loadAnimDict(deadAnimDict)
                 TaskPlayAnim(player, deadAnimDict, deadAnim, 1.0, 1.0, -1, 1, 0, 0, 0, 0)
             end
-            -- TriggerServerEvent('hospital:server:ambulanceAlert', Lang:t('info.civ_died'))
-            -- EMSAlert('Civilian Down')
+            -- asked for help while bleeding out and then the heart stopped:
+            -- EMS automatically gets the red "no pulse" call too
+            if emsNotified and EMSAlert then
+                EMSAlert(Lang:t('info.civ_died'))
+            end
         end
     end
 end
 
+local respawnRequestedAt = -1e9
+local RESPAWN_RETRY_MS = 15000 -- if no bed was free, you can try again after this
+local holdingRespawn = false
+
+local function RespawnPending()
+    return GetGameTimer() - respawnRequestedAt < RESPAWN_RETRY_MS
+end
+
+-- Death countdown + "hold E to respawn". Runs every frame so the hold reacts
+-- instantly (it used to only look at E once per second).
 function DeathTimer()
     hold = respawnHold
+    local holdStart = nil
+    local nextSecond = GetGameTimer() + 1000
     while isDead do
-        Wait(1000)
-        deathTime = deathTime - 1
-        if deathTime <= 0 then
-            if IsControlPressed(0, 38) and hold <= 0 and not isInHospitalBed then
+        Wait(0)
+        local now = GetGameTimer()
+        if now >= nextSecond then
+            nextSecond = nextSecond + 1000
+            if deathTime > 0 then deathTime = deathTime - 1 end
+        end
+
+        local pressed = IsControlPressed(0, 38) or IsDisabledControlPressed(0, 38)
+        if deathTime <= 0 and not isInHospitalBed and not RespawnPending() and pressed then
+            holdStart = holdStart or now
+            holdingRespawn = true
+            hold = math.max(0.0, respawnHold - (now - holdStart) / 1000)
+            if hold <= 0 then
+                respawnRequestedAt = now
+                holdStart, holdingRespawn, hold = nil, false, respawnHold
                 TriggerEvent("hospital:client:RespawnAtHospital")
-                hold = respawnHold
             end
-            if IsControlPressed(0, 38) then
-                if hold - 1 >= 0 then
-                    hold = hold - 1
-                else
-                    hold = 0
-                end
-            end
-            if IsControlReleased(0, 38) then
-                hold = respawnHold
-            end
+        elseif holdStart then
+            holdStart, holdingRespawn, hold = nil, false, respawnHold
         end
     end
+    holdingRespawn, hold = false, respawnHold
 end
 
 -- Death screen (html/)
 
 local nuiReady = false
 local deathScreenVisible = false
+local weFadedOut = false
 local deathScreenState = nil
 local deathScreenToken = 0
 
@@ -118,6 +137,7 @@ local function SendShowMessage()
             help_requested = Lang:t('death_screen.help_requested'),
             respawn_wait = Lang:t('death_screen.respawn_wait'),
             respawn_hold = Lang:t('death_screen.respawn_hold', {cost = Config.BillCost}),
+            respawning = Lang:t('death_screen.respawning'),
         }
     })
 end
@@ -137,12 +157,27 @@ local function ShowDeathScreen()
     deathScreenToken = deathScreenToken + 1
 
     -- screen goes black, comes back black and white, then the timer animates in
+    local token = deathScreenToken
+    local function stillDown()
+        return token == deathScreenToken and (isDead or InLaststand) and not isInHospitalBed
+    end
+
     if cfg.FadeToBlack then
+        weFadedOut = true
         DoScreenFadeOut(cfg.FadeOutTime)
         local timeout = GetGameTimer() + cfg.FadeOutTime + 1000
         while not IsScreenFadedOut() and GetGameTimer() < timeout do
             Wait(0)
         end
+    end
+
+    -- revived / put in a bed while the screen was going black: stop here
+    if not stillDown() then
+        if weFadedOut and token == deathScreenToken then
+            weFadedOut = false
+            DoScreenFadeIn(500)
+        end
+        return
     end
 
     if cfg.Grayscale then
@@ -159,8 +194,10 @@ local function ShowDeathScreen()
     if cfg.FadeToBlack then
         Wait(cfg.BlackTime)
     end
+    if token ~= deathScreenToken then return end
     SendShowMessage()
-    if cfg.FadeToBlack then
+    if cfg.FadeToBlack and weFadedOut then
+        weFadedOut = false
         DoScreenFadeIn(cfg.FadeInTime)
     end
 end
@@ -174,8 +211,13 @@ local function HideDeathScreen()
 
     SendNUIMessage({ action = 'hide' })
     StopGameplayCamShaking(true)
-    if IsScreenFadedOut() or IsScreenFadingOut() then
-        DoScreenFadeIn(500)
+    respawnRequestedAt = -1e9
+    -- only undo our own black screen. The hospital bed / respawn does its own
+    -- fade out → teleport → fade in; fading in here used to break that and
+    -- could leave the respawn stuck on a black screen.
+    if weFadedOut then
+        weFadedOut = false
+        if not isInHospitalBed then DoScreenFadeIn(500) end
     end
     if not cfg.Grayscale then return end
 
@@ -195,9 +237,10 @@ end
 
 local function UpdateDeathScreen()
     local time = math.max(0, math.ceil(isDead and deathTime or LaststandTime))
-    local canRespawn = isDead and deathTime <= 0
+    local canRespawn = isDead and deathTime <= 0 and not RespawnPending()
     local canRequestHelp = not emsNotified and (isDead or LaststandTime <= Config.MinimumRevive)
-    local key = ('%s|%d|%s|%d|%s|%s'):format(isDead and 'dead' or 'bleeding', time, canRespawn, hold, emsNotified, canRequestHelp)
+    local holdShown = math.floor(hold * 10 + 0.5) / 10
+    local key = ('%s|%d|%s|%.1f|%s|%s'):format(isDead and 'dead' or 'bleeding', time, tostring(canRespawn), holdShown, tostring(emsNotified), tostring(canRequestHelp))
     if key == deathScreenState then return end
     deathScreenState = key
     SendNUIMessage({
@@ -205,8 +248,9 @@ local function UpdateDeathScreen()
         mode = isDead and 'dead' or 'bleeding',
         time = time,
         canRespawn = canRespawn,
-        hold = hold,
+        hold = holdShown,
         holdMax = respawnHold,
+        respawning = isDead and deathTime <= 0 and RespawnPending(),
         helpRequested = emsNotified,
         canRequestHelp = canRequestHelp,
     })
@@ -330,13 +374,15 @@ CreateThread(function()
             EnableControlAction(0, 249, true)
             EnableControlAction(0, 46, true)
             EnableControlAction(0, 47, true)
+            EnableControlAction(0, 199, true) -- P (pause menu)
+            EnableControlAction(0, 200, true) -- ESC (pause menu)
 
             if isDead then
                 if not nuiReady and not isInHospitalBed then
                     if deathTime > 0 then
                         DrawTxt(0.93, 1.44, 1.0,1.0,0.6, Lang:t('info.respawn_txt', {deathtime = math.ceil(deathTime)}), 255, 255, 255, 255)
                     else
-                        DrawTxt(0.865, 1.44, 1.0, 1.0, 0.6, Lang:t('info.respawn_revive', {holdtime = hold, cost = Config.BillCost}), 255, 255, 255, 255)
+                        DrawTxt(0.865, 1.44, 1.0, 1.0, 0.6, Lang:t('info.respawn_revive', {holdtime = math.ceil(hold), cost = Config.BillCost}), 255, 255, 255, 255)
                     end
                 end
 
@@ -420,7 +466,7 @@ CreateThread(function()
     while true do
         local sleep = 500
         if (isDead or InLaststand) and not isInHospitalBed then
-            sleep = 250
+            sleep = holdingRespawn and 50 or 250
             if not deathScreenVisible then
                 ShowDeathScreen()
             end
@@ -437,5 +483,6 @@ AddEventHandler('onResourceStop', function(resource)
         ClearTimecycleModifier()
         ClearExtraTimecycleModifier()
         StopGameplayCamShaking(true)
+        if weFadedOut or IsScreenFadedOut() or IsScreenFadingOut() then DoScreenFadeIn(0) end
     end
 end)

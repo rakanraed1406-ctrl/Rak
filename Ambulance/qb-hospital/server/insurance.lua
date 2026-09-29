@@ -3,13 +3,7 @@ local QBCore = exports['qb-core']:GetCoreObject()
 QBCore.Functions.CreateCallback("insurance:timer:call", function(source, cb, args)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
-    local current_time = os.time()
-    local jaber = os.date("%d/%m/%Y %H:%M", current_time):gsub("0*(%d+)/0*(%d+)/", "%1/%2/") 
-    if jaber >= Player.PlayerData.metadata["timerinsurance"] then
-        cb(false)
-        else
-        cb(true)
-    end
+    cb(HospitalHasInsurance(Player))
 end)
 
 RegisterNetEvent("insurance:server:code", function()

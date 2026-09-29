@@ -290,8 +290,12 @@ html, body {
     stroke-dasharray: 100;
     stroke-dashoffset: 100;
     stroke-linecap: round;
-    transition: stroke-dashoffset 0.9s linear;
+    transition: stroke-dashoffset 0.12s linear;
 }
+
+/* respawn sent: key greyed, label breathes while the hospital takes you */
+#respawn.pending .key { opacity: 0.6; }
+#respawn.pending .label { animation: breathe 1.6s ease-in-out infinite; }
 
 /* Intro, played as the screen fades back in from black */
 

@@ -129,6 +129,7 @@ local Translations = {
         help_requested = 'EMS HAS BEEN NOTIFIED',
         respawn_wait = 'You can respawn when the timer runs out',
         respawn_hold = 'HOLD TO RESPAWN ($%{cost})',
+        respawning = 'TAKING YOU TO THE HOSPITAL…',
     },
     logs = {
         death_log_title = "%{playername} (%{playerid}) is dead",

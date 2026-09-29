@@ -11,6 +11,47 @@ end
 local function PatientRecovered(src, reason)
 	if EmsTabletActive() then TriggerEvent('ems-mdt:server:PatientRecovered', src, reason) end
 end
+
+-- Beds are tracked on the server now (before, only clients knew which bed was
+-- taken, so every respawn went to bed 1 and a Sandy bed freed the wrong bed).
+-- Insurance expiry is stored as "d/m/YYYY HH:MM". It used to be compared as
+-- plain text ("10/1" < "9/1") and crashed when the metadata was missing,
+-- which could block the respawn completely.
+function HospitalHasInsurance(Player)
+	local expiry = Player and Player.PlayerData.metadata and Player.PlayerData.metadata["timerinsurance"]
+	if type(expiry) ~= 'string' or expiry == '' then return false end
+	local d, m, y, hh, mm = expiry:match('^(%d+)/(%d+)/(%d+)%s+(%d+):(%d+)')
+	if not d then return false end
+	local ts = os.time({ day = tonumber(d), month = tonumber(m), year = tonumber(y), hour = tonumber(hh), min = tonumber(mm) })
+	return ts > os.time()
+end
+
+local BedOwners = { beds = {}, bedssandy = {} } -- [list][bedId] = source
+local BED_EVENT = { beds = 'hospital:client:SetBed', bedssandy = 'hospital:client:SetBedsandy' }
+
+local function SetBedTaken(list, id, src)
+	local bed = Config.Locations[list] and Config.Locations[list][id]
+	if not bed then return end
+	BedOwners[list][id] = src
+	bed.taken = src ~= nil
+	TriggerClientEvent(BED_EVENT[list], -1, id, src ~= nil)
+end
+
+local function FreeBedsOf(src)
+	for list, owners in pairs(BedOwners) do
+		for id, owner in pairs(owners) do
+			if owner == src then SetBedTaken(list, id, nil) end
+		end
+	end
+end
+
+local function FreeBed(list)
+	for k in pairs(Config.Locations[list] or {}) do
+		local owner = BedOwners[list][k]
+		if not owner or not QBCore.Functions.GetPlayer(owner) then return k end
+	end
+	return next(Config.Locations[list] or {}) -- all full: share the first bed rather than leave the player stuck
+end
 -- Events
 
 -- Compatibility with txAdmin Menu's heal options.
@@ -37,12 +78,12 @@ end)
 RegisterNetEvent('hospital:server:SendToBed', function(bedId, isRevive, bill)
 	local src = source
 	local Player = QBCore.Functions.GetPlayer(src)
+	if not Player or not Config.Locations["beds"][bedId] then return end
+	FreeBedsOf(src)
 	TriggerClientEvent('hospital:client:SendToBed', src, bedId, Config.Locations["beds"][bedId], isRevive)
-	TriggerClientEvent('hospital:client:SetBed', -1, bedId, true)
+	SetBedTaken('beds', bedId, src)
 	if bill then 
-		local current_time = os.time()
-		local jaber = os.date("%d/%m/%Y %H:%M", current_time):gsub("0*(%d+)/0*(%d+)/", "%1/%2/") 
-		if jaber >= Player.PlayerData.metadata["timerinsurance"] or Player.PlayerData.metadata["timerinsurance"] == "" then
+		if not HospitalHasInsurance(Player) then
 			Player.Functions.RemoveMoney("bank", Config.BillCost , "respawned-at-hospital")
 			TriggerEvent('qb-bossmenu:server:addAccountMoney', "ambulance", Config.BillCost)
 			else
@@ -56,12 +97,12 @@ end)
 RegisterNetEvent('hospital:server:SendToBedsandy', function(bedId, isRevive, bill)
 	local src = source
 	local Player = QBCore.Functions.GetPlayer(src)
+	if not Player or not Config.Locations["bedssandy"][bedId] then return end
+	FreeBedsOf(src)
 	TriggerClientEvent('hospital:client:SendToBedsandy', src, bedId, Config.Locations["bedssandy"][bedId], isRevive)
-	TriggerClientEvent('hospital:client:SetBedsandy', -1, bedId, true)
+	SetBedTaken('bedssandy', bedId, src)
 	if bill then 
-		local current_time = os.time()
-		local jaber = os.date("%d/%m/%Y %H:%M", current_time):gsub("0*(%d+)/0*(%d+)/", "%1/%2/") 
-		if jaber >= Player.PlayerData.metadata["timerinsurance"] or Player.PlayerData.metadata["timerinsurance"] == "" then
+		if not HospitalHasInsurance(Player) then
 			Player.Functions.RemoveMoney("bank", Config.BillCost , "respawned-at-hospital")
 			TriggerEvent('qb-bossmenu:server:addAccountMoney', "ambulance", Config.BillCost)
 			else
@@ -75,34 +116,31 @@ end)
 RegisterNetEvent('hospital:server:RespawnAtHospital', function()
 	local src = source
 	local Player = QBCore.Functions.GetPlayer(src)
-	PatientRecovered(src, 'respawned')
-	local current_time = os.time()
-	local jaber = os.date("%d/%m/%Y %H:%M", current_time):gsub("0*(%d+)/0*(%d+)/", "%1/%2/") 
-	for k, v in pairs(Config.Locations["beds"]) do
-		if not v.taken then
-			TriggerClientEvent('hospital:client:SendToBed', src, k, v, true)
-			TriggerClientEvent('hospital:client:SetBed', -1, k, true)
-			if Config.WipeInventoryOnRespawn then
-				if jaber >= Player.PlayerData.metadata["timerinsurance"] or Player.PlayerData.metadata["timerinsurance"] == "" then
-				Player.Functions.ClearInventory()
-				MySQL.Async.execute('UPDATE players SET inventory = ? WHERE citizenid = ?', { json.encode({}), Player.PlayerData.citizenid })
-				TriggerClientEvent('QBCore:Notify', src, Lang:t('error.possessions_taken'), 'error')
-				else
-					TriggerEvent("jabertestcode")
-				end
-			end
-			if jaber >= Player.PlayerData.metadata["timerinsurance"] or Player.PlayerData.metadata["timerinsurance"] == "" then
-			Player.Functions.RemoveMoney("bank", Config.BillCost, "respawned-at-hospital")
-			TriggerEvent('qb-bossmenu:server:addAccountMoney', "ambulance", Config.BillCost)
-			TriggerClientEvent('hospital:client:SendBillEmail', src, Config.BillCost)
-			else
-				Player.Functions.RemoveMoney("bank", Config.insurancepersent, "respawned-at-hospital")
-				TriggerEvent('qb-bossmenu:server:addAccountMoney', "ambulance", Config.insurancepersent)
-				TriggerClientEvent('hospital:client:SendBillEmail', src, Config.insurancepersent)
-			end
-			return
+	if not Player then return end
+	-- only a dead player can respawn, and only once (no double bill / free heal)
+	if not Player.PlayerData.metadata["isdead"] and not Player.PlayerData.metadata["inlaststand"] then return end
+	for _, owners in pairs(BedOwners) do
+		for _, owner in pairs(owners) do
+			if owner == src then return end
 		end
 	end
+	PatientRecovered(src, 'respawned')
+
+	local k = FreeBed("beds")
+	if not k then return end
+	local insured = HospitalHasInsurance(Player)
+	TriggerClientEvent('hospital:client:SendToBed', src, k, Config.Locations["beds"][k], true)
+	SetBedTaken('beds', k, src)
+
+	if Config.WipeInventoryOnRespawn and not insured then
+		Player.Functions.ClearInventory()
+		MySQL.Async.execute('UPDATE players SET inventory = ? WHERE citizenid = ?', { json.encode({}), Player.PlayerData.citizenid })
+		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.possessions_taken'), 'error')
+	end
+	local cost = insured and Config.insurancepersent or Config.BillCost
+	Player.Functions.RemoveMoney("bank", cost, "respawned-at-hospital")
+	TriggerEvent('qb-bossmenu:server:addAccountMoney', "ambulance", cost)
+	TriggerClientEvent('hospital:client:SendBillEmail', src, cost)
 end)
 
 RegisterNetEvent('hospital:server:ambulanceAlert', function(text, kind, info)
@@ -118,8 +156,8 @@ RegisterNetEvent('hospital:server:ambulanceAlert', function(text, kind, info)
 	TriggerClientEvent('hospital:client:ambulanceAlert', -1, coords, tostring(text or Lang:t('info.civ_down')):sub(1, 60))
 end)
 
-RegisterNetEvent('hospital:server:LeaveBed', function(id)
-    TriggerClientEvent('hospital:client:SetBed', -1, id, false)
+RegisterNetEvent('hospital:server:LeaveBed', function()
+    FreeBedsOf(source) -- frees the bed this player really had (Pillbox or Sandy)
 end)
 
 RegisterNetEvent('hospital:server:SyncInjuries', function(data)
@@ -293,6 +331,7 @@ AddEventHandler('playerDropped', function()
 	local src = source
 	PlayerInjuries[src] = nil
 	PlayerWeaponWounds[src] = nil
+	FreeBedsOf(src)
 end)
 
 -- Callbacks

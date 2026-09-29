@@ -79,6 +79,7 @@ function tone(freq, duration, gain) {
     if (!sound) return;
     const ac = getAudio();
     if (!ac) return;
+    if (ac.state === 'suspended') ac.resume().catch(() => {});
     const now = ac.currentTime;
     const osc = ac.createOscillator();
     const amp = ac.createGain();
@@ -253,15 +254,16 @@ function render(next) {
     setFlat(next.mode === 'dead' || next.time <= 0, prev !== null);
 
     statusEl.textContent = next.mode === 'dead' ? texts.dead : texts.bleeding;
-    subEl.textContent = next.mode === 'dead' && !next.canRespawn ? texts.respawn_wait : '';
+    subEl.textContent = next.mode === 'dead' && !next.canRespawn && !next.respawning ? texts.respawn_wait : '';
 
     helpEl.classList.toggle('show', next.canRequestHelp || next.helpRequested);
     helpEl.classList.toggle('done', next.helpRequested);
     helpLabel.textContent = next.helpRequested ? texts.help_requested : texts.request_help;
 
-    respawnEl.classList.toggle('show', next.canRespawn);
-    respawnLabel.textContent = texts.respawn_hold;
-    const progress = next.holdMax > 0 ? (next.holdMax - next.hold) / next.holdMax : 0;
+    respawnEl.classList.toggle('show', next.canRespawn || !!next.respawning);
+    respawnEl.classList.toggle('pending', !!next.respawning);
+    respawnLabel.textContent = next.respawning ? (texts.respawning || texts.respawn_hold) : texts.respawn_hold;
+    const progress = next.respawning ? 1 : (next.holdMax > 0 ? (next.holdMax - next.hold) / next.holdMax : 0);
     respawnRing.style.strokeDashoffset = String(100 - clamp(progress, 0, 1) * 100);
 }
 
