@@ -753,6 +753,10 @@ function renderMap() {
                 <button class="map-tool-btn active" id="map-tool-pan" onclick="setMapTool('pan')" title="Pan">🖐️</button>
                 <button class="map-tool-btn" id="map-tool-pin" onclick="setMapTool('pin')" title="Drop a pin">📍</button>
                 ${state.isCommandStaff ? `<button class="map-tool-btn" onclick="doClearAllMapMarkers()" title="Clear board">🗑️</button>` : ''}
+                <span class="map-tool-sep"></span>
+                <button class="map-tool-btn map-layer-btn" id="map-layer-units" onclick="toggleUnitsOnly()" title="On-duty units only (hide calls &amp; pins)">👥</button>
+                <button class="map-tool-btn map-layer-btn" id="map-layer-calls" onclick="toggleMapLayer('calls')" title="Show / hide dispatch calls">📡</button>
+                <button class="map-tool-btn map-layer-btn" id="map-layer-markers" onclick="toggleMapLayer('markers')" title="Show / hide map pins">📌</button>
             </div>
             <div class="map-controls">
                 <button class="map-ctrl-btn" onclick="mapZoom(1)" title="Zoom in">＋</button>
@@ -826,6 +830,50 @@ function onMapWheel(e) {
     mapZoom(e.deltaY > 0 ? -1 : 1);
 }
 
+// Map layers: dispatch calls / pins can be hidden so they don't cover the
+// on-duty units ("units only" hides both). Remembered per player.
+const MAP_LAYERS_KEY = 'mdt.map.layers.v1';
+const mapLayers = { calls: true, markers: true };
+try {
+    const saved = JSON.parse(localStorage.getItem(MAP_LAYERS_KEY) || 'null');
+    if (saved && typeof saved === 'object') {
+        if (typeof saved.calls === 'boolean') mapLayers.calls = saved.calls;
+        if (typeof saved.markers === 'boolean') mapLayers.markers = saved.markers;
+    }
+} catch (e) { /* storage blocked — defaults */ }
+
+function applyMapLayers() {
+    const wrap = document.getElementById('map-wrap');
+    if (!wrap) return;
+    const unitsOnly = !mapLayers.calls && !mapLayers.markers;
+    wrap.classList.toggle('hide-calls', !mapLayers.calls);
+    wrap.classList.toggle('hide-markers', !mapLayers.markers);
+    document.getElementById('map-layer-units')?.classList.toggle('active', unitsOnly);
+    document.getElementById('map-layer-calls')?.classList.toggle('active', mapLayers.calls);
+    document.getElementById('map-layer-markers')?.classList.toggle('active', mapLayers.markers);
+    // a hidden call / pin can't stay open in the info panel
+    const panel = document.getElementById('map-info-panel');
+    if (panel && !panel.classList.contains('hidden') && !selectedMapOfficer) closeMapInfoPanel();
+}
+
+function saveMapLayers() {
+    try { localStorage.setItem(MAP_LAYERS_KEY, JSON.stringify(mapLayers)); } catch (e) {}
+    applyMapLayers();
+}
+
+function toggleMapLayer(layer) {
+    mapLayers[layer] = !mapLayers[layer];
+    saveMapLayers();
+}
+
+function toggleUnitsOnly() {
+    const unitsOnly = !mapLayers.calls && !mapLayers.markers;
+    mapLayers.calls = unitsOnly;
+    mapLayers.markers = unitsOnly;
+    saveMapLayers();
+    showToast(unitsOnly ? 'Showing units, calls and pins.' : 'Showing on-duty officers only.', 'primary');
+}
+
 function setMapTool(tool) {
     mapTool = tool;
     document.getElementById('map-tool-pan')?.classList.toggle('active', tool === 'pan');
@@ -894,7 +942,12 @@ function initMapApp() {
     renderMapPins();
     renderMapMarkers();
     renderMapCalls();
-    if (mapFocusCallId) { focusMapCall(mapFocusCallId); mapFocusCallId = null; }
+    applyMapLayers();
+    if (mapFocusCallId) {
+        // opened from a dispatch call: make sure calls are visible
+        if (!mapLayers.calls) { mapLayers.calls = true; saveMapLayers(); }
+        focusMapCall(mapFocusCallId); mapFocusCallId = null;
+    }
 
     const wrap = document.getElementById('map-wrap');
     if (!wrap) return;

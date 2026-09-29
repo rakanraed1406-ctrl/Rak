@@ -828,6 +828,13 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
     border: 1px solid transparent; font-size: 15px; cursor: pointer; color: var(--ink-dim);
 }
 .map-tool-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.map-tool-sep { width: 1px; height: 20px; background: var(--panel-border); margin: 0 2px; }
+.map-layer-btn:not(.active) { opacity: 0.45; filter: grayscale(1); }
+/* layer toggles: hide calls / pins so the on-duty units are visible */
+.map-wrap.hide-calls .map-calls-layer,
+.map-wrap.hide-markers .map-markers-layer { display: none; }
+.map-wrap.hide-calls .map-legend .pri-dot,
+.map-wrap.hide-calls #map-legend-calls { opacity: 0.35; }
 
 .map-marker-pin {
     position: absolute; transform: translate(-50%, -100%);
@@ -855,7 +862,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--accent); box-sha
     flex-direction: column;
     align-items: center;
     cursor: pointer;
-    z-index: 2;
+    z-index: 5; /* units always on top of calls (2) and pins (3) */
 }
 .map-pin-dot {
     width: 14px;

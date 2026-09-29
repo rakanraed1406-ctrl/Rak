@@ -312,12 +312,12 @@ kbd {
    Tactical map — calls + coloured pins
    =========================================================================== */
 .map-calls-layer { position: absolute; inset: 0; }
-.map-call { position: absolute; transform: translate(-50%, -50%); z-index: 4; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.map-call { position: absolute; transform: translate(-50%, -50%); z-index: 2; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .map-call-core {
     position: relative; z-index: 1; padding: 2px 6px; border-radius: 6px; font-size: 8.5px; font-weight: 900; color: #fff;
     border: 1.5px solid rgba(255,255,255,0.85); box-shadow: 0 2px 6px rgba(0,0,0,0.5); white-space: nowrap; font-family: 'Orbitron', sans-serif;
 }
-.map-call-ring { position: absolute; width: 28px; height: 28px; border-radius: 50%; animation: mapCallPulse 1.6s ease-out infinite; }
+.map-call-ring { position: absolute; width: 22px; height: 22px; border-radius: 50%; animation: mapCallPulse 1.6s ease-out infinite; pointer-events: none; }
 .map-call.pri-high .map-call-core { background: var(--pri-high); }
 .map-call.pri-high .map-call-ring { background: rgba(239,68,68,0.45); }
 .map-call.pri-medium .map-call-core { background: #b98600; }
