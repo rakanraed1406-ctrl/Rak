@@ -10,6 +10,7 @@ Config.MinimumRevive = 300                                   -- How long the tim
 Config.BillCost = 100                                          ---- قيمة تعبيئة البينات الي مب شارين التامين
 Config.insurancepersent = 45                                   --  سعر تعبيئة البينات للمشترين التامين
 Config.insurancePrice = 250                                   -- قيمة التامين
+Config.insuranceDays = 7                                      -- مدة التامين بالأيام (التجديد يضيف على الوقت الباقي)
 Config.DeathTime = 300
 
 -- شاشة الموت (html/)

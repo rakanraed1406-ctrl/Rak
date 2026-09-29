@@ -17,13 +17,17 @@ end
 -- Insurance expiry is stored as "d/m/YYYY HH:MM". It used to be compared as
 -- plain text ("10/1" < "9/1") and crashed when the metadata was missing,
 -- which could block the respawn completely.
-function HospitalHasInsurance(Player)
+function HospitalInsuranceExpiry(Player)
 	local expiry = Player and Player.PlayerData.metadata and Player.PlayerData.metadata["timerinsurance"]
-	if type(expiry) ~= 'string' or expiry == '' then return false end
+	if type(expiry) ~= 'string' or expiry == '' then return nil end
 	local d, m, y, hh, mm = expiry:match('^(%d+)/(%d+)/(%d+)%s+(%d+):(%d+)')
-	if not d then return false end
-	local ts = os.time({ day = tonumber(d), month = tonumber(m), year = tonumber(y), hour = tonumber(hh), min = tonumber(mm) })
-	return ts > os.time()
+	if not d then return nil end
+	return os.time({ day = tonumber(d), month = tonumber(m), year = tonumber(y), hour = tonumber(hh), min = tonumber(mm) })
+end
+
+function HospitalHasInsurance(Player)
+	local ts = HospitalInsuranceExpiry(Player)
+	return ts ~= nil and ts > os.time()
 end
 
 -- Respawn without insurance: everything goes except Config.KeepItemsOnRespawn.
