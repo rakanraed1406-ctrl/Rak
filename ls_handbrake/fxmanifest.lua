@@ -5,7 +5,7 @@ lua54 'yes'
 
 author 'FC1'
 description 'Manual handbrake script'
-version '1.0.6'
+version '1.1.0'
 
 ui_page 'sound/nui.html'
 

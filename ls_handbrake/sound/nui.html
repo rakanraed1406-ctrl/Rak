@@ -1,31 +1,94 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Handbrake Sound</title>
+    <title>Handbrake</title>
+    <style>
+        html, body { margin: 0; width: 100%; height: 100%; background: transparent; overflow: hidden; }
+        #pb {
+            position: absolute; width: 46px; height: 46px; border-radius: 50%;
+            border: 3px solid #ff3b30; color: #ff3b30; box-sizing: border-box;
+            display: flex; align-items: center; justify-content: center;
+            font: 800 20px/1 'Segoe UI', Arial, sans-serif;
+            background: rgba(20, 0, 0, .55); box-shadow: 0 0 12px rgba(255, 59, 48, .55);
+            opacity: 0; transform: scale(.7); transition: opacity .2s, transform .2s;
+        }
+        #pb::before, #pb::after {
+            content: ''; position: absolute; top: 9px; bottom: 9px; width: 6px;
+            border: 3px solid #ff3b30; border-color: #ff3b30 transparent;
+            border-radius: 50%;
+        }
+        #pb::before { left: -12px; border-right: 0; border-top-color: transparent; border-bottom-color: transparent; border-left-color: #ff3b30; }
+        #pb::after { right: -12px; border-left: 0; border-top-color: transparent; border-bottom-color: transparent; border-right-color: #ff3b30; }
+        #pb.show { opacity: 1; transform: scale(1); }
+        .bottom-right { right: 2.2vw; bottom: 22vh; }
+        .bottom-left { left: 2.2vw; bottom: 30vh; }
+        .top-right { right: 2.2vw; top: 3vh; }
+        .top-left { left: 2.2vw; top: 3vh; }
+    </style>
 </head>
 <body>
+    <div id="pb" class="bottom-right">P</div>
     <script>
-        window.addEventListener('message', function(event) {
-            const data = event.data;
-            if (!data) return;
+        // 3D sound: the game sends the volume (distance) and the pan (left / right)
+        const FILES = { tightenHandbrake: 'handbrake_tighten.mp3', releaseHandbrake: 'handbrake_release.mp3' };
+        let ctx = null;
+        const buffers = {};
 
+        function context() {
+            if (!ctx) {
+                try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; }
+            }
+            return ctx;
+        }
+
+        async function load(name) {
+            if (buffers[name]) return buffers[name];
+            const c = context();
+            const res = await fetch(FILES[name]);
+            const data = await res.arrayBuffer();
+            buffers[name] = await new Promise((ok, fail) => c.decodeAudioData(data, ok, fail));
+            return buffers[name];
+        }
+
+        async function play(name, volume, pan) {
+            const c = context();
+            try {
+                if (!c) throw new Error('no audio context');
+                if (c.state === 'suspended') await c.resume();
+                const src = c.createBufferSource();
+                src.buffer = await load(name);
+                const gain = c.createGain();
+                gain.gain.value = volume;
+                let node = src.connect(gain);
+                if (c.createStereoPanner) {
+                    const p = c.createStereoPanner();
+                    p.pan.value = Math.max(-1, Math.min(1, pan));
+                    node = node.connect(p);
+                }
+                node.connect(c.destination);
+                src.start();
+            } catch (err) {
+                // fallback: plain audio (no left / right)
+                const a = new Audio(FILES[name]);
+                a.volume = volume;
+                a.play().catch(() => {});
+            }
+        }
+
+        window.addEventListener('message', (event) => {
+            const data = event.data || {};
             const action = data.action || data.transactionType;
-
-            if (action === 'tightenHandbrake' || action === 'handbrake_tighten') {
-                const audio = new Audio('handbrake_tighten.mp3');
-                audio.volume = data.volume || 0.65;
-                audio.play().catch(function(err) {
-                    console.log('Handbrake tighten sound error:', err);
-                });
-            } else if (action === 'releaseHandbrake' || action === 'handbrake_release') {
-                const audio = new Audio('handbrake_release.mp3');
-                audio.volume = data.volume || 0.65;
-                audio.play().catch(function(err) {
-                    console.log('Handbrake release sound error:', err);
-                });
+            if (action === 'handbrake_tighten') return play('tightenHandbrake', 0.65, 0);
+            if (action === 'handbrake_release') return play('releaseHandbrake', 0.65, 0);
+            if (FILES[action]) {
+                const volume = typeof data.volume === 'number' ? Math.max(0, Math.min(1, data.volume)) : 0.65;
+                if (volume > 0) play(action, volume, Number(data.pan) || 0);
+            } else if (action === 'indicator') {
+                const pb = document.getElementById('pb');
+                if (data.position) pb.className = data.position + (data.show ? ' show' : '');
+                else pb.classList.toggle('show', !!data.show);
             }
         });
     </script>
