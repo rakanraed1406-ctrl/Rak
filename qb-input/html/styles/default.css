@@ -5,21 +5,26 @@
    ============================================================================ */
 
 :root {
-    --cm-panel: rgba(12, 13, 17, 0.97);
-    --cm-head: #121419;
-    --cm-row: #111317;
-    --cm-well: #0b0c0f;               /* input fields */
-    --cm-key: #1b1d22;
-    --cm-line: rgba(255, 255, 255, 0.06);
-    --cm-line-mid: rgba(255, 255, 255, 0.11);
-    --cm-edge: #3b9dfb;
-    --cm-edge-dim: rgba(59, 157, 251, 0.5);
-    --cm-edge-soft: rgba(59, 157, 251, 0.14);
-    --cm-text: #f3f5f9;
-    --cm-text-dim: #a3aab7;
-    --cm-text-mute: #6d7380;
+    /* same identity as qb-radialmenu (RadialMenu.css --rm-*): deep navy + royal blue */
+    --cm-panel: linear-gradient(180deg, rgba(9, 21, 52, 0.96) 0%, rgba(5, 12, 32, 0.96) 100%);
+    --cm-head: transparent;
+    --cm-row: rgba(11, 26, 61, 0.55);          /* navy #0b1a3d */
+    --cm-row-hover: rgba(14, 33, 78, 0.8);
+    --cm-row-hot: linear-gradient(90deg, rgba(26, 75, 214, 0.42) 0%, rgba(10, 31, 92, 0.55) 100%); /* like a selected sector */
+    --cm-well: rgba(4, 10, 27, 0.9);           /* core dark #040a1b */
+    --cm-key: #0b1a3d;
+    --cm-line: rgba(92, 130, 255, 0.12);       /* --rm-line-dim */
+    --cm-line-mid: rgba(92, 130, 255, 0.28);   /* --rm-line */
+    --cm-blue: #1a4bd6;                        /* --rm-blue: filled buttons */
+    --cm-edge: #3a6cff;                        /* --rm-blue-hi: focus, selection edge */
+    --cm-edge-dim: rgba(58, 108, 255, 0.5);
+    --cm-edge-soft: rgba(58, 108, 255, 0.16);
+    --cm-glow: rgba(58, 108, 255, 0.2);        /* the soft light at the top of the box */
+    --cm-text: #e8eeff;
+    --cm-text-dim: #8d9bc4;
+    --cm-text-mute: #5d6a92;
     --cm-bad: #ef5a5a;
-    --cm-dim: rgba(0, 0, 0, 0.45);   /* darkening behind the card */
+    --cm-dim: rgba(3, 8, 19, 0.45);  /* darkening behind the card (void #030813) */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -29,7 +34,7 @@ html, body {
     height: 100%;
     overflow: hidden;
     background: transparent;
-    font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+    font-family: 'Oxanium', 'Cairo', 'Segoe UI', Tahoma, sans-serif;
     color: var(--cm-text);
     -webkit-font-smoothing: antialiased;
 }
@@ -55,9 +60,9 @@ html, body {
     display: none;
     flex-direction: column;
     background: var(--cm-panel);
-    border: 1px solid var(--cm-edge-dim);
-    border-top: 2px solid var(--cm-edge);
+    border: 1px solid var(--cm-line-mid);
     border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(0, 4, 20, 0.5);
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.97);
     transition: opacity 0.15s ease, transform 0.15s ease;
@@ -67,6 +72,26 @@ html, body {
 .qi-visible #panel { display: flex; }
 .qi-open #dim { opacity: 1; }
 .qi-open #panel { opacity: 1; transform: translate(-50%, -50%); }
+
+/* soft blue light across the top of the box (very light detail) */
+#panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 110px;
+    background: radial-gradient(ellipse 70% 100% at 50% 0%, var(--cm-glow) 0%, transparent 72%);
+    pointer-events: none;
+}
+#panel::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 12%; right: 12%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cm-edge), transparent);
+    opacity: 0.7;
+    pointer-events: none;
+}
+#panel > * { position: relative; }
 
 /* ---------- head ---------- */
 
@@ -79,8 +104,9 @@ html, body {
 #title {
     flex: 1 1 auto;
     font-size: 18px;
-    font-weight: 700;
+    font-weight: 800;
     line-height: 1.3;
+    letter-spacing: 0.01em;
 }
 
 #close {
@@ -324,7 +350,7 @@ html, body {
 
 .qi-btn-main {
     border: 1px solid var(--cm-edge);
-    background: var(--cm-edge);
+    background: var(--cm-blue);
     color: #fff;
 }
-.qi-btn-main:hover { background: #57adff; }
+.qi-btn-main:hover { background: #2a5cf0; }

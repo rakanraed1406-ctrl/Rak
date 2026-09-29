@@ -5,21 +5,26 @@
    ============================================================================ */
 
 :root {
-    --cm-panel: rgba(12, 13, 17, 0.96);
-    --cm-head: #121419;
-    --cm-row: #111317;
-    --cm-row-hover: #16191f;
-    --cm-key: #1b1d22;
-    --cm-line: rgba(255, 255, 255, 0.06);
-    --cm-line-mid: rgba(255, 255, 255, 0.11);
-    --cm-edge: #3b9dfb;
-    --cm-edge-dim: rgba(59, 157, 251, 0.5);
-    --cm-edge-soft: rgba(59, 157, 251, 0.14);
-    --cm-text: #f3f5f9;
-    --cm-text-dim: #a3aab7;
-    --cm-text-mute: #6d7380;
+    /* same identity as qb-radialmenu (RadialMenu.css --rm-*): deep navy + royal blue */
+    --cm-panel: linear-gradient(180deg, rgba(9, 21, 52, 0.96) 0%, rgba(5, 12, 32, 0.96) 100%);
+    --cm-head: transparent;
+    --cm-row: rgba(11, 26, 61, 0.55);          /* navy #0b1a3d */
+    --cm-row-hover: rgba(14, 33, 78, 0.8);
+    --cm-row-hot: linear-gradient(90deg, rgba(26, 75, 214, 0.42) 0%, rgba(10, 31, 92, 0.55) 100%); /* like a selected sector */
+    --cm-well: rgba(4, 10, 27, 0.9);           /* core dark #040a1b */
+    --cm-key: #0b1a3d;
+    --cm-line: rgba(92, 130, 255, 0.12);       /* --rm-line-dim */
+    --cm-line-mid: rgba(92, 130, 255, 0.28);   /* --rm-line */
+    --cm-blue: #1a4bd6;                        /* --rm-blue: filled buttons */
+    --cm-edge: #3a6cff;                        /* --rm-blue-hi: focus, selection edge */
+    --cm-edge-dim: rgba(58, 108, 255, 0.5);
+    --cm-edge-soft: rgba(58, 108, 255, 0.16);
+    --cm-glow: rgba(58, 108, 255, 0.2);        /* the soft light at the top of the box */
+    --cm-text: #e8eeff;
+    --cm-text-dim: #8d9bc4;
+    --cm-text-mute: #5d6a92;
     --cm-bad: #ef5a5a;
-    --cm-dim: rgba(0, 0, 0, 0.35);   /* light darkening behind the menu */
+    --cm-dim: rgba(3, 8, 19, 0.35);  /* light darkening behind the menu (void #030813) */
 
     --qm-width: 350px;
 }
@@ -31,7 +36,7 @@ html, body {
     height: 100%;
     overflow: hidden;
     background: transparent;
-    font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+    font-family: 'Oxanium', 'Cairo', 'Segoe UI', Tahoma, sans-serif;
     color: var(--cm-text);
     user-select: none;
     -webkit-font-smoothing: antialiased;
@@ -76,10 +81,10 @@ html, body {
     display: flex;
     flex-direction: column;
     background: var(--cm-panel);
-    border: 1px solid var(--cm-edge-dim);
-    border-top: 2px solid var(--cm-edge);
+    border: 1px solid var(--cm-line-mid);
     border-radius: 10px;
     overflow: hidden;
+    box-shadow: 0 12px 30px rgba(0, 4, 20, 0.45);
 }
 
 #head {
@@ -92,8 +97,29 @@ html, body {
 #titleWrap { display: flex; align-items: center; }
 #titleWrap .qm-icon { margin-right: 10px; }
 
-.qm-title { font-size: 16px; font-weight: 700; line-height: 1.3; }
+.qm-title { font-size: 16px; font-weight: 800; line-height: 1.3; letter-spacing: 0.01em; }
 .qm-sub { font-size: 12.5px; color: var(--cm-text-dim); margin-top: 2px; line-height: 1.35; }
+
+/* soft blue light across the top of the box (very light detail) */
+#panel { position: relative; }
+#panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 110px;
+    background: radial-gradient(ellipse 70% 100% at 50% 0%, var(--cm-glow) 0%, transparent 72%);
+    pointer-events: none;
+}
+#panel::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 12%; right: 12%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cm-edge), transparent);
+    opacity: 0.7;
+    pointer-events: none;
+}
+#panel > * { position: relative; }
 
 /* ---------- search ---------- */
 
@@ -142,10 +168,12 @@ html, body {
 }
 
 .qm-item.selected {
-    background: var(--cm-row-hover);
+    background: var(--cm-row-hot);
     border-color: var(--cm-edge-dim);
     border-left-color: var(--cm-edge);
 }
+
+.qm-item.selected .qm-header { color: #fff; }
 
 .qm-item.hide { display: none; }
 
@@ -211,7 +239,7 @@ html, body {
 /* progress bars */
 .qm-progress { display: flex; align-items: center; margin-top: 5px; }
 .qm-bar { flex: 1 1 auto; height: 5px; border-radius: 3px; background: var(--cm-key); overflow: hidden; }
-.qm-bar i { display: block; height: 100%; background: var(--cm-edge); }
+.qm-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--cm-blue), var(--cm-edge)); }
 .qm-bar-info { margin-left: 8px; font-size: 11px; color: var(--cm-text-dim); }
 
 /* ---------- footer hints ---------- */
@@ -246,7 +274,7 @@ html, body {
     padding: 6px;
     border-radius: 10px;
     background: var(--cm-panel);
-    border: 1px solid var(--cm-edge-dim);
+    border: 1px solid var(--cm-line-mid);
 }
 
 #preview.on { display: block; }
