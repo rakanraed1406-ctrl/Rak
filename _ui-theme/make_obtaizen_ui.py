@@ -28,6 +28,12 @@ TEXT = (232, 238, 255)
 DIM = (141, 155, 196)
 GREEN = (52, 211, 153)
 
+# the inactive sprites (circle.png, label_no.png) keep the original grey tones
+G_DARK = (112, 112, 114)
+G_MID = (140, 140, 142)
+G_LIGHT = (180, 181, 182)
+G_HI = (206, 207, 206)
+
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
@@ -132,9 +138,9 @@ def circle(selected):
     if selected:
         glow(img, disc_mask(size, c, 21), BLUE_HI, 0.55, 4)
     # outer instrument ring: faint full ring + two brighter arcs
-    fill(img, ring_mask(size, c, 28, 1), LINE, 0.35 if not selected else 0.45)
+    fill(img, ring_mask(size, c, 28, 1), LINE if selected else G_MID, 0.45 if selected else 0.4)
     for a in (200, 20):
-        fill(img, arc_mask(size, c, 28, 2 if selected else 1.4, a, a + 70), BLUE_HI if selected else LINE, 1.0 if selected else 0.8)
+        fill(img, arc_mask(size, c, 28, 2 if selected else 1.4, a, a + 70), BLUE_HI if selected else G_HI, 1.0 if selected else 0.85)
     # core disc
     d = disc_mask(size, c, 20)
     if selected:
@@ -143,9 +149,9 @@ def circle(selected):
         glow(img, disc_mask(size, c, 4.5), TEXT, 0.9, 2)
         fill(img, disc_mask(size, c, 4.5), TEXT)
     else:
-        paint(img, radial(size, (s(30), s(24)), s(22), CORE_HI, CORE_LO, 0.95, 0.95), d)
-        fill(img, ring_mask(size, c, 20, 1.2), LINE, 0.55)
-        fill(img, disc_mask(size, c, 3), DIM, 0.8)
+        paint(img, radial(size, (s(30), s(24)), s(22), G_DARK, G_MID, 0.75, 0.8), d)
+        fill(img, ring_mask(size, c, 20, 1.2), G_LIGHT, 0.8)
+        fill(img, disc_mask(size, c, 3), G_HI, 0.9)
     return finish(img, W, H)
 
 
@@ -194,7 +200,7 @@ def label(active):
     outer = (1, 1, 367, 73); inner = (6, 6, 362, 68)
     # outer frame
     paint(img, gradient(size, DEEP, DEEP, 'h', 0.45, 0.45), rrect_mask(size, outer, 7))
-    fill(img, rrect_mask(size, outer, 7, 1), LINE, 0.28)
+    fill(img, rrect_mask(size, outer, 7, 1), LINE if active else G_MID, 0.28 if active else 0.35)
     m = rrect_mask(size, inner, 5)
     if active:
         glow(img, m, BLUE_HI, 0.25, 3)
@@ -206,10 +212,12 @@ def label(active):
         fill(img, hl, (200, 220, 255), 0.55)
         bc, ba = BLUE_HI, 1.0
     else:
-        paint(img, gradient(size, NAVY, DEEP, 'h', 0.85, 0.9), m)
-        paint(img, radial(size, (s(120), s(6)), s(190), (40, 60, 120), NAVY, 0.25, 0.0), m)
-        fill(img, rrect_mask(size, inner, 5, 1), LINE, 0.4)
-        bc, ba = LINE, 0.75
+        paint(img, gradient(size, G_MID, G_DARK, 'h', 0.75, 0.72), m)
+        paint(img, radial(size, (s(120), s(6)), s(190), G_HI, G_MID, 0.3, 0.0), m)
+        fill(img, rrect_mask(size, inner, 5, 1), G_LIGHT, 0.7)
+        hl = mask(size, lambda d: d.line([(s(40), s(6.5)), (s(328), s(6.5))], fill=255, width=int(s(1))))
+        fill(img, hl, G_HI, 0.6)
+        bc, ba = G_LIGHT, 0.85
     # corner brackets (top-left, bottom-right)
     fill(img, bracket_mask(size, 1, 1, 1, 1, 26, 12, 2), bc, ba)
     fill(img, bracket_mask(size, 367, 73, -1, -1, 26, 12, 2), bc, ba)
