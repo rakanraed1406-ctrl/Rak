@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Command Form</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&display=swap" rel="stylesheet">
+        <link id="qiStyle" rel="stylesheet" href="./styles/default.css" />
+        <script src="./script.js"></script>
+    </head>
+    <body>
+        <div id="panel">
+            <div class="qi-deco"></div>
+            <div id="head">
+                <div class="qi-kicker"><span class="qi-dot"></span><span id="kicker">INPUT</span></div>
+                <div id="title">Form Title</div>
+            </div>
+            <form id="form" autocomplete="off" novalidate>
+                <div id="fields"></div>
+                <div id="foot">
+                    <button type="button" id="cancel" class="qi-btn qi-btn-ghost">Cancel</button>
+                    <button type="submit" id="submit" class="qi-btn qi-btn-main">Submit</button>
+                </div>
+            </form>
+            <div id="hints">
+                <span><b>ENTER</b> SUBMIT</span>
+                <span><b>TAB</b> NEXT</span>
+                <span><b>ESC</b> CLOSE</span>
+            </div>
+        </div>
+
+        <script>
+            // ---- Sound settings for the form (change here) ----
+            FormSfx.enabled = true;
+            FormSfx.volume = 0.35;
+        </script>
+    </body>
+</html>
