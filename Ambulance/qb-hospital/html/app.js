@@ -312,6 +312,10 @@ window.addEventListener('message', (event) => {
     if (data.action === 'show') show(data);
     else if (data.action === 'hide') hide();
     else if (data.action === 'update' && visible) render(data);
+    else if (data.action === 'texts') {
+        if (data.respawn_hold) texts.respawn_hold = data.respawn_hold;
+        if (state && !state.respawning) respawnLabel.textContent = texts.respawn_hold;
+    }
 });
 
 // tell the client script the page is loaded, so it stops using the fallback text

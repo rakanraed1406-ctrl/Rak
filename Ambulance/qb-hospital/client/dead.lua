@@ -106,6 +106,7 @@ end
 
 local nuiReady = false
 local deathScreenVisible = false
+local respawnCost, respawnInsured = Config.BillCost, false
 local weFadedOut = false
 local deathScreenState = nil
 local deathScreenToken = 0
@@ -136,7 +137,9 @@ local function SendShowMessage()
             request_help = Lang:t('death_screen.request_help'),
             help_requested = Lang:t('death_screen.help_requested'),
             respawn_wait = Lang:t('death_screen.respawn_wait'),
-            respawn_hold = Lang:t('death_screen.respawn_hold', {cost = Config.BillCost}),
+            respawn_hold = respawnInsured
+                and Lang:t('death_screen.respawn_hold_insured', {cost = respawnCost})
+                or Lang:t('death_screen.respawn_hold', {cost = respawnCost}),
             respawning = Lang:t('death_screen.respawning'),
         }
     })
@@ -150,8 +153,24 @@ local function SetDeathFilter(strength)
     end
 end
 
+-- asks the server what this player pays (insurance → cheaper) and updates the E prompt
+local function RefreshRespawnCost()
+    QBCore.Functions.TriggerCallback('hospital:server:GetRespawnCost', function(cost, insured)
+        respawnCost, respawnInsured = tonumber(cost) or Config.BillCost, insured == true
+        if deathScreenVisible then
+            SendNUIMessage({
+                action = 'texts',
+                respawn_hold = respawnInsured
+                    and Lang:t('death_screen.respawn_hold_insured', {cost = respawnCost})
+                    or Lang:t('death_screen.respawn_hold', {cost = respawnCost}),
+            })
+        end
+    end)
+end
+
 local function ShowDeathScreen()
     local cfg = Config.DeathScreen
+    RefreshRespawnCost()
     deathScreenVisible = true
     deathScreenState = nil
     deathScreenToken = deathScreenToken + 1
@@ -382,7 +401,7 @@ CreateThread(function()
                     if deathTime > 0 then
                         DrawTxt(0.93, 1.44, 1.0,1.0,0.6, Lang:t('info.respawn_txt', {deathtime = math.ceil(deathTime)}), 255, 255, 255, 255)
                     else
-                        DrawTxt(0.865, 1.44, 1.0, 1.0, 0.6, Lang:t('info.respawn_revive', {holdtime = math.ceil(hold), cost = Config.BillCost}), 255, 255, 255, 255)
+                        DrawTxt(0.865, 1.44, 1.0, 1.0, 0.6, Lang:t('info.respawn_revive', {holdtime = math.ceil(hold), cost = respawnCost}), 255, 255, 255, 255)
                     end
                 end
 

@@ -48,6 +48,13 @@ function WipeInventory(src, Player)
 	Player.Functions.SetInventory(kept)
 end
 
+-- Price shown on the death screen (same rule as the respawn bill).
+QBCore.Functions.CreateCallback('hospital:server:GetRespawnCost', function(source, cb)
+	local Player = QBCore.Functions.GetPlayer(source)
+	local insured = HospitalHasInsurance(Player)
+	cb(insured and Config.insurancepersent or Config.BillCost, insured)
+end)
+
 local BedOwners = { beds = {}, bedssandy = {} } -- [list][bedId] = source
 local BED_EVENT = { beds = 'hospital:client:SetBed', bedssandy = 'hospital:client:SetBedsandy' }
 

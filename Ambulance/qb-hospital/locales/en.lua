@@ -130,6 +130,7 @@ local Translations = {
         help_requested = 'EMS HAS BEEN NOTIFIED',
         respawn_wait = 'You can respawn when the timer runs out',
         respawn_hold = 'HOLD TO RESPAWN ($%{cost})',
+        respawn_hold_insured = 'HOLD TO RESPAWN ($%{cost} · INSURED)',
         respawning = 'TAKING YOU TO THE HOSPITAL…',
     },
     logs = {
