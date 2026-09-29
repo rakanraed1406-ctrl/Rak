@@ -1,8 +1,7 @@
 local QBCore = exports['qb-core']:GetCoreObject()
 RegisterNetEvent('QBCore:Client:UpdateObject', function() QBCore = exports['qb-core']:GetCoreObject() end)
 
--- false = the panel uses its own sound set (html/script.js, MenuSfx in html/index.html).
--- true  = also play the old GTA frontend sound when a button is clicked.
+-- true = play the old GTA frontend sound when a button is clicked (the menu itself has no sounds).
 local GameSounds = false
 
 local headerShown = false

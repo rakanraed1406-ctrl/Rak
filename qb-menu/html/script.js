@@ -1,8 +1,7 @@
 'use strict';
 /* ============================================================================
-   Command Panel — NUI for qb-menu
-   Identity shared with the qb-radialmenu Command Wheel: deep navy glass,
-   royal-blue signal light, one sound palette.
+   qb-menu NUI — same look as the radial menu / qb-input, kept light:
+   no sounds, no looping or heavy animations, just a short fade.
    Same messages from client/main.lua as the original:
      OPEN_MENU / SHOW_HEADER { data: [...] }, CLOSE_MENU
    and the same callbacks back: clickedButton (index + 1), closeMenu.
@@ -11,135 +10,17 @@
        ProgressBar = { Value, MaxValue }, params = {...} }
    ============================================================================ */
 
-// ---------------------------------------------------------------------------
-// Sound identity: the same D-minor pentatonic set and the same soft "glass"
-// timbre as WheelSfx in qb-radialmenu, so both menus sound like one system.
-// ---------------------------------------------------------------------------
-var MenuSfx = {
-    enabled: true,
-    volume: 0.35,
-    ctx: null,
-    master: null,
-    notes: [293.66, 349.23, 392.0, 440.0, 523.25], // D4 F4 G4 A4 C5
-    lastTick: 0,
-    idleTimer: null,
-
-    // the audio thread costs CPU while running, so it sleeps when the panel is closed
-    sleep: function () {
-        var self = this;
-        clearTimeout(self.idleTimer);
-        self.idleTimer = setTimeout(function () {
-            if (self.ctx && self.ctx.state === 'running') self.ctx.suspend();
-        }, 1500);
-    },
-
-    init: function () {
-        clearTimeout(this.idleTimer);
-        if (this.ctx) {
-            if (this.ctx.state === 'suspended') this.ctx.resume();
-            this.master.gain.value = this.volume;
-            return this.ctx;
-        }
-        var Ctx = window.AudioContext || window.webkitAudioContext;
-        if (!Ctx) return null;
-        this.ctx = new Ctx();
-        var comp = this.ctx.createDynamicsCompressor();
-        comp.threshold.value = -18;
-        comp.ratio.value = 4;
-        var lp = this.ctx.createBiquadFilter();
-        lp.type = 'lowpass';
-        lp.frequency.value = 6500;
-        this.master = this.ctx.createGain();
-        this.master.gain.value = this.volume;
-        this.master.connect(lp).connect(comp).connect(this.ctx.destination);
-        return this.ctx;
-    },
-
-    tone: function (freq, when, dur, type, gain, glideTo) {
-        var ctx = this.ctx;
-        var o = ctx.createOscillator();
-        var g = ctx.createGain();
-        o.type = type || 'sine';
-        o.frequency.setValueAtTime(freq, when);
-        if (glideTo) o.frequency.exponentialRampToValueAtTime(glideTo, when + dur);
-        g.gain.setValueAtTime(0.0001, when);
-        g.gain.exponentialRampToValueAtTime(gain || 0.2, when + 0.008);
-        g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
-        o.connect(g).connect(this.master);
-        o.start(when);
-        o.stop(when + dur + 0.03);
-        // soft upper partial = the "glass" in the timbre
-        if (type !== 'square') {
-            var o2 = ctx.createOscillator();
-            var g2 = ctx.createGain();
-            o2.type = 'sine';
-            o2.frequency.setValueAtTime(freq * 2.01, when);
-            if (glideTo) o2.frequency.exponentialRampToValueAtTime(glideTo * 2.01, when + dur);
-            g2.gain.setValueAtTime(0.0001, when);
-            g2.gain.exponentialRampToValueAtTime((gain || 0.2) * 0.22, when + 0.006);
-            g2.gain.exponentialRampToValueAtTime(0.0001, when + dur * 0.7);
-            o2.connect(g2).connect(this.master);
-            o2.start(when);
-            o2.stop(when + dur + 0.03);
-        }
-    },
-
-    play: function (name, index) {
-        if (!this.enabled || this.volume <= 0) return;
-        var ctx = this.init();
-        if (!ctx) return;
-        var t = ctx.currentTime + 0.005;
-        var n = this.notes;
-        switch (name) {
-            case 'open':
-                // the panel slides in from the side: a shorter body than the wheel, same sweep
-                this.tone(78, t, 0.13, 'sine', 0.28, 52);
-                this.tone(n[0], t, 0.2, 'sine', 0.09, n[4]);
-                this.tone(n[3] * 2, t + 0.08, 0.13, 'triangle', 0.07);
-                break;
-            case 'close':
-                this.tone(n[4], t, 0.16, 'sine', 0.09, n[0] * 0.75);
-                this.tone(60, t + 0.02, 0.1, 'sine', 0.2, 40);
-                break;
-            case 'tick': {
-                var now = performance.now();
-                if (now - this.lastTick < 30) return; // no machine-gun ticks on fast sweeps
-                this.lastTick = now;
-                this.tone(n[(index || 0) % n.length] * 2, t, 0.05, 'triangle', 0.06);
-                break;
-            }
-            case 'select':
-                this.tone(n[0] * 2, t, 0.07, 'triangle', 0.1);
-                this.tone(n[3] * 2, t + 0.06, 0.12, 'triangle', 0.1);
-                break;
-            case 'enter': // a new menu replaced the current one
-                this.tone(n[0] * 2, t, 0.06, 'triangle', 0.08);
-                this.tone(n[1] * 2, t + 0.05, 0.06, 'triangle', 0.08);
-                this.tone(n[3] * 2, t + 0.1, 0.12, 'triangle', 0.09);
-                break;
-            case 'deny':
-                this.tone(150, t, 0.09, 'square', 0.05, 110);
-                break;
-        }
-    }
-};
-
-// ---------------------------------------------------------------------------
-// Panel
-// ---------------------------------------------------------------------------
 var QM = {
     visible: false,
     focus: true,
     data: [],
-    order: [],          // data indexes of selectable rows, in display order
-    nav: [],            // same, minus rows hidden by the search filter
-    rows: {},           // data index -> row element (no DOM lookups on hover)
-    selected: -1,       // data index
+    order: [],     // data indexes of the selectable rows, in display order
+    nav: [],       // same, filtered by the search box
+    rows: {},
+    selected: -1,
     closeTimer: null,
-    pendingClose: null, // short grace window after a click (next menu may arrive)
-    swapTimer: null,
+    pendingClose: null,
     faLoaded: false,
-    raf: 0,
     el: {}
 };
 
@@ -149,8 +30,7 @@ var MenuConfig = {
     fontAwesome: 'https://kit-pro.fontawesome.com/releases/v6.5.0/css/pro.min.css'
 };
 
-// Font Awesome is a big stylesheet: it is only added the first time a menu
-// actually uses an icon class, never at resource start.
+// Font Awesome is a big stylesheet: only added the first time a menu uses an icon class.
 function qmNeedFontAwesome() {
     if (QM.faLoaded || !MenuConfig.fontAwesome) return;
     QM.faLoaded = true;
@@ -198,17 +78,17 @@ function qmIcon(icon) {
 function qmProgress(pb) {
     if (!pb || !pb.MaxValue) return '';
     var pct = Math.max(0, Math.min(100, (pb.Value / pb.MaxValue) * 100));
-    return '<div class="qm-progress"><div class="qm-bar"><i data-w="' + pct + '"></i></div>' +
+    return '<div class="qm-progress"><div class="qm-bar"><i style="width:' + pct + '%"></i></div>' +
         '<div class="qm-bar-info">' + pb.Value + '/' + pb.MaxValue + '</div></div>';
 }
 
 // header / txt are rendered as HTML on purpose: other resources send <br>, <b>, etc.
-function qmRow(item, index, num, delay) {
+function qmRow(item, index, num) {
     var message = item.txt || item.text;
     var isTitle = !!item.isMenuHeader;
     var cls = 'qm-item' + (isTitle ? ' qm-title-row' : '') + (item.disabled ? ' disabled' : '');
     var search = isTitle ? '' : ' data-search="' + qmAttr(qmPlain((item.header || '') + ' ' + (message || ''))) + '"';
-    return '<div class="' + cls + '" data-index="' + index + '"' + search + ' style="animation-delay:' + delay + 'ms">' +
+    return '<div class="' + cls + '" data-index="' + index + '"' + search + '>' +
         (isTitle ? '' : '<div class="qm-num">' + (num > 0 && num < 10 ? num : '') + '</div>') +
         qmIcon(item.icon) +
         '<div class="qm-body">' +
@@ -240,15 +120,14 @@ function qmRender(data) {
     } else {
         el.titleWrap.innerHTML = '';
     }
+    el.head.style.display = head ? '' : 'none';
 
     var html = '';
     var num = 0;
-    var delay = 0;
     QM.data.forEach(function (item, index) {
         if (!item || item.hidden || item === head) return;
         if (!item.isMenuHeader) { num++; QM.order.push(index); }
-        html += qmRow(item, index, item.isMenuHeader ? 0 : num, delay);
-        delay = Math.min(delay + 32, 380);
+        html += qmRow(item, index, item.isMenuHeader ? 0 : num);
     });
     el.list.innerHTML = html + '<div class="qm-empty" style="display:none">No results</div>';
     el.list.scrollTop = 0;
@@ -261,73 +140,32 @@ function qmRender(data) {
     var useSearch = QM.focus && MenuConfig.searchFrom > 0 && QM.order.length > MenuConfig.searchFrom;
     el.search.classList.toggle('on', useSearch);
     el.searchInput.value = '';
-    el.kicker.textContent = QM.order.length ? 'MENU · ' + QM.order.length + (QM.order.length === 1 ? ' OPTION' : ' OPTIONS') : 'MENU';
 
-    // animate progress bars from zero
-    requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-            el.list.querySelectorAll('.qm-bar i').forEach(function (b) { b.style.transform = 'scaleX(' + (b.getAttribute('data-w') / 100) + ')'; });
-            el.titleWrap.querySelectorAll('.qm-bar i').forEach(function (b) { b.style.transform = 'scaleX(' + (b.getAttribute('data-w') / 100) + ')'; });
-        });
-    });
-
-    el.indicator.classList.remove('on');
     el.preview.classList.remove('on');
     if (QM.order.length) qmSelect(QM.order[0], true);
 }
 
-function qmRowEl(index) {
-    return QM.rows[index] || null;
-}
-
-// one indicator update per frame at most while scrolling
-function qmPlaceIndicatorSoon() {
-    if (QM.raf) return;
-    QM.raf = requestAnimationFrame(function () { QM.raf = 0; qmPlaceIndicator(); });
-}
-
 function qmFilter(query) {
     var q = qmPlain(query);
-    var rows = QM.el.list.querySelectorAll('.qm-item');
-    Array.prototype.forEach.call(rows, function (row) {
+    Array.prototype.forEach.call(QM.el.list.querySelectorAll('.qm-item'), function (row) {
         var text = row.getAttribute('data-search');
-        var hide = q !== '' && (text === null || text.indexOf(q) === -1); // section rows hide while searching
-        row.classList.toggle('hide', hide);
+        row.classList.toggle('hide', q !== '' && (text === null || text.indexOf(q) === -1)); // section rows hide while searching
     });
     QM.nav = QM.order.filter(function (i) { var r = QM.rows[i]; return r && !r.classList.contains('hide'); });
     QM.el.list.querySelector('.qm-empty').style.display = QM.nav.length ? 'none' : '';
     QM.el.list.scrollTop = 0;
     if (QM.nav.length && QM.nav.indexOf(QM.selected) === -1) qmSelect(QM.nav[0], true);
-    qmPlaceIndicator();
 }
 
-function qmPlaceIndicator() {
-    var el = QM.el;
-    var row = QM.selected >= 0 ? qmRowEl(QM.selected) : null;
-    if (!row) { el.indicator.classList.remove('on'); return; }
-    var y = el.list.offsetTop + row.offsetTop - el.list.scrollTop;
-    var h = row.offsetHeight;
-    var inView = y + h > el.list.offsetTop && y < el.list.offsetTop + el.list.clientHeight;
-    el.indicator.style.height = (h * 0.62) + 'px';
-    el.indicator.style.transform = 'translateY(' + (y + h * 0.19) + 'px)';
-    el.indicator.classList.toggle('on', inView);
-}
-
-function qmSelect(index, silent) {
+function qmSelect(index, noScroll) {
     if (index === QM.selected) return;
-    var prev = QM.selected >= 0 ? qmRowEl(QM.selected) : null;
+    var prev = QM.rows[QM.selected];
     if (prev) prev.classList.remove('selected');
-    var row = qmRowEl(index);
+    var row = QM.rows[index];
     if (!row) return;
     row.classList.add('selected');
     QM.selected = index;
-
-    var pos = QM.order.indexOf(index);
-    if (!silent) {
-        row.scrollIntoView({ block: 'nearest' });
-        MenuSfx.play('tick', pos);
-    }
-    qmPlaceIndicator();
+    if (!noScroll) row.scrollIntoView({ block: 'nearest' });
 
     var item = QM.data[index];
     if (item && item.image) {
@@ -346,45 +184,20 @@ function qmSelectDelta(delta) {
     qmSelect(QM.nav[pos]);
 }
 
-function qmRipple(row, x, y) {
-    var r = row.getBoundingClientRect();
-    var ring = document.createElement('span');
-    ring.className = 'qm-ripple';
-    ring.style.left = (x !== undefined ? x - r.left : r.width / 2) + 'px';
-    ring.style.top = (y !== undefined ? y - r.top : r.height / 2) + 'px';
-    row.appendChild(ring);
-    setTimeout(function () { ring.remove(); }, 520);
-}
-
-function qmActivate(index, x, y) {
+function qmActivate(index) {
     if (!QM.visible || QM.pendingClose) return;
     var item = QM.data[index];
-    var row = qmRowEl(index);
-    if (!item || !row || item.isMenuHeader) return;
-
-    if (item.disabled) {
-        row.classList.remove('qm-deny');
-        void row.offsetWidth;
-        row.classList.add('qm-deny');
-        MenuSfx.play('deny');
-        return;
-    }
+    if (!item || !QM.rows[index] || item.isMenuHeader || item.disabled) return;
 
     qmSelect(index, true);
-    row.classList.remove('qm-flash');
-    void row.offsetWidth;
-    row.classList.add('qm-flash');
-    qmRipple(row, x, y);
-    MenuSfx.play('select');
-
     qmPost('clickedButton', index + 1);
 
     // Most menus open the next menu straight from the clicked event. Give it a
     // moment to arrive so it swaps in place instead of close + reopen.
     QM.pendingClose = setTimeout(function () {
         QM.pendingClose = null;
-        qmHide(false);
-    }, 140);
+        qmHide();
+    }, 120);
 }
 
 function qmShow(data, focus) {
@@ -393,54 +206,33 @@ function qmShow(data, focus) {
     body.classList.toggle('qm-nofocus', !focus);
 
     if (QM.pendingClose) { clearTimeout(QM.pendingClose); QM.pendingClose = null; }
-    if (QM.swapTimer) { clearTimeout(QM.swapTimer); QM.swapTimer = null; }
-
-    var wasVisible = QM.visible;
-    var wasClosing = !!QM.closeTimer;
     if (QM.closeTimer) { clearTimeout(QM.closeTimer); QM.closeTimer = null; }
 
+    var wasVisible = QM.visible && body.classList.contains('qm-open');
     QM.visible = true;
-    body.classList.remove('qm-closing');
-
-    if (wasVisible) {
-        // swap the content: current list slides out, new one staggers in
-        MenuSfx.play('enter');
-        QM.el.list.classList.add('qm-swap-out');
-        QM.swapTimer = setTimeout(function () {
-            QM.swapTimer = null;
-            QM.el.list.classList.remove('qm-swap-out');
-            QM.el.head.classList.remove('qm-swap-in');
-            void QM.el.head.offsetWidth;
-            QM.el.head.classList.add('qm-swap-in');
-            qmRender(data);
-        }, 150);
-        return;
-    }
-
-    if (wasClosing) body.classList.remove('qm-visible');
-    void body.offsetWidth; // restart the entry animation
     body.classList.add('qm-visible');
-    qmRender(data); // after the panel is displayed, so the indicator can measure rows
-    MenuSfx.play('open');
+    qmRender(data);
+
+    if (!wasVisible) {
+        // next frame, so the short fade-in plays
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () { if (QM.visible) body.classList.add('qm-open'); });
+        });
+    }
 }
 
-function qmHide(withSound) {
+function qmHide() {
     var body = document.body;
     if (QM.pendingClose) { clearTimeout(QM.pendingClose); QM.pendingClose = null; }
-    if (QM.swapTimer) { clearTimeout(QM.swapTimer); QM.swapTimer = null; }
     if (!QM.visible) return;
     QM.visible = false;
-    if (withSound) MenuSfx.play('close');
-
-    QM.el.preview.classList.remove('on');
-    body.classList.add('qm-closing');
-    MenuSfx.sleep();
+    body.classList.remove('qm-open');
     QM.closeTimer = setTimeout(function () {
         QM.closeTimer = null;
-        body.classList.remove('qm-visible', 'qm-closing');
+        body.classList.remove('qm-visible');
         QM.el.list.innerHTML = '';
         QM.el.titleWrap.innerHTML = '';
-        QM.el.list.classList.remove('qm-swap-out');
+        QM.el.preview.classList.remove('on');
         QM.el.search.classList.remove('on');
         QM.el.searchInput.value = '';
         QM.el.searchInput.blur();
@@ -449,38 +241,36 @@ function qmHide(withSound) {
         QM.nav = [];
         QM.rows = {};
         QM.selected = -1;
-    }, 230);
+    }, 160);
 }
 
 function qmCancel() {
     if (!QM.visible || QM.pendingClose) return;
     qmPost('closeMenu');
-    qmHide(true);
+    qmHide();
 }
 
 // ---------------------------------------------------------------------------
 // Wiring
 // ---------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', function () {
-    ['list', 'kicker', 'titleWrap', 'indicator', 'preview', 'previewImg', 'head', 'search', 'searchInput'].forEach(function (id) {
+    ['list', 'titleWrap', 'preview', 'previewImg', 'head', 'search', 'searchInput'].forEach(function (id) {
         QM.el[id] = document.getElementById(id);
     });
 
     QM.el.list.addEventListener('mouseover', function (e) {
         var row = e.target.closest('.qm-item');
         if (!row || row.classList.contains('qm-title-row') || !QM.visible) return;
-        qmSelect(parseInt(row.getAttribute('data-index'), 10));
+        qmSelect(parseInt(row.getAttribute('data-index'), 10), true);
     });
 
     QM.el.list.addEventListener('click', function (e) {
         var row = e.target.closest('.qm-item');
         if (!row || row.classList.contains('qm-title-row')) return;
-        qmActivate(parseInt(row.getAttribute('data-index'), 10), e.clientX, e.clientY);
+        qmActivate(parseInt(row.getAttribute('data-index'), 10));
     });
 
     QM.el.previewImg.addEventListener('error', function () { QM.el.preview.classList.remove('on'); });
-    QM.el.list.addEventListener('scroll', qmPlaceIndicatorSoon, { passive: true });
-    window.addEventListener('resize', qmPlaceIndicatorSoon);
     QM.el.searchInput.addEventListener('input', function () { qmFilter(QM.el.searchInput.value); });
 });
 
@@ -492,7 +282,7 @@ window.addEventListener('message', function (event) {
         case 'SHOW_HEADER':
             return qmShow(msg.data, false);
         case 'CLOSE_MENU':
-            return qmHide(true);
+            return qmHide();
     }
 });
 

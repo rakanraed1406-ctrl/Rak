@@ -5,26 +5,37 @@
 The owner wants one consistent look across all UIs: the **qb-radialmenu** identity
 (`qb-radialmenu/html/css/RadialMenu.css`). Any new UI, and any UI we touch, uses it.
 
-**Colors** (same tokens as the radial menu):
+**Colors** — the shared `--cm-*` tokens (same in qb-menu, qb-input and the owner's
+current radial menu: mostly black, with the MDT blue on the edges):
 
 | token | value | use |
 |---|---|---|
-| void | `#030813` | darkest background |
-| deep | `#050c20` | panel background |
-| navy | `#0b1a3d` | raised surfaces, inputs, hover |
-| blue | `#1a4bd6` | primary buttons, selection |
-| blue-hi | `#3a6cff` | highlight edge, focus ring, active text |
-| blue-glow | `rgba(38, 92, 255, 0.55)` | glow (use sparingly) |
-| line | `rgba(92, 130, 255, 0.28)` | borders |
-| line-dim | `rgba(92, 130, 255, 0.12)` | subtle dividers |
-| text | `#e8eeff` | main text |
-| text-dim | `#8d9bc4` | secondary text, labels |
+| panel | `rgba(12, 13, 17, 0.96)` | panel background |
+| head | `#121419` | header / footer strip |
+| row | `#111317` | list rows |
+| row-hover | `#16191f` | selected / hovered row |
+| well | `#0b0c0f` | input fields |
+| key | `#1b1d22` | keycap boxes (1-9, ENTER, ESC) |
+| line | `rgba(255, 255, 255, 0.06)` | subtle borders |
+| line-mid | `rgba(255, 255, 255, 0.11)` | field borders |
+| edge | `#3b9dfb` | the blue: panel top edge, focus, selection, primary button |
+| edge-dim | `rgba(59, 157, 251, 0.5)` | panel border, selected row border |
+| edge-soft | `rgba(59, 157, 251, 0.14)` | selected chip / switch fill |
+| text | `#f3f5f9` | main text |
+| text-dim | `#a3aab7` | labels, secondary text |
+| text-mute | `#6d7380` | hints, placeholders |
+| bad | `#ef5a5a` | errors, required `*` |
+| dim | `rgba(0, 0, 0, 0.35–0.45)` | backdrop behind menus / dialogs |
 
-- **Font:** `Oxanium` (Google Fonts, weights 500–800), fallback `'Rajdhani', 'Segoe UI', sans-serif`.
-  Load it without blocking (`media="print" onload="this.media='all'"`).
-- **Surfaces:** deep-navy glass panels, thin `line` borders, rounded corners (~10–12px).
-- **Backdrop:** menus and dialogs dim the game **lightly** behind them
-  (e.g. `rgba(3, 8, 19, 0.35–0.45)`). Never a heavy blackout.
+(The repo copy of `qb-radialmenu` is an older navy version; the server's radial menu
+uses the tokens above.)
+
+- **Font:** `Cairo` (Google Fonts, 600/700 — it has Arabic), fallback `'Segoe UI', Tahoma, sans-serif`.
+  Load it without blocking (`media="print" onload="this.media='all'"`). Text inputs get `dir="auto"`.
+- **Surfaces:** solid near-black panels, 1px `edge-dim` border with a 2px `edge` top border,
+  rounded corners (~10–12px).
+- **Backdrop:** menus and dialogs dim the game **lightly** behind them (`dim` token).
+  Never a heavy blackout. No dim for non-focus overlays (e.g. qb-menu `showHeader`).
 
 **Keep it light:**
 - No sound effects in menus/inputs.
@@ -33,10 +44,10 @@ The owner wants one consistent look across all UIs: the **qb-radialmenu** identi
 - Vanilla JS where possible; don't add big libraries for small UIs.
 - Keep the existing NUI message protocol and callback names so other scripts keep working.
 
-**Layout reference for input dialogs (qb-input):** a single centered card
-(title + close ✕ at top, labelled fields with a red `*` for required ones,
-Cancel as a text button and the primary action as a filled button at bottom-right),
-over the light backdrop. Colors from the table above, not from the reference screenshot.
+**Reference implementations:** `qb-input` (centered card: title + ✕, labelled fields with a
+red `*` for required ones, Cancel as a text button + filled primary button at bottom-right,
+over the light dim) and `qb-menu` (side panel with keycap numbers). Copy their CSS tokens
+and structure for new UIs.
 
 ## Other notes
 

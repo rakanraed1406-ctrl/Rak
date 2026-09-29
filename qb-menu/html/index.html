@@ -3,29 +3,23 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Command Panel</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&display=swap" rel="stylesheet">
+        <title>Menu</title>
+        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
         <link rel="stylesheet" href="./style.css" />
         <script src="./script.js"></script>
     </head>
     <body>
+        <div id="dim"></div>
+
         <div id="menu" aria-hidden="true">
             <div id="preview"><img id="previewImg" alt="" /></div>
 
             <div id="panel">
-                <div class="qm-deco">
-                    <span class="qm-scan"></span>
-                </div>
                 <div id="head">
-                    <div class="qm-kicker"><span class="qm-dot"></span><span id="kicker">MENU</span></div>
                     <div id="titleWrap"></div>
                 </div>
-                <div id="search"><input id="searchInput" type="text" placeholder="Search..." autocomplete="off" spellcheck="false"></div>
-                <div id="listWrap">
-                    <div id="indicator"><span></span></div>
-                    <div id="list"></div>
-                </div>
+                <div id="search"><input id="searchInput" type="text" dir="auto" placeholder="Search..." autocomplete="off" spellcheck="false"></div>
+                <div id="list"></div>
                 <div id="foot">
                     <span><b>↑↓</b> NAV</span>
                     <span><b>ENTER</b> SELECT</span>
@@ -40,10 +34,6 @@
             MenuConfig.searchFrom = 8; // search box when a menu has more options than this (0 = off)
             // Font Awesome is loaded only when a menu uses an icon class:
             MenuConfig.fontAwesome = 'https://kit-pro.fontawesome.com/releases/v6.5.0/css/pro.min.css';
-
-            // ---- Sound settings ----
-            MenuSfx.enabled = true;
-            MenuSfx.volume = 0.35;
         </script>
     </body>
 </html>
