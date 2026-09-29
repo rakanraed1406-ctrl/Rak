@@ -1,7 +1,3 @@
--- سكربتات حصرية وكل شيء مجانا و ملفات و مبات
--- https://discord.gg/rsmqe67qjN
--- حياكم الله دس
--- https://discord.gg/rsmqe67qjN
 local QBCore = exports['qb-core']:GetCoreObject()
 
 -- Functions
@@ -194,6 +190,7 @@ RegisterNetEvent("weapons:server:TakeBackWeapon", function(k)
     local Player = QBCore.Functions.GetPlayer(src)
     local itemdata = Config.WeaponRepairPoints[k].RepairingData.WeaponData
     itemdata.info.quality = 100
+    itemdata.info.durabilityshots = 0
     Player.Functions.AddItem(itemdata.name, 1, false, itemdata.info)
     TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[itemdata.name], "add")
     Config.WeaponRepairPoints[k].IsRepairing = false
@@ -205,43 +202,42 @@ RegisterNetEvent("weapons:server:SetWeaponQuality", function(data, hp)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
     local WeaponSlot = Player.PlayerData.items[data.slot]
+    if not WeaponSlot then return end
     WeaponSlot.info.quality = hp
+    WeaponSlot.info.durabilityshots = 0
     Player.Functions.SetInventory(Player.PlayerData.items, true)
 end)
 
 RegisterNetEvent('weapons:server:UpdateWeaponQuality', function(data, RepeatAmount)
+    if Config.DisableDurability then return end
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
+    if not Player or type(data) ~= 'table' or not data.name or not data.slot then return end
     local WeaponData = QBCore.Shared.Weapons[GetHashKey(data.name)]
-    local WeaponSlot = Player.PlayerData.items[data.slot]
+    if not WeaponData or IsWeaponBlocked(WeaponData.name) then return end
     local DecreaseAmount = Config.DurabilityMultiplier[data.name]
-    if not WeaponData then return end 
-    if WeaponSlot then
-        if not IsWeaponBlocked(WeaponData.name) then
-            if WeaponSlot.info.quality then
-                for _ = 1, RepeatAmount, 1 do
-                    if WeaponSlot.info.quality - DecreaseAmount > 0 then
-                        WeaponSlot.info.quality = WeaponSlot.info.quality - DecreaseAmount
-                    else
-                        WeaponSlot.info.quality = 0
-                        TriggerClientEvent('inventory:client:UseWeapon', src, data, false)
-                        TriggerClientEvent('QBCore:Notify', src, Lang:t('error.weapon_broken_need_repair'), "error")
-                        break
-                    end
-                end
-            else
-                WeaponSlot.info.quality = 100
-                for _ = 1, RepeatAmount, 1 do
-                    if WeaponSlot.info.quality - DecreaseAmount > 0 then
-                        WeaponSlot.info.quality = WeaponSlot.info.quality - DecreaseAmount
-                    else
-                        WeaponSlot.info.quality = 0
-                        TriggerClientEvent('inventory:client:UseWeapon', src, data, false)
-                        TriggerClientEvent('QBCore:Notify', src, Lang:t('error.weapon_broken_need_repair'), "error")
-                        break
-                    end
-                end
-            end
+    if not DecreaseAmount or DecreaseAmount <= 0 then return end
+    local WeaponSlot = Player.PlayerData.items[data.slot]
+    if not WeaponSlot then return end
+    RepeatAmount = math.floor(tonumber(RepeatAmount) or 0)
+    if RepeatAmount <= 0 then return end
+
+    -- عداد الطلقات محفوظ داخل السلاح نفسه، وكل ShotsPerDurability طلقة تنقص الجودة
+    WeaponSlot.info.quality = WeaponSlot.info.quality or 100
+    local shots = (tonumber(WeaponSlot.info.durabilityshots) or 0) + RepeatAmount
+    local steps = math.floor(shots / Config.ShotsPerDurability)
+    WeaponSlot.info.durabilityshots = shots % Config.ShotsPerDurability
+
+    if steps > 0 then
+        -- تقريب الجودة لرقم صحيح (الأسلحة القديمة كان فيها كسور مثل 97.4)
+        local quality = math.floor(WeaponSlot.info.quality + 0.5) - (steps * DecreaseAmount)
+        if quality > 0 then
+            WeaponSlot.info.quality = quality
+        else
+            WeaponSlot.info.quality = 0
+            WeaponSlot.info.durabilityshots = 0
+            TriggerClientEvent('inventory:client:UseWeapon', src, data, false)
+            TriggerClientEvent('QBCore:Notify', src, Lang:t('error.weapon_broken_need_repair'), "error")
         end
     end
     Player.Functions.SetInventory(Player.PlayerData.items, true)
@@ -812,12 +808,3 @@ end)
 QBCore.Functions.CreateUseableItem('snspistol_luxuryfinish', function(source, item)
     TriggerClientEvent('weapons:client:EquipAttachment', source, item, 'luxuryfinish')
 end)
-
-
-
-
-
--- سكربتات حصرية وكل شيء مجانا و ملفات و مبات
--- https://discord.gg/rsmqe67qjN
--- حياكم الله دس
--- https://discord.gg/rsmqe67qjN

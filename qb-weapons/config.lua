@@ -10,10 +10,12 @@ Config.DurabilityBlockedWeapons = {
 }
 
 -- Weapon durability
--- Quality starts at 100. Each shot removes (100 / ShotsToBreak) quality.
--- ShotsToBreak = 500 means a firearm breaks after ~500 shots.
-Config.ShotsToBreak = 500
-local FirearmWear = 100 / Config.ShotsToBreak -- 0.2 per shot
+-- الجودة تبدأ من 100، وكل ShotsPerDurability طلقة تنقص FirearmWear (يعني 1)
+-- 20 طلقة = -1 ، يعني السلاح يخرب بعد 2000 طلقة
+-- لإلغاء نظام الدربالتي بالكامل خل Config.DisableDurability = true
+Config.DisableDurability = false
+Config.ShotsPerDurability = 20
+local FirearmWear = 1 -- كم تنقص الجودة كل ShotsPerDurability طلقة
 
 Config.DurabilityMultiplier = {
 	-- Melee

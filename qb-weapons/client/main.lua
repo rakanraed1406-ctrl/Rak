@@ -177,8 +177,8 @@ CreateThread(function()
             if CurrentWeaponData and next(CurrentWeaponData) then
                 local weapon = GetSelectedPedWeapon(ped)
                 if CanShoot then
-                    -- Count exactly one wear tick per bullet fired (no click counting, no 200ms skip)
-                    if IsPedShooting(ped) and weapon and weapon ~= 0 and QBCore.Shared.Weapons[weapon] then
+                    -- نحسب كل طلقة، والسيرفر ينقص الجودة كل Config.ShotsPerDurability طلقة
+                    if not Config.DisableDurability and IsPedShooting(ped) and weapon and weapon ~= 0 and QBCore.Shared.Weapons[weapon] then
                         local wear = Config.DurabilityMultiplier[QBCore.Shared.Weapons[weapon].name]
                         if wear and wear > 0 then
                             MultiplierAmount += 1
