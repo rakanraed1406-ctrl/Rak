@@ -1,0 +1,33 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handbrake Sound</title>
+</head>
+<body>
+    <script>
+        window.addEventListener('message', function(event) {
+            const data = event.data;
+            if (!data) return;
+
+            const action = data.action || data.transactionType;
+
+            if (action === 'tightenHandbrake' || action === 'handbrake_tighten') {
+                const audio = new Audio('handbrake_tighten.mp3');
+                audio.volume = data.volume || 0.65;
+                audio.play().catch(function(err) {
+                    console.log('Handbrake tighten sound error:', err);
+                });
+            } else if (action === 'releaseHandbrake' || action === 'handbrake_release') {
+                const audio = new Audio('handbrake_release.mp3');
+                audio.volume = data.volume || 0.65;
+                audio.play().catch(function(err) {
+                    console.log('Handbrake release sound error:', err);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
