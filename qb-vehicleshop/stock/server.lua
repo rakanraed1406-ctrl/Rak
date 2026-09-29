@@ -111,6 +111,16 @@ local function warnMissingModels()
     end
 end
 
+function VS.StatOverride(v)
+    local byModel = (Config.Stock.VehicleStats or {})[v.model] or {}
+    local out, any = {}, false
+    for _, k in ipairs({ 'speed', 'acceleration', 'braking', 'handling' }) do
+        local val = tonumber(v[k]) or tonumber(byModel[k])
+        if val then out[k] = val; any = true end
+    end
+    return any and out or nil
+end
+
 function VS.Restock()
     VS.Stock = {}
     for storeId, store in pairs(Config.Stock.Stores) do
@@ -139,6 +149,9 @@ function VS.Restock()
                         price = math.floor(tonumber(v.price) or 0),
                         coords = { x = spot.x, y = spot.y, z = spot.z, w = spot.w },
                         sold = false,
+                        -- stats you set yourself (the car entry wins over VehicleStats);
+                        -- anything left out is measured by the client from the game
+                        stats = VS.StatOverride(v),
                     }
                 end
             end
@@ -211,3 +224,108 @@ AddEventHandler('playerDropped', function() buyCooldown[source] = nil end)
 
 -- For other scripts / debugging: current showroom stock.
 exports('GetStock', function() return VS.Stock end)
+
+-- ---------------------------------------------------------------------------
+-- Test drive (G on the showroom card)
+-- ---------------------------------------------------------------------------
+local testDrives = {} -- [src] = { price, moneyType, started, netId, token }
+
+local function tdRemoveMoney(Player, amount, preferred)
+    if amount <= 0 then return preferred or 'cash' end
+    local first = preferred or 'cash'
+    local second = first == 'cash' and 'bank' or 'cash'
+    for _, mt in ipairs({ first, second }) do
+        if (Player.PlayerData.money[mt] or 0) >= amount and Player.Functions.RemoveMoney(mt, amount, 'vehicle-testdrive') then
+            return mt
+        end
+    end
+    return nil
+end
+
+local function tdCleanup(src)
+    local td = testDrives[src]
+    if not td then return end
+    testDrives[src] = nil
+    if td.netId then
+        local ent = NetworkGetEntityFromNetworkId(td.netId)
+        if ent and ent ~= 0 and DoesEntityExist(ent) then DeleteEntity(ent) end
+    end
+end
+
+RegisterNetEvent('qb-vehicleshop:stock:server:testDrive', function(storeId, slotId)
+    local src = source
+    local cfg = Config.Stock.TestDrive or {}
+    if not cfg.Enabled then return VS.Notify(src, Config.StockLang.testdrive_off, 'error') end
+    if testDrives[src] then return VS.Notify(src, Config.StockLang.testdrive_busy, 'error') end
+
+    local now = GetGameTimer()
+    if buyCooldown[src] and now - buyCooldown[src] < 2000 then return end
+    buyCooldown[src] = now
+
+    local Player = QBCore.Functions.GetPlayer(src)
+    local store = Config.Stock.Stores[storeId]
+    local slot = VS.Stock[storeId] and VS.Stock[storeId][slotId]
+    if not Player or not store or not slot then return end
+    if slot.sold then return VS.Notify(src, Config.StockLang.already_sold, 'error') end
+    if VS.DistanceTo(src, slot.coords) > (Config.Stock.BuyDistance or 8.0) then
+        return VS.Notify(src, Config.StockLang.too_far, 'error')
+    end
+
+    local price = math.floor(tonumber(cfg.Price) or 0)
+    local paidWith = tdRemoveMoney(Player, price, cfg.MoneyType)
+    if not paidWith then
+        return VS.Notify(src, Config.StockLang.testdrive_money:format(price), 'error')
+    end
+
+    local seconds = math.max(10, math.floor(tonumber(cfg.Seconds) or 60))
+    local token = math.random(100000, 999999)
+    testDrives[src] = { price = price, moneyType = paidWith, started = false, token = token }
+
+    local spawn = store.testDriveSpawn or store.deliverySpawn
+    TriggerClientEvent('qb-vehicleshop:stock:client:startTestDrive', src, {
+        model = slot.model,
+        label = slot.label,
+        seconds = seconds,
+        leaveSeconds = tonumber(cfg.LeaveSeconds) or 3,
+        spawn = { x = spawn.x, y = spawn.y, z = spawn.z, w = spawn.w },
+    })
+
+    -- backstop: if the client never reports the end, clean up anyway
+    SetTimeout((seconds + 45) * 1000, function()
+        local td = testDrives[src]
+        if td and td.token == token then
+            tdCleanup(src)
+            TriggerClientEvent('qb-vehicleshop:stock:client:forceEndTestDrive', src)
+        end
+    end)
+end)
+
+RegisterNetEvent('qb-vehicleshop:stock:server:testDriveSpawned', function(netId)
+    local td = testDrives[source]
+    if td and not td.started and type(netId) == 'number' then
+        td.started = true
+        td.netId = netId
+    end
+end)
+
+-- the car could not be spawned: give the money back (only before it started)
+RegisterNetEvent('qb-vehicleshop:stock:server:testDriveFailed', function()
+    local src = source
+    local td = testDrives[src]
+    if not td or td.started then return end
+    testDrives[src] = nil
+    local Player = QBCore.Functions.GetPlayer(src)
+    if Player and td.price > 0 then Player.Functions.AddMoney(td.moneyType, td.price, 'vehicle-testdrive-refund') end
+    VS.Notify(src, Config.StockLang.testdrive_failed, 'error')
+end)
+
+RegisterNetEvent('qb-vehicleshop:stock:server:testDriveEnd', function()
+    tdCleanup(source)
+end)
+
+AddEventHandler('playerDropped', function() tdCleanup(source) end)
+
+AddEventHandler('onResourceStop', function(res)
+    if res ~= GetCurrentResourceName() then return end
+    for src in pairs(testDrives) do tdCleanup(src) end
+end)
