@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>EMS Medical Data Terminal</title>
+    <!-- Font Awesome bundled locally (no CDN / internet needed) -->
+    <link rel="stylesheet" href="vendor/fontawesome/css/fontawesome.min.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/solid.min.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/regular.min.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/hub.css">
+</head>
+<body>
+    <div id="boss-container" class="hidden">
+        <div id="device">
+            <div id="device-notch"></div>
+            <div id="screen">
+
+                <!-- ============================================================
+                     Status bar — present on lock screen, home screen, every app
+                     ============================================================ -->
+                <div id="status-bar">
+                    <span id="status-time">00:00</span>
+                    <div id="status-dept">
+                        <span class="dept-logo dept-logo-sm">
+                            <img src="img/logo.svg" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                            <span class="dept-logo-fallback">🚑</span>
+                        </span>
+                        <span id="status-dept-name">EMS&nbsp;MDT</span>
+                    </div>
+                    <div id="status-icons">
+                        <span id="status-duty" class="status-duty off" title="Off duty"></span>
+                        <button id="status-calls-btn" class="status-calls" title="Active dispatch calls" onclick="openApp('dispatch')">📡 <span id="status-calls">0</span></button>
+                        <button id="status-mute-btn" class="status-mute" title="Mute dispatch sounds" onclick="toggleMute()">🔔</button>
+                        <span id="alert-pill" class="alert-pill alert-green" title="Hospital alert level">CODE GREEN</span>
+                        <svg id="icon-signal" viewBox="0 0 20 14" width="18" height="13"><rect x="0" y="9" width="3" height="5" rx="0.5"/><rect x="5.5" y="6" width="3" height="8" rx="0.5"/><rect x="11" y="3" width="3" height="11" rx="0.5"/><rect x="16.5" y="0" width="3" height="14" rx="0.5"/></svg>
+                        <svg id="icon-wifi" viewBox="0 0 20 15" width="18" height="14"><path d="M10 12.6a1.6 1.6 0 100 3.2 1.6 1.6 0 000-3.2z"/><path d="M4.7 8.9a7.5 7.5 0 0110.6 0l-1.6 1.6a5.2 5.2 0 00-7.4 0z"/><path d="M1.2 5.4a12.3 12.3 0 0117.6 0l-1.6 1.6a10 10 0 00-14.4 0z"/></svg>
+                        <div id="icon-battery"><div id="icon-battery-fill"></div></div>
+                        <button id="status-close-btn" class="status-close-btn" title="Close tablet (Esc)">
+                            <svg viewBox="0 0 20 20" width="11" height="11"><path d="M4 4L16 16M16 4L4 16" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Lock screen
+                     ============================================================ -->
+                <div id="lock-screen">
+                    <div class="lock-clock">
+                        <div id="lock-time">00:00</div>
+                        <div id="lock-date">Loading…</div>
+                    </div>
+                    <div class="lock-dept-crest">
+                        <span class="dept-logo dept-logo-lg">
+                            <img src="img/logo.svg" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                            <span class="dept-logo-fallback">🚑</span>
+                        </span>
+                        <div class="lock-dept-title" id="lock-dept-title">Los Santos Medical Services</div>
+                        <div class="lock-dept-sub" id="lock-dept-sub">Medical Data Terminal · Secure Session</div>
+                    </div>
+                    <div class="lock-hint-wrap">
+                        <div class="lock-chevrons">
+                            <span>⌃</span><span>⌃</span>
+                        </div>
+                        <div class="lock-hint">Swipe up to unlock</div>
+                    </div>
+                </div>
+
+                <!-- ============================================================
+                     Home screen (springboard)
+                     ============================================================ -->
+                <div id="home-screen">
+                    <div class="home-header">
+                        <div class="home-identity">
+                            <div id="home-avatar" class="home-avatar">?</div>
+                            <div class="home-greeting">
+                                <span id="home-greeting-text">Welcome back</span>
+                                <strong id="home-officer-name">Paramedic</strong>
+                            </div>
+                        </div>
+                        <div class="home-widget">
+                            <div class="home-widget-row">
+                                <span>On-Duty Medics</span>
+                                <strong id="widget-onduty">0</strong>
+                            </div>
+                            <div class="home-widget-row">
+                                <span>Hospital Access</span>
+                                <strong id="widget-lockdown">Open</strong>
+                            </div>
+                            <div class="home-widget-row">
+                                <span>Your Duty</span>
+                                <strong id="widget-duty">OFF DUTY</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="app-grid" class="app-grid"></div>
+
+                    <div id="dock" class="dock"></div>
+                </div>
+
+                <!-- ============================================================
+                     App view (single active app rendered here)
+                     ============================================================ -->
+                <div id="app-view">
+                    <div class="app-topbar">
+                        <button id="app-home-btn" class="app-home-btn">
+                            <span class="app-home-icon">◂</span> Home
+                        </button>
+                        <div id="app-title" class="app-title">App</div>
+                        <div id="app-topbar-spacer"></div>
+                    </div>
+                    <div id="app-body" class="app-body"></div>
+                </div>
+
+                <div id="home-indicator"></div>
+
+                <!-- In-tablet dispatch banner (shown when a call arrives while the tablet is open) -->
+                <div id="device-banner-stack"></div>
+
+                <!-- In-tablet dialog layer (replaces browser prompt()/confirm() windows) -->
+                <div id="mdt-dialog" class="mdt-dialog hidden" role="dialog" aria-modal="true"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CCTV camera overlay: shown WITHOUT nui focus while a camera feed is active,
+         so it never intercepts mouse/keyboard away from the in-game pan controls. -->
+    <div id="camera-overlay" class="hidden">
+        <div class="camera-scanlines"></div>
+        <div class="camera-vignette"></div>
+        <div class="camera-hud-top">
+            <div class="camera-rec"><span class="camera-rec-dot"></span> REC</div>
+            <div id="camera-name" class="camera-name">Camera</div>
+            <div class="camera-timestamp" id="camera-timestamp">--:--:--</div>
+        </div>
+        <div class="camera-pan-track">
+            <div class="camera-pan-fill" id="camera-pan-fill"></div>
+            <div class="camera-pan-center"></div>
+        </div>
+        <div class="camera-hud-bottom">A / D — Pan &nbsp;•&nbsp; BACKSPACE — Exit Feed</div>
+    </div>
+
+    <!-- HUD dispatch notifications — visible WITHOUT the tablet open / NUI focus -->
+    <div id="hud-dispatch" class="hud-dispatch pos-top-right"></div>
+
+    <script src="script.js"></script>
+    <script src="js/dialog.js"></script>
+    <script src="js/notify.js"></script>
+    <script src="js/hub.js"></script>
+    <script src="js/dispatch.js"></script>
+</body>
+</html>

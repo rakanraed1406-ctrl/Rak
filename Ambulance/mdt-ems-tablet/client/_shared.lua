@@ -1,0 +1,12 @@
+MDTClient = {}
+MDTClient.QBCore = exports['qb-core']:GetCoreObject()
+MDTClient.isBossCache = false
+MDTClient.isCommandStaffCache = false
+MDTClient.selfCitizenId = nil
+MDTClient.mdtOpen = false
+MDTClient.inCameraView = false
+MDTClient.activeCam = nil
+MDTClient.camGeneration = 0
+MDTClient.mapSubscribed = false
+MDTClient.gpsActive = false
+MDTClient.deptBlips = {}
