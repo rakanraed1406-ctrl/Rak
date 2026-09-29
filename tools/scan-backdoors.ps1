@@ -60,8 +60,14 @@ $files = Get-ChildItem -Path $root -Recurse -File -Force | Where-Object { $_.Ful
 $code = $files | Where-Object { $_.Extension -in '.lua', '.js' }
 Write-Host ("Scanning {0} code files in {1} ..." -f $code.Count, $root) -ForegroundColor Cyan
 
+# Database drivers legitimately open raw connections and read the DB connection string
+$dbResources = '^(oxmysql|mysql-async|ghmattimysql|ox_mysql)$'
+$dbReasons = @('Can run programs / open raw connections on the machine', 'Reads the database password')
+
 foreach ($f in $code) {
     $isJs = $f.Extension -eq '.js'
+    # resources can sit inside [category] folders: check every folder in the path
+    $isDb = @($f.FullName.Substring($root.Length) -split '[\\/]' | Where-Object { $_ -match $dbResources }).Count -gt 0
     $inUi = $f.FullName -match '[\\/](html|ui|web|nui|dist[\\/]ui)[\\/]' -and $isJs
     $isMin = $f.Name -match '\.min\.js$'
     $lines = Get-Content -LiteralPath $f.FullName
@@ -77,9 +83,10 @@ foreach ($f in $code) {
             # browser-side UI code is sandboxed: only the strong JS signatures matter there
             if ($inUi -and $r[0] -ne 'HIGH') { continue }
             if ($isMin -and $r[0] -eq 'MEDIUM') { continue }
+            if ($isDb -and $dbReasons -contains $r[2] -and $l -notmatch 'child_process') { continue }
             if ($l -match $r[1]) { Add-Finding $r[0] $f.FullName ($i + 1) $r[2] $l.Trim() }
         }
-        if (-not $isMin -and -not $inUi -and $l.Length -gt 4000) {
+        if (-not $isMin -and -not $inUi -and -not $isDb -and $l.Length -gt 4000) {
             Add-Finding 'MEDIUM' $f.FullName ($i + 1) ("Very long line ({0} chars) - obfuscated code?" -f $l.Length) ''
         }
     }
