@@ -1,0 +1,86 @@
+/* ============================================================================
+   Shared UI theme — the qb-radialmenu identity (deep navy + royal blue).
+   Copy this file into a resource's html folder (or paste the :root block) for
+   every new UI. Same tokens as qb-menu and qb-input. See CLAUDE.md.
+
+   Font (put in <head>, loads without blocking):
+   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@500;600;700;800&family=Cairo:wght@600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+   ============================================================================ */
+
+:root {
+    --cm-panel: linear-gradient(180deg, rgba(9, 21, 52, 0.96) 0%, rgba(5, 12, 32, 0.96) 100%);
+    --cm-row: rgba(11, 26, 61, 0.55);
+    --cm-row-hover: rgba(14, 33, 78, 0.8);
+    --cm-row-hot: linear-gradient(90deg, rgba(26, 75, 214, 0.42) 0%, rgba(10, 31, 92, 0.55) 100%);
+    --cm-well: rgba(4, 10, 27, 0.9);
+    --cm-key: #0b1a3d;
+    --cm-line: rgba(92, 130, 255, 0.12);
+    --cm-line-mid: rgba(92, 130, 255, 0.28);
+    --cm-blue: #1a4bd6;
+    --cm-edge: #3a6cff;
+    --cm-edge-dim: rgba(58, 108, 255, 0.5);
+    --cm-edge-soft: rgba(58, 108, 255, 0.16);
+    --cm-glow: rgba(58, 108, 255, 0.2);
+    --cm-text: #e8eeff;
+    --cm-text-dim: #8d9bc4;
+    --cm-text-mute: #5d6a92;
+    --cm-bad: #ef5a5a;
+    --cm-dim: rgba(3, 8, 19, 0.4);
+    --cm-font: 'Oxanium', 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+}
+
+/* light dim behind a focused menu / dialog */
+.cm-dim {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--cm-dim);
+}
+
+/* panel with the signature soft blue light at the top */
+.cm-panel {
+    position: relative;
+    background: var(--cm-panel);
+    border: 1px solid var(--cm-line-mid);
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(0, 4, 20, 0.5);
+    color: var(--cm-text);
+    font-family: var(--cm-font);
+}
+.cm-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 110px;
+    background: radial-gradient(ellipse 70% 100% at 50% 0%, var(--cm-glow) 0%, transparent 72%);
+    pointer-events: none;
+}
+.cm-panel::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 12%; right: 12%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cm-edge), transparent);
+    opacity: 0.7;
+    pointer-events: none;
+}
+.cm-panel > * { position: relative; }
+
+/* buttons */
+.cm-btn { height: 38px; padding: 0 20px; border-radius: 9px; font: inherit; font-weight: 700; cursor: pointer; }
+.cm-btn-main { border: 1px solid var(--cm-edge); background: var(--cm-blue); color: #fff; }
+.cm-btn-main:hover { background: #2a5cf0; }
+.cm-btn-ghost { border: none; background: transparent; color: var(--cm-edge); }
+.cm-btn-ghost:hover { color: var(--cm-text); }
+
+/* inputs */
+.cm-input {
+    width: 100%; height: 40px; padding: 0 12px;
+    border-radius: 8px; border: 1px solid var(--cm-line-mid);
+    background: var(--cm-well); color: var(--cm-text);
+    font: inherit; outline: none;
+}
+.cm-input:focus { border-color: var(--cm-edge); }
+
+/* list rows */
+.cm-row { background: var(--cm-row); border: 1px solid var(--cm-line); border-radius: 7px; }
+.cm-row.selected { background: var(--cm-row-hot); border-color: var(--cm-edge-dim); color: #fff; }

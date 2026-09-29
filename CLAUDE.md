@@ -45,6 +45,8 @@ is identical to the repo copy): deep navy + royal blue. In other UIs they are th
 - Vanilla JS where possible; don't add big libraries for small UIs.
 - Keep the existing NUI message protocol and callback names so other scripts keep working.
 
+**Ready-made theme:** `_ui-theme/theme.css` has all the tokens plus `.cm-panel` (with the top glow), `.cm-dim`, buttons, inputs and rows. Start every new UI from it.
+
 **Reference implementations:** `qb-input` (centered card: title + ✕, labelled fields with a
 red `*` for required ones, Cancel as a text button + filled primary button at bottom-right,
 over the light dim) and `qb-menu` (side panel with keycap numbers). Copy their CSS tokens
