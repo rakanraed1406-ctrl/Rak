@@ -15,6 +15,8 @@ Config.DurabilityBlockedWeapons = {
 -- لإلغاء نظام الدربالتي بالكامل خل Config.DisableDurability = true
 Config.DisableDurability = false
 Config.ShotsPerDurability = 20
+-- يطبع في كونسول السيرفر كل ما نقصت الجودة (للتأكد إن التعديل شغال) — رجعها false بعد ما تتأكد
+Config.DurabilityDebug = true
 local FirearmWear = 1 -- كم تنقص الجودة كل ShotsPerDurability طلقة
 
 Config.DurabilityMultiplier = {

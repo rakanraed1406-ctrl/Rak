@@ -1,5 +1,13 @@
 local QBCore = exports['qb-core']:GetCoreObject()
 
+CreateThread(function()
+    if Config.DisableDurability then
+        print('^2[qb-weapons] durability system: DISABLED^7')
+    else
+        print(('^2[qb-weapons] durability system: -1 every %s shots^7'):format(Config.ShotsPerDurability))
+    end
+end)
+
 -- Functions
 
 local function IsWeaponBlocked(WeaponName)
@@ -239,6 +247,10 @@ RegisterNetEvent('weapons:server:UpdateWeaponQuality', function(data, RepeatAmou
             TriggerClientEvent('inventory:client:UseWeapon', src, data, false)
             TriggerClientEvent('QBCore:Notify', src, Lang:t('error.weapon_broken_need_repair'), "error")
         end
+    end
+    if Config.DurabilityDebug then
+        print(('[qb-weapons] %s (slot %s): +%s shots, counter %s/%s, quality %s'):format(
+            data.name, data.slot, RepeatAmount, WeaponSlot.info.durabilityshots, Config.ShotsPerDurability, WeaponSlot.info.quality))
     end
     Player.Functions.SetInventory(Player.PlayerData.items, true)
 end)
