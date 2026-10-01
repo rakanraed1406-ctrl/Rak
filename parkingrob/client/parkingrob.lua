@@ -30,6 +30,7 @@ local function meterKey(c)
 end
 
 local function meterOnCooldown(entity)
+    if not entity or entity == 0 or not DoesEntityExist(entity) then return true end
     local untilTime = cooldowns[meterKey(GetEntityCoords(entity))]
     return untilTime ~= nil and GetGameTimer() < untilTime
 end
@@ -127,7 +128,8 @@ CreateThread(function()
                 icon = 'fa-solid fa-square-parking',
                 label = 'Rob parking meter',
                 canInteract = function(entity)
-                    if robbing or meterOnCooldown(entity) then return false end
+                    local ok, onCooldown = pcall(meterOnCooldown, entity)
+                    if robbing or not ok or onCooldown then return false end
                     targetedMeter = entity
                     return true
                 end,
@@ -269,6 +271,9 @@ end)
 
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
+    -- otherwise qb-target keeps calling the stopped script's canInteract
+    -- ("Execution of function reference in script host failed")
+    exports['qb-target']:RemoveTargetModel(Config.MeterModels, 'Rob parking meter')
     removeBuyer()
     if robbing then StopAnimTask(PlayerPedId(), ANIM_DICT, ANIM_NAME, 1.0) end
 end)
