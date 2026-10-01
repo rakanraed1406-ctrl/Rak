@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pause Menu</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="app" hidden>
+        <div class="backdrop"></div>
+
+        <div class="shell">
+            <!-- ═══════════ Top bar ═══════════ -->
+            <header class="topbar">
+                <div class="player-chip">
+                    <div class="avatar" id="player-initials">?</div>
+                    <div class="player-text">
+                        <div class="player-name" id="player-name"></div>
+                        <div class="player-meta">
+                            <span class="tag"><span data-i18n="server_id">ID</span> <b id="player-sid">0</b></span>
+                            <span class="tag" id="player-cid-wrap"><span data-i18n="citizen_id">Citizen ID</span> <b id="player-cid"></b></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="clock">
+                    <div class="clock-time" id="clock-time">00:00</div>
+                    <div class="clock-meta">
+                        <span id="clock-date"></span>
+                        <span class="clock-sep"></span>
+                        <span class="clock-tz" id="clock-tz"></span>
+                    </div>
+                </div>
+            </header>
+
+            <main class="stage">
+                <!-- ═══════════ Navigation ═══════════ -->
+                <nav class="sidebar">
+                    <div class="nav-group-label" data-i18n="group_menu">Menu</div>
+                    <div class="nav-list" id="nav-list">
+                        <div class="nav-indicator" id="nav-indicator"></div>
+                        <button class="nav-item" data-view="overview" style="--i:0">
+                            <span class="ni-icon"><svg class="ic"><use href="#i-grid" /></svg></span>
+                            <span class="ni-label" data-i18n="nav_overview">Overview</span>
+                            <span class="ni-key">1</span>
+                        </button>
+                        <button class="nav-item" data-view="updates" style="--i:1">
+                            <span class="ni-icon"><svg class="ic"><use href="#i-megaphone" /></svg></span>
+                            <span class="ni-label" data-i18n="nav_updates">Updates</span>
+                            <span class="ni-badge" id="updates-badge" hidden data-i18n="new">NEW</span>
+                            <span class="ni-key">2</span>
+                        </button>
+                        <button class="nav-item" data-view="audio" style="--i:2">
+                            <span class="ni-icon"><svg class="ic"><use href="#i-speaker" /></svg></span>
+                            <span class="ni-label" data-i18n="nav_audio">Audio</span>
+                            <span class="ni-key">3</span>
+                        </button>
+                    </div>
+
+                    <div class="nav-group-label" data-i18n="group_game">Game</div>
+                    <div class="nav-list">
+                        <button class="nav-item" data-action="map" style="--i:3">
+                            <span class="ni-icon"><svg class="ic"><use href="#i-map" /></svg></span>
+                            <span class="ni-label" data-i18n="nav_map">World Map</span>
+                            <span class="ni-key">4</span>
+                        </button>
+                        <button class="nav-item" data-action="settings" style="--i:4">
+                            <span class="ni-icon"><svg class="ic"><use href="#i-sliders" /></svg></span>
+                            <span class="ni-label" data-i18n="nav_settings">Settings</span>
+                            <span class="ni-key">5</span>
+                        </button>
+                    </div>
+
+                    <div class="nav-list nav-bottom">
+                        <button class="nav-item is-resume" data-action="resume" style="--i:5">
+                            <span class="ni-icon"><svg class="ic"><use href="#i-play" /></svg></span>
+                            <span class="ni-label" data-i18n="nav_resume">Resume</span>
+                        </button>
+                        <button class="nav-item is-quit" data-action="quit" style="--i:6">
+                            <span class="ni-icon"><svg class="ic"><use href="#i-power" /></svg></span>
+                            <span class="ni-label" data-i18n="nav_quit">Quit Game</span>
+                        </button>
+                    </div>
+                </nav>
+
+                <!-- ═══════════ Center: logo + players online ═══════════ -->
+                <section class="hero">
+                    <div class="hero-glow"></div>
+                    <div class="hero-ring"></div>
+                    <div class="hero-ring hero-ring-2"></div>
+
+                    <div class="logo-wrap">
+                        <img class="logo" id="logo" alt="" draggable="false">
+                        <div class="logo-fallback" id="logo-fallback" hidden></div>
+                    </div>
+
+                    <div class="online">
+                        <div class="online-count">
+                            <span id="online-count">0</span><span class="online-max" id="online-max"></span>
+                        </div>
+                        <div class="online-label">
+                            <span class="live-dot"></span>
+                            <span data-i18n="players_online">Players Online</span>
+                        </div>
+                        <div class="capacity"><div class="capacity-fill" id="capacity-fill"></div></div>
+                    </div>
+
+                    <div class="duty-row">
+                        <div class="duty-chip" id="duty-police">
+                            <svg class="ic"><use href="#i-shield" /></svg>
+                            <span data-i18n="police">Police</span>
+                            <span class="duty-state"><span class="dot"></span><b>—</b></span>
+                        </div>
+                        <div class="duty-chip" id="duty-ems">
+                            <svg class="ic"><use href="#i-cross" /></svg>
+                            <span data-i18n="ems">EMS</span>
+                            <span class="duty-state"><span class="dot"></span><b>—</b></span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ═══════════ Panels ═══════════ -->
+                <section class="panels">
+
+                    <!-- Overview -->
+                    <div class="view" id="view-overview">
+                        <div class="card a-item" style="--i:0">
+                            <div class="card-head">
+                                <div>
+                                    <div class="eyebrow"><svg class="ic"><use href="#i-pulse" /></svg><span data-i18n="robbery_eyebrow">Underground Activity</span></div>
+                                    <div class="card-title" data-i18n="robbery_title">Robbery Status</div>
+                                </div>
+                                <div class="pill" id="robbery-summary"></div>
+                            </div>
+                            <div class="card-body robbery-list" id="robbery-list"></div>
+                        </div>
+
+                        <div class="card a-item" id="character-card" style="--i:1">
+                            <div class="card-head">
+                                <div>
+                                    <div class="eyebrow"><svg class="ic"><use href="#i-id" /></svg><span data-i18n="character">Character</span></div>
+                                    <div class="card-title" id="character-name"></div>
+                                </div>
+                            </div>
+                            <div class="card-body stat-grid">
+                                <div class="stat" id="stat-job">
+                                    <div class="stat-label"><svg class="ic"><use href="#i-briefcase" /></svg><span data-i18n="job">Job</span></div>
+                                    <div class="stat-value" id="stat-job-value"></div>
+                                    <div class="stat-sub"><span id="stat-job-grade"></span><span class="duty-pill" id="stat-job-duty"></span></div>
+                                </div>
+                                <div class="stat" id="stat-gang">
+                                    <div class="stat-label"><svg class="ic"><use href="#i-mask" /></svg><span data-i18n="gang">Gang</span></div>
+                                    <div class="stat-value" id="stat-gang-value"></div>
+                                    <div class="stat-sub" id="stat-gang-grade"></div>
+                                </div>
+                                <div class="stat" id="stat-cash">
+                                    <div class="stat-label"><svg class="ic"><use href="#i-cash" /></svg><span data-i18n="cash">Cash</span></div>
+                                    <div class="stat-value money is-cash" id="stat-cash-value">$0</div>
+                                </div>
+                                <div class="stat" id="stat-bank">
+                                    <div class="stat-label"><svg class="ic"><use href="#i-bank" /></svg><span data-i18n="bank">Bank</span></div>
+                                    <div class="stat-value money is-bank" id="stat-bank-value">$0</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Updates -->
+                    <div class="view" id="view-updates">
+                        <div class="card card-fill a-item" style="--i:0">
+                            <div class="card-head">
+                                <div>
+                                    <div class="eyebrow"><svg class="ic"><use href="#i-megaphone" /></svg><span data-i18n="updates_eyebrow">Server Changelog</span></div>
+                                    <div class="card-title" data-i18n="updates_title">Updates</div>
+                                </div>
+                                <div class="head-actions">
+                                    <span class="pill pill-accent" id="latest-version" hidden></span>
+                                    <button class="btn btn-sm btn-primary" id="btn-publish" hidden>
+                                        <svg class="ic"><use href="#i-plus" /></svg><span data-i18n="publish">Publish</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body scroll" id="updates-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Audio -->
+                    <div class="view" id="view-audio">
+                        <div class="card card-fill a-item" style="--i:0">
+                            <div class="card-head">
+                                <div>
+                                    <div class="eyebrow"><svg class="ic"><use href="#i-speaker" /></svg><span data-i18n="audio_eyebrow">Preferences</span></div>
+                                    <div class="card-title" data-i18n="audio_title">Audio &amp; Interface</div>
+                                </div>
+                                <button class="btn btn-sm btn-ghost" id="btn-reset-audio">
+                                    <svg class="ic"><use href="#i-reset" /></svg><span data-i18n="reset">Reset</span>
+                                </button>
+                            </div>
+                            <div class="card-body scroll settings">
+                                <div class="sec-title" data-i18n="volume_section">Volume</div>
+                                <div class="set-row">
+                                    <span class="set-icon"><svg class="ic"><use href="#i-speaker" /></svg></span>
+                                    <span class="set-text"><b data-i18n="sfx">Game Sounds</b><small data-i18n="sfx_desc"></small></span>
+                                    <input type="range" class="range" min="0" max="100" step="10" value="100" data-kind="sfx">
+                                    <span class="set-value" data-value-for="sfx">100%</span>
+                                </div>
+                                <div class="set-row">
+                                    <span class="set-icon"><svg class="ic"><use href="#i-music" /></svg></span>
+                                    <span class="set-text"><b data-i18n="music">Music</b><small data-i18n="music_desc"></small></span>
+                                    <input type="range" class="range" min="0" max="100" step="10" value="100" data-kind="music">
+                                    <span class="set-value" data-value-for="music">100%</span>
+                                </div>
+
+                                <div class="sec-title" data-i18n="game_audio_section">Game Audio</div>
+                                <div class="set-row is-toggle">
+                                    <span class="set-icon"><svg class="ic"><use href="#i-radio" /></svg></span>
+                                    <span class="set-text"><b data-i18n="radio">Vehicle Radio</b><small data-i18n="radio_desc"></small></span>
+                                    <button class="switch" role="switch" aria-checked="true" data-toggle="radio"></button>
+                                </div>
+                                <div class="set-row is-toggle">
+                                    <span class="set-icon"><svg class="ic"><use href="#i-walkie" /></svg></span>
+                                    <span class="set-text"><b data-i18n="scanner">Police Scanner</b><small data-i18n="scanner_desc"></small></span>
+                                    <button class="switch" role="switch" aria-checked="true" data-toggle="scanner"></button>
+                                </div>
+                                <div class="set-row is-toggle">
+                                    <span class="set-icon"><svg class="ic"><use href="#i-siren" /></svg></span>
+                                    <span class="set-text"><b data-i18n="sirens">Distant Sirens</b><small data-i18n="sirens_desc"></small></span>
+                                    <button class="switch" role="switch" aria-checked="true" data-toggle="sirens"></button>
+                                </div>
+                                <div class="set-row is-toggle">
+                                    <span class="set-icon"><svg class="ic"><use href="#i-plane" /></svg></span>
+                                    <span class="set-text"><b data-i18n="flight_music">Flight Music</b><small data-i18n="flight_music_desc"></small></span>
+                                    <button class="switch" role="switch" aria-checked="true" data-toggle="flightMusic"></button>
+                                </div>
+                                <div class="set-row is-toggle">
+                                    <span class="set-icon"><svg class="ic"><use href="#i-star" /></svg></span>
+                                    <span class="set-text"><b data-i18n="wanted_music">Wanted Music</b><small data-i18n="wanted_music_desc"></small></span>
+                                    <button class="switch" role="switch" aria-checked="true" data-toggle="wantedMusic"></button>
+                                </div>
+
+                                <div class="sec-title" data-i18n="interface_section">Interface</div>
+                                <div class="set-row is-toggle">
+                                    <span class="set-icon"><svg class="ic"><use href="#i-note" /></svg></span>
+                                    <span class="set-text"><b data-i18n="ui_sounds">Menu Sounds</b><small data-i18n="ui_sounds_desc"></small></span>
+                                    <button class="switch" role="switch" aria-checked="true" data-pref="sounds"></button>
+                                </div>
+                                <div class="set-row is-toggle">
+                                    <span class="set-icon"><svg class="ic"><use href="#i-drop" /></svg></span>
+                                    <span class="set-text"><b data-i18n="blur">Background Blur</b><small data-i18n="blur_desc"></small></span>
+                                    <button class="switch" role="switch" aria-checked="true" data-pref="blur"></button>
+                                </div>
+                                <div class="set-row is-toggle">
+                                    <span class="set-icon"><svg class="ic"><use href="#i-bolt" /></svg></span>
+                                    <span class="set-text"><b data-i18n="reduced_motion">Reduced Motion</b><small data-i18n="reduced_motion_desc"></small></span>
+                                    <button class="switch" role="switch" aria-checked="false" data-pref="reducedMotion"></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <!-- ═══════════ Footer ═══════════ -->
+            <footer class="footer">
+                <div class="hints">
+                    <span class="hint"><kbd>ESC</kbd><span data-i18n="hint_resume">Resume</span></span>
+                    <span class="hint"><kbd>↑</kbd><kbd>↓</kbd><span data-i18n="hint_navigate">Navigate</span></span>
+                    <span class="hint"><kbd>ENTER</kbd><span data-i18n="hint_select">Select</span></span>
+                    <span class="hint"><kbd>⌫</kbd><span data-i18n="hint_back">Back</span></span>
+                </div>
+                <div class="footer-end">
+                    <div class="links" id="links"></div>
+                    <div class="brand-mark"><b id="brand-name"></b><span>PAUSE MENU</span></div>
+                </div>
+            </footer>
+        </div>
+
+        <!-- ═══════════ Modals ═══════════ -->
+        <div class="modal-layer" id="modal-layer">
+            <div class="modal modal-danger" id="modal-quit" hidden>
+                <div class="modal-icon"><svg class="ic"><use href="#i-alert" /></svg></div>
+                <div class="modal-title" data-i18n="quit_title">Disconnect From Server</div>
+                <div class="modal-text" data-i18n="quit_text"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" data-close-modal data-i18n="cancel">Cancel</button>
+                    <button class="btn btn-danger" id="btn-confirm-quit">
+                        <svg class="ic"><use href="#i-power" /></svg><span data-i18n="disconnect">Disconnect</span>
+                    </button>
+                </div>
+            </div>
+
+            <form class="modal modal-wide" id="modal-publish" hidden autocomplete="off">
+                <div class="modal-head">
+                    <span class="modal-icon is-accent"><svg class="ic"><use href="#i-megaphone" /></svg></span>
+                    <div class="modal-title" data-i18n="publish_title">Publish Server Update</div>
+                </div>
+                <div class="field-row">
+                    <label class="field">
+                        <span data-i18n="f_version">Version</span>
+                        <input type="text" id="f-version" maxlength="24" data-i18n-ph="f_version_ph">
+                    </label>
+                    <label class="field field-grow">
+                        <span data-i18n="f_title">Update Title</span>
+                        <input type="text" id="f-title" maxlength="80" data-i18n-ph="f_title_ph">
+                    </label>
+                </div>
+                <label class="field">
+                    <span data-i18n="f_added">Added</span>
+                    <textarea id="f-added" rows="4" data-i18n-ph="f_added_ph"></textarea>
+                </label>
+                <label class="field">
+                    <span data-i18n="f_changed">Changed</span>
+                    <textarea id="f-changed" rows="4" data-i18n-ph="f_changed_ph"></textarea>
+                </label>
+                <div class="form-error" id="form-error"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" data-close-modal data-i18n="cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <svg class="ic"><use href="#i-send" /></svg><span data-i18n="publish_btn">Publish Update</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="toast" id="toast"><svg class="ic"><use href="#i-check" /></svg><span></span></div>
+    </div>
+
+    <!-- ═══════════ Icons ═══════════ -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="9" rx="1.6" /><rect x="13.5" y="3.5" width="7" height="5" rx="1.6" /><rect x="13.5" y="11.5" width="7" height="9" rx="1.6" /><rect x="3.5" y="15.5" width="7" height="5" rx="1.6" /></symbol>
+        <symbol id="i-megaphone" viewBox="0 0 24 24"><path d="M3.5 10.5v3a1 1 0 0 0 1 1H7l8 4.5v-14L7 9.5H4.5a1 1 0 0 0-1 1z" /><path d="M7 14.5l1.4 4.5h2.4l-1-4" /><path d="M18 9.5a3.5 3.5 0 0 1 0 5" /><path d="M20.3 7.2a7 7 0 0 1 0 9.6" /></symbol>
+        <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" /><path d="M15.5 9a4 4 0 0 1 0 6" /><path d="M18 6.5a7.5 7.5 0 0 1 0 11" /></symbol>
+        <symbol id="i-map" viewBox="0 0 24 24"><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2z" /><path d="M9 4.5v13M15 6.5v13" /></symbol>
+        <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6.5h9M17 6.5h3M4 12h3M11 12h9M4 17.5h11M19 17.5h1" /><circle cx="15" cy="6.5" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="17" cy="17.5" r="2" /></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" /></symbol>
+        <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3.5v8" /><path d="M6.6 6.8a7.5 7.5 0 1 0 10.8 0" /></symbol>
+        <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.4-3.1 7.9-7.5 9.5-4.4-1.6-7.5-5.1-7.5-9.5V6z" /><path d="M9 12l2.2 2.2L15.5 10" /></symbol>
+        <symbol id="i-cross" viewBox="0 0 24 24"><path d="M9.5 3.5h5v6h6v5h-6v6h-5v-6h-6v-5h6z" /></symbol>
+        <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4.5 12 2.5-6H21" /></symbol>
+        <symbol id="i-id" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.2" /><circle cx="9" cy="11" r="2.3" /><path d="M5.8 16.5a3.3 3.3 0 0 1 6.4 0" /><path d="M15 10h3.5M15 13.5h3.5" /></symbol>
+        <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12.5" rx="2" /><path d="M8.5 7V5.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5V7" /><path d="M3 12.5h18" /></symbol>
+        <symbol id="i-mask" viewBox="0 0 24 24"><path d="M5 9.5a7 7 0 0 1 14 0v3l-1.8 2v4.5H6.8v-4.5L5 12.5z" /><circle cx="9.5" cy="11" r="1.6" /><circle cx="14.5" cy="11" r="1.6" /><path d="M10.8 19v-2.2M13.2 19v-2.2" /></symbol>
+        <symbol id="i-cash" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2" /><circle cx="12" cy="12" r="2.6" /><path d="M6 9.5v5M18 9.5v5" /></symbol>
+        <symbol id="i-bank" viewBox="0 0 24 24"><path d="M3.5 9L12 4.5 20.5 9" /><path d="M4.5 9.5h15" /><path d="M6.5 10v7M10 10v7M14 10v7M17.5 10v7" /><path d="M3.5 20h17M4.5 17.5h15" /></symbol>
+        <symbol id="i-store" viewBox="0 0 24 24"><path d="M4 9.5l1.6-5h12.8l1.6 5" /><path d="M4 9.5h16a2.7 2.7 0 0 1-5.3 0 2.7 2.7 0 0 1-5.4 0 2.7 2.7 0 0 1-5.3 0z" /><path d="M5.5 12.5v7.5h13v-7.5" /><path d="M10 20v-4.5h4V20" /></symbol>
+        <symbol id="i-house" viewBox="0 0 24 24"><path d="M3.5 11L12 4l8.5 7" /><path d="M5.5 9.5V20h13V9.5" /><rect x="9.5" y="12.5" width="5" height="4.5" rx=".6" /></symbol>
+        <symbol id="i-truck" viewBox="0 0 24 24"><path d="M2.5 6.5h11v9.5h-11z" /><path d="M13.5 9.5h4l3.5 3.5v3h-7.5" /><circle cx="6.5" cy="17.5" r="1.9" /><circle cx="17" cy="17.5" r="1.9" /></symbol>
+        <symbol id="i-atm" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.2" /><path d="M3 9.5h18" /><path d="M7 14.5h4" /><path d="M15.5 14.5h1.5" /></symbol>
+        <symbol id="i-gem" viewBox="0 0 24 24"><path d="M6.5 4h11l3.5 5-9 11L3 9z" /><path d="M3 9h18" /><path d="M12 20L8.5 9l2-5M12 20l3.5-11-2-5" /></symbol>
+        <symbol id="i-gun" viewBox="0 0 24 24"><path d="M3 8h17.5v4h-6.5l-1.2 2.5H10L9 19H5l1.2-7H3z" /><path d="M10.2 12h3" /></symbol>
+        <symbol id="i-car" viewBox="0 0 24 24"><path d="M3.5 13l1.8-5.2A2 2 0 0 1 7.2 6.5h9.6a2 2 0 0 1 1.9 1.3l1.8 5.2v4.5h-17z" /><path d="M3.5 13h17" /><path d="M7 15.3h1M16 15.3h1" /><path d="M5.5 17.5v2M18.5 17.5v2" /></symbol>
+        <symbol id="i-boat" viewBox="0 0 24 24"><path d="M3 15.5h18l-2.5 4h-13z" /><path d="M6 15.5V12h12v3.5" /><path d="M12 12V4l5 4.5h-5" /></symbol>
+        <symbol id="i-box" viewBox="0 0 24 24"><path d="M3.5 7.5L12 3.5l8.5 4v9L12 20.5l-8.5-4z" /><path d="M3.5 7.5L12 11.5l8.5-4M12 11.5v9" /></symbol>
+        <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 17.5V5.5l11-2v12" /><circle cx="6.5" cy="17.5" r="2.5" /><circle cx="17.5" cy="15.5" r="2.5" /></symbol>
+        <symbol id="i-note" viewBox="0 0 24 24"><path d="M12 17V4.5l6 2.5" /><circle cx="9" cy="17" r="3" /></symbol>
+        <symbol id="i-radio" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="2" /><path d="M7 8l10-4.5" /><circle cx="15.5" cy="14" r="2.5" /><path d="M6.5 12.5h3M6.5 15.5h3" /></symbol>
+        <symbol id="i-walkie" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="14" rx="2" /><path d="M10 7V2.5" /><path d="M10 11h4M10 14h4M10 17h4" /></symbol>
+        <symbol id="i-siren" viewBox="0 0 24 24"><path d="M7 18v-5a5 5 0 0 1 10 0v5" /><path d="M5 18h14v2.5H5z" /><path d="M12 3v2M4.5 6.3l1.4 1.4M19.5 6.3l-1.4 1.4" /></symbol>
+        <symbol id="i-plane" viewBox="0 0 24 24"><path d="M12 2.8c.8 0 1.4.7 1.4 1.5v5l7.1 4.3v2l-7.1-2.1v4.6l2.3 1.8v1.4L12 20.4l-3.7.9v-1.4l2.3-1.8v-4.6l-7.1 2.1v-2l7.1-4.3v-5c0-.8.6-1.5 1.4-1.5z" /></symbol>
+        <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z" /></symbol>
+        <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z" /><path d="M9.2 14.5a2.8 2.8 0 0 0 2.8 2.8" /></symbol>
+        <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6L10.5 21 19 10.5h-6z" /></symbol>
+        <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" /><path d="M4.5 4v4h4" /></symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></symbol>
+        <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.5 5.5a4 4 0 0 0 4.9 5L12 18a2.1 2.1 0 0 1-3-3l7.5-7.4a4 4 0 0 0-2-2.1z" /></symbol>
+        <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15" /><path d="M9.5 7V4.5h5V7" /><path d="M6.5 7l1 13h9l1-13" /><path d="M10.2 11v5.5M13.8 11v5.5" /></symbol>
+        <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l9 15.5H3z" /><path d="M12 10v4" /><path d="M12 17v.01" /></symbol>
+        <symbol id="i-send" viewBox="0 0 24 24"><path d="M20.5 3.5l-17 7 7 2.5 2.5 7z" /><path d="M10.5 13l10-9.5" /></symbol>
+        <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></symbol>
+        <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17" /><path d="M12 3.5c2.4 2.3 3.6 5.2 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.2-3.6-8.5s1.2-6.2 3.6-8.5z" /></symbol>
+        <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2.5l2.2 10.5h10.5L20.5 7H6.5" /><circle cx="9" cy="19" r="1.4" /><circle cx="17" cy="19" r="1.4" /></symbol>
+        <symbol id="i-discord" viewBox="0 0 24 24"><path d="M8 6.8c2.7-1 5.3-1 8 0 1.7 2.4 2.6 5 2.7 7.9-1.4 1.1-3 1.9-4.7 2.3l-.9-1.6M8 6.8C6.3 9.2 5.4 11.8 5.3 14.7 6.7 15.8 8.3 16.6 10 17l.9-1.6" /><path d="M8.8 15c2.1.9 4.3.9 6.4 0" /><circle cx="9.7" cy="12" r=".9" /><circle cx="14.3" cy="12" r=".9" /></symbol>
+    </svg>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

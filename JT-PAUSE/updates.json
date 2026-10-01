@@ -1,0 +1,15 @@
+[
+  {
+    "id": "u100",
+    "version": "v2.0.0",
+    "title": "New Pause Menu",
+    "date": "2026-10-01",
+    "added": [
+      "Brand new pause menu design with smooth animations",
+      "Live players online, police and EMS status",
+      "Robbery availability tracker",
+      "Audio and interface preferences"
+    ],
+    "removed": []
+  }
+]
