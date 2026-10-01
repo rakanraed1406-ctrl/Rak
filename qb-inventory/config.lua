@@ -8,7 +8,7 @@ Config.UseTarget = GetConvar('UseTarget', 'false') == 'true' -- set `setr UseTar
 Config.MaxInventoryWeight = 120000 -- grams (120 kg)
 Config.MaxInventorySlots = 41      -- slot 41 is the 6th hotbar key
 Config.Blur = true                 -- blur the game behind the inventory
-Config.InventorySide = 'right'     -- 'right' or 'left' side of the screen
+Config.InventorySide = 'left'      -- 'left' or 'right' side of the screen
 Config.BrandTag = 'JT'             -- small text on the blue line between the inventories
 
 -- ════════════════════════════════════════════════════════════
@@ -26,7 +26,7 @@ Config.OpenAnimation = {
 -- ════════════════════════════════════════════════════════════
 --  Ground drops
 -- ════════════════════════════════════════════════════════════
-Config.EnableDrops = true                 -- false = no ground panel, items can't be dropped
+Config.EnableDrops = true                 -- false = the "Drop" option is removed (items can't be dropped)
 Config.CleanupDropTime = 15 * 60          -- seconds an untouched drop stays on the ground
 Config.MaxDropViewDistance = 12.5         -- distance the drop marker/bag is shown
 Config.DropInteractDistance = 1.5         -- distance to open a drop with TAB

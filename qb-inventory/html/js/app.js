@@ -375,7 +375,7 @@
         if (readOnlyTarget(to.type)) return false;
         if ((from.type === 'shop' || from.type === 'crafting') && to.type !== 'player') return false;
         if (toSlot > to.slots) return false;
-        if (to.type === 'ground' && !S.drops) return false;
+        if ((to.type === 'ground' || to.type === 'drop') && fromKey === 'player') return false; // only the "Drop" option drops items
         return true;
     }
 
@@ -470,6 +470,31 @@
         }
         if (!free) return fail('player', slot);
         moveItem('player', slot, 'player', free, Math.floor(Number(item.amount) / 2));
+    }
+
+    const canDropHere = () => S.drops && (!S.other || S.other.type === 'drop' || S.other.type === 'ground');
+
+    /** "Drop" option: puts the item (or the amount typed) in the bag on the ground */
+    function dropItem(slot) {
+        const item = S.player.items[slot];
+        if (!item || !canDropHere()) return;
+        const amount = readAmount(item, false);
+        let toInventory = 0;
+        let toSlot = 1;
+        if (S.other && S.other.type === 'drop') {
+            toInventory = S.other.name;
+            toSlot = firstTargetSlot(S.other, item);
+            if (!toSlot) return fail('player', slot);
+            const target = S.other.items[toSlot];
+            if (target) target.amount = Number(target.amount) + amount;
+            else S.other.items[toSlot] = Object.assign({}, item, { amount, slot: toSlot });
+        }
+        if (Number(item.amount) - amount > 0) item.amount = Number(item.amount) - amount;
+        else delete S.player.items[slot];
+        post('SetInventoryData', { fromInventory: 'player', toInventory, fromSlot: slot, toSlot, fromAmount: amount });
+        clearSelection();
+        paintAll();
+        sound(true);
     }
 
     function useItem(slot) {
@@ -662,8 +687,8 @@
             entries.push(['hand', t('give'), () => openGive(slot, readAmount(item, false))]);
             if (Number(item.amount) > 1 && stackable(item)) entries.push(['scissors', t('split'), () => splitItem(slot)]);
             if (isWeapon(item)) entries.push(['gun', t('attachments'), () => openWeapon(slot)]);
-            if (S.other && (S.other.type === 'ground' || S.other.type === 'drop')) entries.push(['down', t('drop'), () => quickMove('player', slot)]);
-            else if (S.other && !readOnlyTarget(S.other.type)) entries.push(['arrow', $('#other-eyebrow').textContent || $('#other-title').textContent, () => quickMove('player', slot)]);
+            if (canDropHere()) entries.push(['down', t('drop'), () => dropItem(slot)]);
+            if (S.other && S.other.type !== 'drop' && !readOnlyTarget(S.other.type)) entries.push(['arrow', $('#other-eyebrow').textContent || $('#other-title').textContent, () => quickMove('player', slot)]);
         } else {
             entries.push(['arrow', t('pockets'), () => quickMove(key, slot)]);
         }
@@ -1031,10 +1056,7 @@
     }
 
     function makeOther(other) {
-        if (!other || typeof other !== 'object') {
-            if (!S.drops) return null;
-            return { key: 'other', name: 0, type: 'ground', label: t('ground'), items: {}, slots: S.dropSlots, maxweight: S.dropMaxWeight };
-        }
+        if (!other || typeof other !== 'object') return null; // no ground panel: dropping is done with the "Drop" option
         const type = invType(other.name);
         return {
             key: 'other',
@@ -1054,8 +1076,8 @@
             S.strings = data.strings;
             applyStrings();
         }
-        $('#inv').classList.toggle('side-right', data.side !== 'left');
-        app.classList.toggle('side-left', data.side === 'left');
+        $('#inv').classList.toggle('side-right', data.side === 'right');
+        app.classList.toggle('side-left', data.side !== 'right');
         if (data.brandTag !== undefined) setText($('#brand-tag'), data.brandTag);
         S.special = Number(data.special) || 41;
         S.drops = data.drops !== false;
@@ -1109,6 +1131,11 @@
         if (data.inventory !== undefined && data.inventory !== null) S.player.items = toMap(data.inventory);
         if (data.cash !== undefined && data.cash !== null) setText($('#id-cash'), money(data.cash));
         if (data.bank !== undefined && data.bank !== null) setText($('#id-bank'), money(data.bank));
+        if (data.otherName !== undefined && data.otherName !== null && !S.other && invType(data.otherName) === 'drop') {
+            S.other = { key: 'other', name: data.otherName, type: 'drop', label: `Dropped-${data.otherName}`, items: toMap(data.other), slots: S.dropSlots, maxweight: S.dropMaxWeight };
+            buildGrid('other');
+            paintOtherHeader();
+        }
         if (data.otherName !== undefined && data.otherName !== null && S.other) {
             const type = invType(data.otherName);
             if (type !== S.other.type || String(data.otherName) !== String(S.other.name)) {
