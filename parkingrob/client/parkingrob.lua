@@ -1,3 +1,24 @@
+-- =========================================================================
+-- parkingrob (client) - settings
+-- The buyer ped location is set in server/parkingrob.lua (Config.Buyer).
+-- =========================================================================
+local Config = {}
+
+-- Parking meter props.
+Config.MeterModels = {
+    -1940238623,
+    2108567945,
+}
+
+-- Only used to show "you need a lockpick" right away; the server checks it.
+Config.LockpickItems = { 'lockpick', 'advancedlockpick' }
+
+-- Called when a robbery triggers a police alert. Change it to your
+-- dispatch script if you use one (ps-dispatch, cd_dispatch, ...).
+Config.Dispatch = function(coords)
+    TriggerServerEvent('police:server:policeAlert', 'Parking meter being broken into')
+end
+
 local QBCore = exports['qb-core']:GetCoreObject()
 local robbing = false
 local cooldowns = {} -- meterKey -> GetGameTimer() when it can be robbed again
@@ -15,8 +36,8 @@ end
 
 local function hasLockpick()
     for _, item in pairs(QBCore.Functions.GetPlayerData().items or {}) do
-        for _, lp in ipairs(Config.Lockpicks) do
-            if item and item.name == lp.item then return true end
+        for _, name in ipairs(Config.LockpickItems) do
+            if item and item.name == name then return true end
         end
     end
     return false
@@ -173,9 +194,8 @@ RegisterNetEvent('parkingrob:client:sell', function()
     end)
 end)
 
-local function spawnBuyer()
+local function spawnBuyer(b)
     if buyerPed and DoesEntityExist(buyerPed) then return end
-    local b = Config.Buyer
     local model = joaat(b.model)
     RequestModel(model)
     local timeout = GetGameTimer() + 5000
@@ -222,7 +242,9 @@ local function removeBuyer()
 end
 
 local function onLoaded()
-    spawnBuyer()
+    QBCore.Functions.TriggerCallback('parkingrob:server:buyerInfo', function(buyer)
+        if buyer then spawnBuyer(buyer) end
+    end)
     TriggerServerEvent('parkingrob:server:syncCooldowns')
 end
 

@@ -1,3 +1,74 @@
+-- =========================================================================
+-- parkingrob (server) - settings
+-- `local` so it never clashes with your resource's own Config.
+-- =========================================================================
+local Config = {}
+
+-- Items that can open a meter, tried in this order. `uses` = how many
+-- robberies ONE of these items lasts. Every finished robbery takes one use;
+-- when the uses run out that one lockpick is removed (the rest of the stack
+-- stays and the next one starts with full uses).
+Config.Lockpicks = {
+    { item = 'lockpick', uses = 5 },
+    { item = 'advancedlockpick', uses = 12 },
+}
+
+-- % chance the lockpick snaps during a robbery (that one lockpick is lost).
+Config.BreakChance = 5
+
+-- How long the robbery takes (ms).
+Config.RobTime = { min = 10000, max = 12500 }
+
+-- A robbed meter is empty for this long (seconds) - for everyone.
+Config.MeterCooldown = 16 * 60
+
+-- Minimum time (seconds) between two robberies of the same player.
+Config.PlayerCooldown = 45
+
+-- Minimum on-duty police needed to rob a meter (0 = no requirement).
+Config.MinPolice = 0
+Config.PoliceJobs = { police = true, sheriff = true }
+
+-- % chance the police get alerted when a robbery starts.
+Config.AlertChance = 25
+
+-- What a meter can contain. One row is picked by weight; `coins` gives a
+-- random amount between min and max of each listed coin.
+Config.Loot = {
+    { weight = 30, coins = {} }, -- empty
+    { weight = 45, coins = { silver = { 1, 3 } } },
+    { weight = 18, coins = { silver = { 2, 4 }, gold = { 1, 1 } } },
+    { weight = 7,  coins = { gold = { 1, 2 } } },
+}
+
+-- Each coin has a price range. Every day the buyer picks ONE price per coin
+-- inside its range, the same for every player that day.
+Config.Coins = {
+    { id = 'silver', item = 'silvercoins', label = 'Silver Coin', min = 100, max = 200 },
+    { id = 'gold',   item = 'goldcoins',   label = 'Gold Coin',   min = 500, max = 750 },
+}
+
+Config.Market = {
+    -- 'random' = a fresh random price each day inside the range.
+    -- 'trend'  = realistic: the new price moves from yesterday's price by at
+    --            most `dailyChange` of the range, always inside the range.
+    mode = 'trend',
+    dailyChange = 0.35,
+    resetHour = 6,      -- hour (server time) when a new market day starts
+    saturation = 0,     -- e.g. 0.002 = every coin sold today lowers the price 0.2%
+    payment = 'cash',   -- 'cash' or 'bank'
+    maxPerSale = 500,
+}
+
+-- Coin buyer ped: SET ITS LOCATION HERE (the client gets it from the server).
+Config.Buyer = {
+    model = 'a_m_m_hasjew_01',
+    coords = vector4(195.17, -933.77, 30.69, 144.0),
+    scenario = 'WORLD_HUMAN_STAND_IMPATIENT',
+    sellDistance = 4.0,
+    blip = { enabled = false, sprite = 500, color = 46, scale = 0.7, label = 'Coin Buyer' },
+}
+
 local QBCore = exports['qb-core']:GetCoreObject()
 
 local meterCooldowns = {}   -- meterKey -> os.time() when it can be robbed again
@@ -251,6 +322,12 @@ RegisterNetEvent('parkingrob:server:finish', function()
     if not found then notify(src, 'The meter was empty.', 'error') end
 end)
 
+-- The client gets the buyer ped (location, model) from here, so it is set
+-- in one place only.
+QBCore.Functions.CreateCallback('parkingrob:server:buyerInfo', function(source, cb)
+    cb(Config.Buyer)
+end)
+
 -- Clients ask for the current meter cooldowns when they load in.
 RegisterNetEvent('parkingrob:server:syncCooldowns', function()
     local src = source
@@ -274,7 +351,7 @@ end)
 
 local market = {}
 do
-    local saved = GetResourceKvpString('market')
+    local saved = GetResourceKvpString('parkingrob:market')
     local ok, data = pcall(json.decode, saved or '')
     if ok and type(data) == 'table' then market = data end
 end
@@ -311,7 +388,7 @@ local function refreshMarket()
     market.day = day
     market.prices = prices
     market.sold = {}
-    SetResourceKvp('market', json.encode(market))
+    SetResourceKvp('parkingrob:market', json.encode(market))
 
     local parts = {}
     for _, coin in ipairs(Config.Coins) do parts[#parts+1] = ('%s $%d'):format(coin.label, prices[coin.id]) end
@@ -389,6 +466,6 @@ RegisterNetEvent('parkingrob:server:sell', function(coinId, rawAmount)
     local total = price * amount
     Player.Functions.AddMoney(Config.Market.payment, total, 'coin-buyer')
     market.sold[coin.id] = (market.sold[coin.id] or 0) + amount
-    SetResourceKvp('market', json.encode(market))
+    SetResourceKvp('parkingrob:market', json.encode(market))
     notify(src, ('Sold %d %s for $%d ($%d each).'):format(amount, coin.label, total, price), 'success', 7000)
 end)
