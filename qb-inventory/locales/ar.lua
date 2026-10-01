@@ -113,6 +113,9 @@ local Translations = {
         ["state_id"] = "الآيدي",
         ["citizen_id"] = "رقم المواطن",
         ["name"] = "الاسم",
+        ["bank"] = "البنك",
+        ["character"] = "الشخصية",
+        ["close_hint"] = "إغلاق",
         ["hint_menu"] = "كليك يمين: خيارات",
     },
 }

@@ -15,63 +15,56 @@
 
         <main class="inv" id="inv">
             <!-- Player -->
-            <section class="block block-player" id="panel-player">
-                <header class="block-head">
-                    <span class="head-icon"><svg class="ic"><use href="#i-user" /></svg></span>
-                    <div class="head-label">
-                        <span class="l1" data-t="player">Player</span>
-                        <span class="l2" data-t="inventory">Inventory</span>
+            <section class="block card block-player" id="panel-player">
+                <header class="card-head">
+                    <span class="head-icon"><svg class="ic"><use href="#i-backpack" /></svg></span>
+                    <div class="head-text">
+                        <div class="eyebrow"><span data-t="player">Player</span></div>
+                        <div class="card-title" data-t="inventory">Inventory</div>
                     </div>
-                    <div class="head-weight">
-                        <b id="player-weight">0.00</b>
-                        <span id="player-maxweight">/0.00</span>
-                    </div>
-                    <div class="head-line"><div class="weight-bar"><i id="player-weight-bar"></i></div></div>
-                    <div class="tools">
-                        <label class="search">
-                            <svg class="ic"><use href="#i-search" /></svg>
-                            <input type="text" id="search" maxlength="40" data-t-ph="search" placeholder="Search">
-                        </label>
-                        <div class="filters" id="filters">
-                            <button class="chip" data-filter="weapons" data-t-title="weapons"><svg class="ic"><use href="#i-gun" /></svg></button>
-                            <button class="chip" data-filter="general" data-t-title="general"><svg class="ic"><use href="#i-cube" /></svg></button>
-                            <button class="chip" data-filter="tools" data-t-title="tools"><svg class="ic"><use href="#i-wrench" /></svg></button>
-                            <button class="chip" data-filter="food" data-t-title="food"><svg class="ic"><use href="#i-food" /></svg></button>
-                        </div>
+                    <div class="weight">
+                        <div class="weight-num"><b id="player-weight">0.00</b><span id="player-maxweight">/ 0.00 kg</span></div>
+                        <div class="weight-bar"><i id="player-weight-bar"></i></div>
                     </div>
                 </header>
+                <div class="tools">
+                    <label class="search">
+                        <svg class="ic"><use href="#i-search" /></svg>
+                        <input type="text" id="search" maxlength="40" data-t-ph="search" placeholder="Search items...">
+                    </label>
+                    <div class="filters" id="filters">
+                        <button class="chip" data-filter="weapons" data-t-title="weapons"><svg class="ic"><use href="#i-gun" /></svg></button>
+                        <button class="chip" data-filter="food" data-t-title="food"><svg class="ic"><use href="#i-food" /></svg></button>
+                        <button class="chip" data-filter="tools" data-t-title="tools"><svg class="ic"><use href="#i-wrench" /></svg></button>
+                        <button class="chip" data-filter="general" data-t-title="general"><svg class="ic"><use href="#i-cube" /></svg></button>
+                    </div>
+                </div>
                 <div class="grid scroll" id="grid-player" data-inv="player"></div>
                 <footer class="block-foot">
+                    <span class="foot-label" data-t="amount">Amount</span>
                     <div class="amount">
                         <button class="amount-btn" data-step="-1"><svg class="ic"><use href="#i-minus" /></svg></button>
-                        <input type="number" id="amount" min="0" max="100000" placeholder="Amount" data-t-ph="amount">
+                        <input type="number" id="amount" min="0" max="100000" placeholder="All" data-t-ph="all">
                         <button class="amount-btn" data-step="1"><svg class="ic"><use href="#i-plus" /></svg></button>
                     </div>
-                    <div class="action" id="action-use" data-zone="use"><svg class="ic"><use href="#i-bolt" /></svg><span data-t="use">Use</span></div>
-                    <div class="action" id="action-give" data-zone="give"><svg class="ic"><use href="#i-hand" /></svg><span data-t="give">Give</span></div>
                     <button class="rob-btn" id="rob-btn" hidden><svg class="ic"><use href="#i-cash" /></svg><span data-t="take_money">Take money</span></button>
                 </footer>
             </section>
 
-            <!-- Blue line between the inventories -->
-            <div class="divider">
-                <i></i>
-                <span id="brand-tag">JT</span>
-            </div>
+            <div class="divider"><i></i><span id="brand-tag">JT</span><i></i></div>
 
             <!-- Other inventory -->
-            <section class="block block-other" id="panel-other">
-                <header class="block-head">
+            <section class="block card block-other" id="panel-other">
+                <header class="card-head">
                     <span class="head-icon" id="other-icon"><svg class="ic"><use href="#i-ground" /></svg></span>
-                    <div class="head-label">
-                        <span class="l1" id="other-title">Ground</span>
-                        <span class="l2" id="other-sub"></span>
+                    <div class="head-text">
+                        <div class="eyebrow"><span id="other-eyebrow"></span></div>
+                        <div class="card-title" id="other-title">Ground</div>
                     </div>
-                    <div class="head-weight" id="other-weight-wrap">
-                        <b id="other-weight">0.00</b>
-                        <span id="other-maxweight">/0.00</span>
+                    <div class="weight" id="other-weight-wrap">
+                        <div class="weight-num"><b id="other-weight">0.00</b><span id="other-maxweight">/ 0.00 kg</span></div>
+                        <div class="weight-bar" id="other-weight-bar-wrap"><i id="other-weight-bar"></i></div>
                     </div>
-                    <div class="head-line"><div class="weight-bar" id="other-weight-bar-wrap"><i id="other-weight-bar"></i></div></div>
                 </header>
                 <div class="grid scroll" id="grid-other" data-inv="other"></div>
                 <div class="other-empty" id="other-empty" hidden>
@@ -80,28 +73,32 @@
                 </div>
             </section>
 
-            <!-- Personal information -->
-            <aside class="info" id="mid">
-                <header class="info-head">
-                    <span class="info-dot"></span>
-                    <div class="head-label">
-                        <span class="l1" data-t="personal">Personal</span>
-                        <span class="l2" data-t="information">Information</span>
+            <!-- Character -->
+            <aside class="info card" id="mid">
+                <header class="card-head">
+                    <div class="avatar" id="avatar">?</div>
+                    <div class="head-text">
+                        <div class="eyebrow"><span data-t="character">Character</span></div>
+                        <div class="card-title" id="id-name"></div>
                     </div>
                 </header>
-                <div class="info-card"><span data-t="name">Name</span><b id="id-name"></b></div>
-                <div class="info-card"><span data-t="state_id">State ID</span><b>#<i id="id-sid"></i></b></div>
-                <div class="info-card" id="id-cid-wrap"><span data-t="citizen_id">Citizen ID</span><b id="id-cid"></b></div>
-                <div class="info-card"><span data-t="cash">Cash</span><b class="cash" id="id-cash">$0</b></div>
-                <div class="info-card" id="id-job-wrap"><span data-t="job">Job</span><b id="id-job"></b></div>
-                <ul class="hints">
-                    <li><kbd><svg class="ic"><use href="#i-mouse" /></svg></kbd><span data-t="hint_move">Drag to move</span></li>
-                    <li><kbd>⇧</kbd><span data-t="hint_quick">Shift + click: quick move</span></li>
-                    <li><kbd>2×</kbd><span data-t="hint_use">Double click: use</span></li>
-                    <li><kbd>R</kbd><span data-t="hint_menu">Right click: options</span></li>
-                </ul>
+                <div class="stat-grid">
+                    <div class="stat"><div class="stat-label"><svg class="ic"><use href="#i-id" /></svg><span data-t="state_id">State ID</span></div><b class="ltr">#<i id="id-sid"></i></b></div>
+                    <div class="stat" id="id-cid-wrap"><div class="stat-label"><svg class="ic"><use href="#i-hash" /></svg><span data-t="citizen_id">Citizen ID</span></div><b class="ltr" id="id-cid"></b></div>
+                    <div class="stat"><div class="stat-label"><svg class="ic"><use href="#i-cash" /></svg><span data-t="cash">Cash</span></div><b class="money is-cash" id="id-cash">$0</b></div>
+                    <div class="stat"><div class="stat-label"><svg class="ic"><use href="#i-bank" /></svg><span data-t="bank">Bank</span></div><b class="money is-bank" id="id-bank">$0</b></div>
+                    <div class="stat stat-wide" id="id-job-wrap"><div class="stat-label"><svg class="ic"><use href="#i-briefcase" /></svg><span data-t="job">Job</span></div><b id="id-job"></b></div>
+                </div>
             </aside>
         </main>
+
+        <footer class="hint-bar">
+            <span class="hint"><kbd>ESC</kbd><span data-t="close_hint">Close</span></span>
+            <span class="hint"><kbd><svg class="ic"><use href="#i-mouse" /></svg></kbd><span data-t="hint_move">Drag to move</span></span>
+            <span class="hint"><kbd>R</kbd><span data-t="hint_menu">Right click: options</span></span>
+            <span class="hint"><kbd>2×</kbd><span data-t="hint_use">Double click: use</span></span>
+            <span class="hint"><kbd>⇧</kbd><span data-t="hint_quick">Shift + click: quick move</span></span>
+        </footer>
 
         <!-- Context menu -->
         <div class="ctx" id="ctx" hidden></div>
@@ -114,6 +111,14 @@
                     <div>
                         <div class="modal-title" data-t="give_to">Give to</div>
                         <div class="modal-sub" id="give-item"></div>
+                    </div>
+                </div>
+                <div class="give-amount">
+                    <span data-t="amount">Amount</span>
+                    <div class="amount">
+                        <button class="amount-btn" data-give-step="-1"><svg class="ic"><use href="#i-minus" /></svg></button>
+                        <input type="number" id="give-amount" min="1" max="100000">
+                        <button class="amount-btn" data-give-step="1"><svg class="ic"><use href="#i-plus" /></svg></button>
                     </div>
                 </div>
                 <div class="player-list" id="give-list"></div>
@@ -198,6 +203,9 @@
         <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></symbol>
         <symbol id="i-weight" viewBox="0 0 24 24"><circle cx="12" cy="6" r="2.5" /><path d="M7.5 9h9l3 11.5h-15z" /></symbol>
         <symbol id="i-mouse" viewBox="0 0 24 24"><rect x="6.5" y="3" width="11" height="18" rx="5.5" /><path d="M12 7v3" /></symbol>
+        <symbol id="i-id" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.2" /><circle cx="9" cy="11" r="2.3" /><path d="M5.8 16.5a3.3 3.3 0 0 1 6.4 0" /><path d="M15 10h3.5M15 13.5h3.5" /></symbol>
+        <symbol id="i-hash" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10 4L8 20M16 4l-2 16" /></symbol>
+        <symbol id="i-bank" viewBox="0 0 24 24"><path d="M3.5 9L12 4.5 20.5 9" /><path d="M4.5 9.5h15" /><path d="M6.5 10v7M10 10v7M14 10v7M17.5 10v7" /><path d="M3.5 20h17M4.5 17.5h15" /></symbol>
         <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v14M6 12l6 6 6-6" /></symbol>
     </svg>
 

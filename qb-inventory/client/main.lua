@@ -28,7 +28,7 @@ local UI_KEYS = {
     'broken', 'price', 'costs', 'serial', 'ammo', 'durability', 'no_attachments', 'remove', 'give_to', 'no_players',
     'received', 'removed', 'used', 'required', 'take_money', 'cash', 'job', 'all_items', 'weapons', 'food', 'tools',
     'general', 'hint_move', 'hint_quick', 'hint_use', 'hint_menu', 'in_use',
-    'personal', 'information', 'state_id', 'citizen_id', 'name',
+    'personal', 'information', 'state_id', 'citizen_id', 'name', 'bank', 'character', 'close_hint',
 }
 
 local function UiStrings()
@@ -436,7 +436,7 @@ RegisterNetEvent('QBCore:Player:SetPlayerData', function(val)
         SetTimeout(60, function()
             refreshQueued = false
             if inInventory then
-                SendNUIMessage({ action = 'refresh', inventory = PlayerData.items, cash = PlayerData.money and PlayerData.money.cash })
+                SendNUIMessage({ action = 'refresh', inventory = PlayerData.items, cash = PlayerData.money and PlayerData.money.cash, bank = PlayerData.money and PlayerData.money.bank })
             end
         end)
     end
@@ -525,6 +525,7 @@ RegisterNetEvent('inventory:client:OpenInventory', function(PlayerAmmo, inventor
         lastname = charinfo.lastname,
         job = PlayerData.job and PlayerData.job.label,
         cash = money.cash or 0,
+        bank = money.bank or 0,
         drops = Config.EnableDrops,
         dropSlots = Config.DropSlots,
         dropMaxWeight = Config.DropMaxWeight,

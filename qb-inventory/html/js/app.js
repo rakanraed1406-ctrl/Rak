@@ -242,18 +242,19 @@
         const afterDash = label.includes('-') ? label.slice(label.indexOf('-') + 1) : '';
         let title = label;
         let sub = '';
-        if (type === 'ground') { title = t('ground'); sub = t('drop'); }
+        if (type === 'ground') { title = t('drop'); sub = t('ground'); }
         else if (type === 'drop') { title = t('drop'); sub = `#${other.name}`; }
         else if (type === 'trunk') { title = t('trunk'); sub = afterDash; }
         else if (type === 'glovebox') { title = t('glovebox'); sub = afterDash; }
         else if (type === 'stash') { title = t('stash'); sub = afterDash; }
         else if (type === 'otherplayer') { title = t('player'); sub = `ID ${afterDash}`; }
-        else if (type === 'shop') { sub = t('shop'); }
-        else if (type === 'crafting') { sub = t('crafting'); }
+        else if (type === 'shop') { sub = label; title = t('shop'); }
+        else if (type === 'crafting') { sub = label; title = t('crafting'); }
         else if (type === 'none') { title = label.split('-')[0] || t('stash'); }
 
-        setText($('#other-title'), title);
-        setText($('#other-sub'), sub);
+        // eyebrow = what it is, title = which one
+        setText($('#other-eyebrow'), sub ? title : (type === 'shop' || type === 'crafting' ? t(type) : ''));
+        setText($('#other-title'), sub || title);
         const iconEl = $('#other-icon');
         iconEl.textContent = '';
         iconEl.appendChild(icon(OTHER_ICONS[type] || 'archive'));
@@ -482,6 +483,7 @@
 
     let drag = null;
     let hoverTarget = null;
+    let clickTimer = null;
 
     function slotFromEvent(target) {
         const node = target && target.closest ? target.closest('.slot') : null;
@@ -585,6 +587,12 @@
             drag = null;
             if (hit.shift) return quickMove(hit.key, hit.slot);
             select(hit.key, hit.slot);
+            clearTimeout(clickTimer);
+            const x = event.clientX;
+            const y = event.clientY;
+            clickTimer = setTimeout(() => {
+                if (S.open && inv(hit.key) && inv(hit.key).items[hit.slot]) showCtx(hit.key, hit.slot, x, y);
+            }, 230);
             return;
         }
         endDrag(event);
@@ -612,6 +620,8 @@
 
     for (const key of ['player', 'other']) {
         grids[key].addEventListener('dblclick', (event) => {
+            clearTimeout(clickTimer);
+            hideCtx();
             const hit = slotFromEvent(event.target);
             if (!hit) return;
             if (hit.key === 'player') useItem(hit.slot);
@@ -620,6 +630,7 @@
 
         grids[key].addEventListener('contextmenu', (event) => {
             event.preventDefault();
+            clearTimeout(clickTimer);
             const hit = slotFromEvent(event.target);
             if (!hit || !inv(hit.key).items[hit.slot]) return hideCtx();
             if (event.shiftKey) return quickMove(hit.key, hit.slot);
@@ -631,23 +642,12 @@
             const hit = slotFromEvent(event.target);
             if (!hit) return;
             const item = inv(hit.key) && inv(hit.key).items[hit.slot];
-            if (item) showTooltip(item, inv(hit.key).type, event);
+            if (item && ctx.hidden) showTooltip(item, inv(hit.key).type, event);
             else hideTooltip();
         });
 
         grids[key].addEventListener('pointerleave', hideTooltip);
     }
-
-    $('#action-use').addEventListener('click', () => {
-        if (S.selected && S.selected.key === 'player') useItem(S.selected.slot);
-    });
-
-    $('#action-give').addEventListener('click', () => {
-        if (S.selected && S.selected.key === 'player') {
-            const item = S.player.items[S.selected.slot];
-            if (item) openGive(S.selected.slot, readAmount(item, false));
-        }
-    });
 
     document.addEventListener('contextmenu', (event) => event.preventDefault());
 
@@ -663,12 +663,21 @@
             if (Number(item.amount) > 1 && stackable(item)) entries.push(['scissors', t('split'), () => splitItem(slot)]);
             if (isWeapon(item)) entries.push(['gun', t('attachments'), () => openWeapon(slot)]);
             if (S.other && (S.other.type === 'ground' || S.other.type === 'drop')) entries.push(['down', t('drop'), () => quickMove('player', slot)]);
-            else if (S.other && !readOnlyTarget(S.other.type)) entries.push(['arrow', $('#other-title').textContent, () => quickMove('player', slot)]);
+            else if (S.other && !readOnlyTarget(S.other.type)) entries.push(['arrow', $('#other-eyebrow').textContent || $('#other-title').textContent, () => quickMove('player', slot)]);
         } else {
             entries.push(['arrow', t('pockets'), () => quickMove(key, slot)]);
         }
 
         ctx.textContent = '';
+        const head = el('div', 'ctx-head');
+        const img = el('img');
+        img.alt = '';
+        img.src = imageSrc(item.image);
+        img.onerror = () => (img.style.visibility = 'hidden');
+        const text = el('div');
+        text.append(el('b', null, item.label || item.name), el('span', null, `${item.amount}x · ${kg((Number(item.weight) || 0) * (Number(item.amount) || 1))} kg`));
+        head.append(img, text);
+        ctx.appendChild(head);
         for (const [iconName, label, action] of entries) {
             const button = el('button');
             button.append(icon(iconName), el('span', null, label));
@@ -687,6 +696,8 @@
 
     function hideCtx() {
         ctx.hidden = true;
+        $$('.slot.selected').forEach((node) => node.classList.remove('selected'));
+        S.selected = null;
     }
 
     // ════════════════════════════ Tooltip ════════════════════════════
@@ -851,6 +862,13 @@
     }
 
     $$('[data-close-modal]').forEach((button) => button.addEventListener('click', closeModal));
+    $$('[data-give-step]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const input = $('#give-amount');
+            const max = Number(input.max) || 1;
+            input.value = Math.min(max, Math.max(1, (Math.floor(Number(input.value) || 1)) + Number(button.dataset.giveStep)));
+        });
+    });
     modalLayer.addEventListener('pointerdown', (event) => {
         if (event.target === modalLayer) closeModal();
     });
@@ -862,7 +880,10 @@
     function openGive(slot, amount) {
         const item = S.player.items[slot];
         if (!item) return;
-        setText($('#give-item'), `${amount}x ${item.label || item.name}`);
+        setText($('#give-item'), item.label || item.name);
+        const giveInput = $('#give-amount');
+        giveInput.max = Number(item.amount);
+        giveInput.value = Math.min(Math.max(1, amount), Number(item.amount));
         const list = $('#give-list');
         list.textContent = '';
         list.appendChild(el('div', 'list-empty', '...'));
@@ -880,7 +901,8 @@
                 const row = el('button', 'player-row');
                 row.append(el('div', 'avatar', initials(player.name)), el('b', null, player.name), el('span', null, `ID ${player.id}`));
                 row.addEventListener('click', () => {
-                    post('GiveItemTo', { playerId: player.id, item: { name: item.name, slot: item.slot }, amount });
+                    const chosen = Math.min(Number(item.amount), Math.max(1, Math.floor(Number(giveInput.value) || 1)));
+                    post('GiveItemTo', { playerId: player.id, item: { name: item.name, slot: item.slot }, amount: chosen });
                     closeModal();
                 });
                 list.appendChild(row);
@@ -1000,10 +1022,10 @@
         setText($('#id-name'), name);
         setText($('#player-sub'), name);
         setText($('#id-sid'), data.pid);
-        $('#id-name').parentElement.hidden = !name;
         setText($('#id-cid'), data.citizenid || '');
         $('#id-cid-wrap').hidden = !data.citizenid;
         setText($('#id-cash'), money(data.cash));
+        setText($('#id-bank'), money(data.bank));
         setText($('#id-job'), data.job || '');
         $('#id-job-wrap').hidden = !data.job;
     }
@@ -1086,6 +1108,7 @@
         if (!S.open) return;
         if (data.inventory !== undefined && data.inventory !== null) S.player.items = toMap(data.inventory);
         if (data.cash !== undefined && data.cash !== null) setText($('#id-cash'), money(data.cash));
+        if (data.bank !== undefined && data.bank !== null) setText($('#id-bank'), money(data.bank));
         if (data.otherName !== undefined && data.otherName !== null && S.other) {
             const type = invType(data.otherName);
             if (type !== S.other.type || String(data.otherName) !== String(S.other.name)) {

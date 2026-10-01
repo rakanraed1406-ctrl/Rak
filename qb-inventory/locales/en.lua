@@ -113,6 +113,9 @@ local Translations = {
         ["state_id"] = "State ID",
         ["citizen_id"] = "Citizen ID",
         ["name"] = "Name",
+        ["bank"] = "Bank",
+        ["character"] = "Character",
+        ["close_hint"] = "Close",
         ["hint_menu"] = "Right click: options",
     },
 }
