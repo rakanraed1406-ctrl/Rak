@@ -11,7 +11,31 @@ local function sendLocale()
     SendNUIMessage({ action = 'updateLocale', translations = Translations.ui })
 end
 
+-- The ATM/bank animation plays while the UI is open and is stopped when it
+-- closes. PROP_HUMAN_ATM is a looping scenario: ClearPedTasks alone often
+-- leaves the ped stuck in it, so fall back to ClearPedTasksImmediately.
+local usingScenario = false
+
+local function startScenario()
+    usingScenario = true
+    TaskStartScenarioInPlace(PlayerPedId(), 'PROP_HUMAN_ATM', 0, true)
+end
+
+local function stopScenario()
+    if not usingScenario then return end
+    usingScenario = false
+    local ped = PlayerPedId()
+    ClearPedTasks(ped)
+    CreateThread(function()
+        Wait(1200)
+        if not usingScenario and IsPedUsingAnyScenario(ped) then
+            ClearPedTasksImmediately(ped)
+        end
+    end)
+end
+
 local function closeUI()
+    stopScenario()
     isOpen = false
     SetNuiFocus(false, false)
     SendNUIMessage({ action = 'close' })
@@ -59,7 +83,7 @@ local function servicesBlocked(cb)
 end
 
 local function playOpenAnimation(label, onDone)
-    TaskStartScenarioInPlace(PlayerPedId(), 'PROP_HUMAN_ATM', 0, true)
+    startScenario()
     QBCore.Functions.Progressbar('Renewed-Banking', label, math.random(2000, 3500), false, true, {
         disableMovement = true,
         disableCarMovement = true,
@@ -67,10 +91,8 @@ local function playOpenAnimation(label, onDone)
         disableCombat = true,
     }, {}, {}, {}, function()
         onDone()
-        Wait(500)
-        ClearPedTasks(PlayerPedId())
     end, function()
-        ClearPedTasks(PlayerPedId())
+        stopScenario()
         QBCore.Functions.Notify(Lang:t('menu.cancelled'), 'error', 5000)
     end)
 end
@@ -95,6 +117,7 @@ local function openAtm()
     if isOpen then return end
     local cards = getOwnCards()
     if #cards == 0 then
+        stopScenario()
         QBCore.Functions.Notify(Lang:t('menu.need_card'), 'error')
         return
     end
@@ -299,6 +322,7 @@ end)
 AddEventHandler('onResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
     if isOpen then SetNuiFocus(false, false) end
+    if usingScenario then ClearPedTasksImmediately(PlayerPedId()) end
     deletePeds()
 end)
 
