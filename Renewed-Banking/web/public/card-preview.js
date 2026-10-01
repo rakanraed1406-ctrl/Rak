@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------ */
 /* Physical bank card preview controller                               */
 /*                                                                      */
-/* Deliberately plain JS/CSS, separate from the Svelte banking app     */
+/* Deliberately plain JS/CSS, separate from the banking app            */
 /* (app.js/app.css). Using the card item triggers the "showCardPreview"*/
 /* NUI message below instead of opening the full banking NUI. Click    */
 /* the card itself to flip between the front and back.                 */
@@ -38,7 +38,7 @@
     flip.innerHTML =
         '<div class="card-preview-face card-preview-face-front">' +
         '<div class="card-preview-top">' +
-        '<div class="card-preview-bank"><i class="fa-solid fa-building-columns"></i><span>Los Santos Banking</span></div>' +
+        '<div class="card-preview-bank"><i class="fa-solid fa-building-columns"></i><span class="card-preview-bank-name">Los Santos Bank</span></div>' +
         '<div class="card-preview-frozen" hidden><i class="fa-solid fa-snowflake"></i><span>Frozen</span></div>' +
         '</div>' +
         '<div class="card-preview-chip-row">' +
@@ -68,8 +68,12 @@
         '<div class="card-preview-signature">Authorized Signature</div>' +
         '<div class="card-preview-cvv"></div>' +
         '</div>' +
+        '<div class="card-preview-back-meta">' +
+        '<div><span>Card balance</span><b class="card-preview-balance"></b></div>' +
+        '<div><span>PIN</span><b class="card-preview-pin"></b></div>' +
+        '</div>' +
         '<div class="card-preview-back-footer">' +
-        '<div class="card-preview-back-text">This card remains the property of Los Santos Banking. If found, please return to any branch.</div>' +
+        '<div class="card-preview-back-text">This card remains the property of the bank. If found, please return to any branch.</div>' +
         '<div class="card-preview-back-iban"></div>' +
         '</div>' +
         '</div>';
@@ -96,6 +100,10 @@
     var expiryEl = flip.querySelector('.card-preview-expiry');
     var cvvEl = flip.querySelector('.card-preview-cvv');
     var backIbanEl = flip.querySelector('.card-preview-back-iban');
+    var bankNameEl = flip.querySelector('.card-preview-bank-name');
+    var balanceEl = flip.querySelector('.card-preview-balance');
+    var pinEl = flip.querySelector('.card-preview-pin');
+    var moneyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
     var isVisible = false;
 
@@ -140,7 +148,17 @@
         expiryEl.textContent = formatExpiry(seed);
         cvvEl.textContent = formatCvv(seed);
         backIbanEl.textContent = formatIban(data.iban);
-        frozenBadge.hidden = !data.frozen;
+        balanceEl.textContent = moneyFmt.format(Number(data.balance) || 0);
+        pinEl.textContent = data.hasPin ? 'Protected' : 'Not set';
+        pinEl.classList.toggle('warn', !data.hasPin);
+
+        // status badge: a deactivated (replaced) card wins over a frozen one
+        var badgeIcon = frozenBadge.querySelector('i');
+        var badgeText = frozenBadge.querySelector('span');
+        frozenBadge.hidden = !data.frozen && !data.deactivated;
+        frozenBadge.classList.toggle('deactivated', !!data.deactivated);
+        badgeIcon.className = 'fa-solid ' + (data.deactivated ? 'fa-ban' : 'fa-snowflake');
+        badgeText.textContent = data.deactivated ? 'Deactivated' : 'Frozen';
 
         overlay.classList.add('visible');
         isVisible = true;
@@ -213,21 +231,26 @@
         var data = event.data;
         if (!data || !data.action) return;
 
-        if (data.action === 'showCardPreview') {
+        if (data.action === 'updateLocale' && data.translations && data.translations.bank_name) {
+            bankNameEl.textContent = data.translations.bank_name;
+        } else if (data.action === 'showCardPreview') {
             showCard(data.card);
         } else if (data.action === 'hideCardPreview') {
             hideCard();
         }
     });
 
-    // Local preview when opening index.html directly in a browser.
-    if (isEnvBrowser) {
+    // Local preview when opening index.html directly in a browser
+    // (add ?card to the URL; otherwise the banking mock is shown).
+    if (isEnvBrowser && location.search.indexOf('card') !== -1) {
         setTimeout(function () {
             showCard({
                 iban: 'B617521932',
                 holder: 'John Doe',
                 frozen: false,
                 color: 'gold',
+                balance: 1250,
+                hasPin: true,
             });
         }, 1000);
     }

@@ -1,220 +1,203 @@
 local QBCore = exports['qb-core']:GetCoreObject()
-local isVisible = false
+local isOpen = false
 local cardPickupReady = false
-
-RegisterNetEvent('Renewed-Banking:client:cardPending', function(seconds)
-    cardPickupReady = false
-    QBCore.Functions.Notify(("Wait right there - your card will be ready in about %d seconds. Come back to the counter to collect it."):format(seconds), "primary", 8000)
-end)
-
-RegisterNetEvent('Renewed-Banking:client:cardReady', function()
-    cardPickupReady = true
-    QBCore.Functions.Notify("Your card is ready - go talk to the bank teller to take it.", "success", 7000)
-end)
-
-RegisterNetEvent('Renewed-Banking:client:collectCard', function()
-    TriggerServerEvent('Renewed-Banking:server:collectCard')
-    cardPickupReady = false
-end)
-
 local FullyLoaded = LocalPlayer.state.isLoggedIn
 
 AddStateBagChangeHandler('isLoggedIn', nil, function(_, _, value)
     FullyLoaded = value
 end)
 
-local function nuiHandler(val)
-    isVisible = val
-    SetNuiFocus(val, val)
-    if not val then
-        TriggerServerEvent('Renewed-Banking:server:clearCardSession')
-    end
+local function sendLocale()
+    SendNUIMessage({ action = 'updateLocale', translations = Translations.ui })
 end
 
--- Returns the physical cards currently in the player's own inventory.
+local function closeUI()
+    isOpen = false
+    SetNuiFocus(false, false)
+    SendNUIMessage({ action = 'close' })
+    TriggerServerEvent('Renewed-Banking:server:closeSession')
+end
+
+-- Server callback wrapped in a promise with a timeout, so the NUI can never
+-- get stuck on a loading spinner if the server doesn't answer.
+local function awaitCallback(name, data)
+    local p = promise.new()
+    QBCore.Functions.TriggerCallback('Renewed-Banking:server:' .. name, function(result)
+        p:resolve(result)
+    end, data)
+    SetTimeout(15000, function()
+        if p.state == 0 then p:resolve(false) end
+    end)
+    return Citizen.Await(p)
+end
+
+-- Physical cards in the player's own inventory.
 local function getOwnCards()
     local PlayerData = QBCore.Functions.GetPlayerData()
     local cards = {}
     for _, item in pairs(PlayerData.items or {}) do
-        if item and item.name == config.cardItem then
-            cards[#cards+1] = item
+        if item and item.name == config.cardItem and type(item.info) == 'table' and item.info.account then
+            cards[#cards+1] = {
+                slot = item.slot,
+                iban = item.info.iban,
+                holder = item.info.holder,
+                color = item.info.color or 'blue',
+                hasPin = item.info.hasPin == true or (item.info.pin ~= nil and item.info.pin ~= '')
+            }
         end
     end
+    table.sort(cards, function(a, b) return a.slot < b.slot end)
     return cards
 end
 
-
-
-
-local currentIsAtm = false
-local function openBankUI(isAtm)
-    currentIsAtm = isAtm
-    SendNUIMessage({action = "setLoading", status = true})
-    nuiHandler(true)
-    QBCore.Functions.TriggerCallback('Renewed-Banking:server:initalizeBanking', function(result)
-        if not result then
-            nuiHandler(false)
-            QBCore.Functions.Notify(Lang:t("notify.loading_failed"), 'error', 7500)
-            return
-        end
-        SetTimeout(1000, function()
-            SendNUIMessage({
-                action = "setVisible",
-                status = isVisible,
-                accounts = result,
-                loading = false,
-                atm = isAtm
-            })
-        end)
-    end)
+local function servicesBlocked(cb)
+    local check = config.servicesCheck
+    if not check or not check.resource or GetResourceState(check.resource) ~= 'started' then
+        return cb(false)
+    end
+    QBCore.Functions.TriggerCallback(check.callback, function(blocked) cb(blocked == true) end)
 end
 
--- ATM + physical card ---------------------------------------------------
--- Prompts for the card's PIN (only if one is set) then opens the ATM
--- scoped to that specific card's linked account.
-local function openAtmWithCard(item)
-    local pin = ""
-    if item.info and item.info.pin and item.info.pin ~= "" then
-        local dialog = exports['qb-input']:ShowInput({
-            header = "Enter Card PIN",
-            submitText = "Confirm",
-            inputs = {{ text = "4-digit PIN", name = "pin", type = "number", isRequired = true }}
-        })
-        if not dialog or not dialog.pin then return end
-        pin = tostring(dialog.pin)
-    end
-
-    SendNUIMessage({action = "setLoading", status = true})
-    nuiHandler(true)
-    QBCore.Functions.TriggerCallback('Renewed-Banking:server:openAtmWithCard', function(result)
-        if not result then
-            nuiHandler(false)
-            QBCore.Functions.Notify(Lang:t("notify.loading_failed"), 'error', 7500)
-            return
-        end
-        currentIsAtm = true
-        if result.restricted then
-            QBCore.Functions.Notify("No PIN set on this card - withdraw only.", "primary", 6000)
-        end
-        SetTimeout(500, function()
-            SendNUIMessage({
-                action = "setVisible",
-                status = isVisible,
-                accounts = result.accounts,
-                loading = false,
-                atm = true
-            })
-        end)
-    end, {slot = item.slot, pin = pin})
-end
-
-RegisterNetEvent('Renewed-Banking:client:useCardAtAtm', function(data)
-    for _, item in ipairs(getOwnCards()) do
-        if item.slot == data.slot then
-            openAtmWithCard(item)
-            return
-        end
-    end
-end)
-
-local function chooseCardAndOpenAtm()
-    local cards = getOwnCards()
-    if #cards == 0 then
-        QBCore.Functions.Notify("You need a bank card on you to use the ATM.", "error")
-        return
-    elseif #cards == 1 then
-        openAtmWithCard(cards[1])
-        return
-    end
-
-    local menu = {{ isMenuHeader = true, header = "Choose a Card" }}
-    for _, item in ipairs(cards) do
-        menu[#menu+1] = {
-            header = (item.info and item.info.holder) or "Bank Card",
-            txt = (item.info and item.info.iban) or "",
-            params = { event = 'Renewed-Banking:client:useCardAtAtm', args = { slot = item.slot } }
-        }
-    end
-    exports['qb-menu']:openMenu(menu)
-end
-
-RegisterNetEvent("Renewed-Banking:client:openBankUI", function(data)
-    if data.atm and #getOwnCards() == 0 then
-        QBCore.Functions.Notify("You need a bank card on you to use the ATM.", "error")
-        return
-    end
-    QBCore.Functions.TriggerCallback('qb-stopservices:server:servicescheck', function(istrue)
-        if not istrue then
-    local txt = data.atm and 'Opening ATM' or 'Opening Bank'
-    TaskStartScenarioInPlace(PlayerPedId(), "PROP_HUMAN_ATM", 0, 1)
-    QBCore.Functions.Progressbar('Renewed-Banking', txt, math.random(3000,5000), false, true, {
+local function playOpenAnimation(label, onDone)
+    TaskStartScenarioInPlace(PlayerPedId(), 'PROP_HUMAN_ATM', 0, true)
+    QBCore.Functions.Progressbar('Renewed-Banking', label, math.random(2000, 3500), false, true, {
         disableMovement = true,
         disableCarMovement = true,
         disableMouse = false,
         disableCombat = true,
     }, {}, {}, {}, function()
-        if data.atm then
-            chooseCardAndOpenAtm()
-        else
-            openBankUI(false)
-        end
+        onDone()
         Wait(500)
-        ClearPedTasksImmediately(PlayerPedId())
+        ClearPedTasks(PlayerPedId())
     end, function()
-        ClearPedTasksImmediately(PlayerPedId())
-        QBCore.Functions.Notify('Cancelled...', 'error', 7500)
+        ClearPedTasks(PlayerPedId())
+        QBCore.Functions.Notify(Lang:t('menu.cancelled'), 'error', 5000)
     end)
-else
-    QBCore.Functions.Notify("You cannot do this! Your services have been suspended by the police", "error")
 end
-end)
-end)
 
-RegisterNUICallback("closeInterface", function(_, cb)
-    nuiHandler(false)
-    cb("ok")
-end)
+local function openBank(tab)
+    if isOpen then return end
+    isOpen = true
+    sendLocale()
+    SetNuiFocus(true, true)
+    SendNUIMessage({ action = 'setLoading', status = true })
 
-RegisterNUICallback("closeCardPreview", function(_, cb)
-    SetNuiFocus(false, false)
-    cb("ok")
-end)
-
-RegisterNUICallback("requestCard", function(data, cb)
-    if not currentIsAtm then
-        QBCore.Functions.Notify("You can only request a new bank card from an ATM.", "error")
-        cb(false)
+    local result = awaitCallback('openBank')
+    if not result or not isOpen then
+        closeUI()
+        if not result then QBCore.Functions.Notify(Lang:t('notify.loading_failed'), 'error', 7500) end
         return
     end
-    local pushingP = promise.new()
-    QBCore.Functions.TriggerCallback("Renewed-Banking:server:requestCard", function(result)
-        pushingP:resolve(result)
-    end, data)
-    cb(Citizen.Await(pushingP))
+    SendNUIMessage({ action = 'open', mode = 'bank', tab = tab or 'dashboard', data = result })
+end
+
+local function openAtm()
+    if isOpen then return end
+    local cards = getOwnCards()
+    if #cards == 0 then
+        QBCore.Functions.Notify(Lang:t('menu.need_card'), 'error')
+        return
+    end
+    isOpen = true
+    sendLocale()
+    SetNuiFocus(true, true)
+    SendNUIMessage({ action = 'atmInsert', cards = cards })
+end
+
+RegisterNetEvent('Renewed-Banking:client:openBankUI', function(data)
+    data = data or {}
+    if isOpen then return end
+    if data.atm and #getOwnCards() == 0 then
+        QBCore.Functions.Notify(Lang:t('menu.need_card'), 'error')
+        return
+    end
+    servicesBlocked(function(blocked)
+        if blocked then
+            QBCore.Functions.Notify(Lang:t('menu.services_suspended'), 'error')
+            return
+        end
+        playOpenAnimation(data.atm and Lang:t('menu.opening_atm') or Lang:t('menu.opening_bank'), function()
+            if data.atm then openAtm() else openBank(data.tab) end
+        end)
+    end)
 end)
 
-RegisterCommand("closeBankUI", function() nuiHandler(false) end)
+-- =========================================================================
+-- NUI callbacks
+-- =========================================================================
 
-local bankActions = {"deposit", "withdraw", "transfer", "toggleFreeze", "openAccount", "closeAccount", "requestCardForAccount", "setCardPinTab", "replaceCardTab", "unloadCardTab"}
-CreateThread(function ()
-    for k=1, #bankActions do
-        RegisterNUICallback(bankActions[k], function(data, cb)
-            local pushingP = promise.new()
-            QBCore.Functions.TriggerCallback("Renewed-Banking:server:"..bankActions[k], function(result)
-                pushingP:resolve(result)
-            end, data)
-            local newTransaction = Citizen.Await(pushingP)
-            cb(newTransaction)
-        end)
-    end
+RegisterNUICallback('closeInterface', function(_, cb)
+    closeUI()
+    cb('ok')
+end)
 
-    exports['qb-target']:AddTargetModel(config.atms,{
+RegisterNUICallback('closeCardPreview', function(_, cb)
+    if not isOpen then SetNuiFocus(false, false) end
+    cb('ok')
+end)
+
+-- ATM: the card + PIN are chosen inside the NUI (no external popups).
+RegisterNUICallback('atmInsertCard', function(data, cb)
+    if not isOpen or type(data) ~= 'table' then return cb(false) end
+    local result = awaitCallback('openAtmWithCard', {
+        slot = tonumber(data.slot),
+        pin = data.pin and tostring(data.pin) or nil
+    })
+    cb(result or { error = Lang:t('notify.loading_failed') })
+end)
+
+local bankActions = {
+    'deposit', 'withdraw', 'transfer', 'toggleFreeze',
+    'openAccount', 'closeAccount', 'createShared', 'renameAccount',
+    'getMembers', 'addMember', 'removeMember',
+    'requestCard', 'setCardPin', 'replaceCard', 'loadCard', 'unloadCard'
+}
+
+for _, action in ipairs(bankActions) do
+    RegisterNUICallback(action, function(data, cb)
+        if not isOpen then return cb(false) end
+        cb(awaitCallback(action, type(data) == 'table' and data or {}) or false)
+    end)
+end
+
+RegisterCommand('closeBankUI', function()
+    closeUI()
+    SendNUIMessage({ action = 'hideCardPreview' })
+end, false)
+
+-- =========================================================================
+-- Card pickup
+-- =========================================================================
+
+RegisterNetEvent('Renewed-Banking:client:cardPending', function(seconds)
+    cardPickupReady = false
+    QBCore.Functions.Notify(Lang:t('menu.card_pending', {time = seconds}), 'primary', 8000)
+end)
+
+RegisterNetEvent('Renewed-Banking:client:cardReady', function()
+    cardPickupReady = true
+    QBCore.Functions.Notify(Lang:t('menu.card_ready'), 'success', 7000)
+end)
+
+RegisterNetEvent('Renewed-Banking:client:cardCollected', function()
+    cardPickupReady = false
+end)
+
+RegisterNetEvent('Renewed-Banking:client:collectCard', function()
+    TriggerServerEvent('Renewed-Banking:server:collectCard')
+end)
+
+-- =========================================================================
+-- Targets, peds, blips
+-- =========================================================================
+
+CreateThread(function()
+    exports['qb-target']:AddTargetModel(config.atms, {
         options = {{
-            type = "client",
-            event = "Renewed-Banking:client:openBankUI",
-            icon = "fas fa-money-check",
-            label = Lang:t("menu.view_bank"),
-            entity = entity,
+            type = 'client',
+            event = 'Renewed-Banking:client:openBankUI',
+            icon = 'fas fa-credit-card',
+            label = Lang:t('menu.use_atm'),
             atm = true
         }},
         distance = 1.5
@@ -224,215 +207,124 @@ end)
 local pedSpawned = false
 local bankPeds = {}
 local blips = {}
+
 local function createPeds()
     if pedSpawned then return end
-    for k=1, #config.peds do
-        local model = joaat(config.peds[k].model)
-
-        RequestModel(model)
-        while not HasModelLoaded(model) do Wait(0) end
-
-        local coords = config.peds[k].coords
-        bankPeds[k] = CreatePed(0, model, coords.x, coords.y, coords.z-1, coords.w, false, false)
-
-        TaskStartScenarioInPlace(bankPeds[k], 'PROP_HUMAN_STAND_IMPATIENT', 0, true)
-        FreezeEntityPosition(bankPeds[k], true)
-        SetEntityInvincible(bankPeds[k], true)
-        SetBlockingOfNonTemporaryEvents(bankPeds[k], true)
-
-        exports['qb-target']:AddTargetEntity(bankPeds[k], {
-            options = {
-                {
-                    type = "client",
-                    event = "Renewed-Banking:client:openBankUI",
-                    icon = "fas fa-money-check",
-                    label = Lang:t("menu.view_bank"),
-                    entity = entity,
-                    atm = false
-                },
-                {
-                    type = "client",
-                    event = "Renewed-Banking:client:accountManagmentMenu",
-                    icon = "fas fa-money-check",
-                    label = Lang:t("menu.manage_bank")
-                },
-                {
-                    type = "client",
-                    event = "Renewed-Banking:client:collectCard",
-                    icon = "fas fa-credit-card",
-                    label = "Take the Card",
-                    canInteract = function() return cardPickupReady end
-                }
-            },
-            distance = 2.0
-        })
-
-
-        blips[k] = AddBlipForCoord(coords.x, coords.y, coords.z-1, coords.w)
-        SetBlipSprite(blips[k], 108)
-        SetBlipDisplay(blips[k], 4)
-        SetBlipScale  (blips[k], 0.50)
-        SetBlipColour (blips[k], 4)
-        SetBlipAsShortRange(blips[k], true)
-        BeginTextCommandSetBlipName("STRING")
-        AddTextComponentString("Bank")
-        EndTextCommandSetBlipName(blips[k])
-    end
-
     pedSpawned = true
+    for k, info in ipairs(config.peds) do
+        local coords = info.coords
+        local model = joaat(info.model)
+        RequestModel(model)
+        local timeout = GetGameTimer() + 5000
+        while not HasModelLoaded(model) and GetGameTimer() < timeout do Wait(10) end
+
+        if HasModelLoaded(model) then
+            local ped = CreatePed(0, model, coords.x, coords.y, coords.z - 1, coords.w, false, false)
+            TaskStartScenarioInPlace(ped, 'PROP_HUMAN_STAND_IMPATIENT', 0, true)
+            FreezeEntityPosition(ped, true)
+            SetEntityInvincible(ped, true)
+            SetBlockingOfNonTemporaryEvents(ped, true)
+            SetModelAsNoLongerNeeded(model)
+            bankPeds[k] = ped
+
+            exports['qb-target']:AddTargetEntity(ped, {
+                options = {
+                    {
+                        type = 'client',
+                        event = 'Renewed-Banking:client:openBankUI',
+                        icon = 'fas fa-building-columns',
+                        label = Lang:t('menu.view_bank'),
+                        atm = false
+                    },
+                    {
+                        type = 'client',
+                        event = 'Renewed-Banking:client:openBankUI',
+                        icon = 'fas fa-users-gear',
+                        label = Lang:t('menu.manage_bank'),
+                        atm = false,
+                        tab = 'accounts'
+                    },
+                    {
+                        type = 'client',
+                        event = 'Renewed-Banking:client:collectCard',
+                        icon = 'fas fa-credit-card',
+                        label = Lang:t('menu.take_card'),
+                        canInteract = function() return cardPickupReady end
+                    }
+                },
+                distance = 2.0
+            })
+        end
+
+        local blip = AddBlipForCoord(coords.x, coords.y, coords.z)
+        SetBlipSprite(blip, 108)
+        SetBlipDisplay(blip, 4)
+        SetBlipScale(blip, 0.5)
+        SetBlipColour(blip, 4)
+        SetBlipAsShortRange(blip, true)
+        BeginTextCommandSetBlipName('STRING')
+        AddTextComponentString(Lang:t('menu.blip'))
+        EndTextCommandSetBlipName(blip)
+        blips[k] = blip
+    end
 end
 
 local function deletePeds()
     if not pedSpawned then return end
-    for k=1, #bankPeds do
-        DeletePed(bankPeds[k])
-        RemoveBlip(blips[k])
+    for k, ped in pairs(bankPeds) do
+        if DoesEntityExist(ped) then
+            exports['qb-target']:RemoveTargetEntity(ped)
+            DeletePed(ped)
+        end
+        bankPeds[k] = nil
     end
+    for k, blip in pairs(blips) do
+        RemoveBlip(blip)
+        blips[k] = nil
+    end
+    pedSpawned = false
 end
 
 RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
     Wait(100)
     createPeds()
-    SendNUIMessage({
-        action = "updateLocale",
-        translations = Translations.ui,
-    })
+    sendLocale()
 end)
 
 RegisterNetEvent('QBCore:Client:OnPlayerUnload', function()
-    Wait(100)
+    if isOpen then closeUI() end
     deletePeds()
 end)
 
 AddEventHandler('onResourceStop', function(resource)
-    if resource == GetCurrentResourceName() then
-    	Wait(100)
-        deletePeds()
-    end
+    if resource ~= GetCurrentResourceName() then return end
+    if isOpen then SetNuiFocus(false, false) end
+    deletePeds()
 end)
 
 AddEventHandler('onResourceStart', function(resource)
-    if resource == GetCurrentResourceName() then
-        Wait(100)
-        if FullyLoaded then
-            createPeds()
-            SendNUIMessage({
-                action = "updateLocale",
-                translations = Translations.ui,
-            })
-        end
+    if resource ~= GetCurrentResourceName() then return end
+    Wait(100)
+    if FullyLoaded then
+        createPeds()
+        sendLocale()
     end
 end)
 
-RegisterNetEvent("Renewed-Banking:client:sendNotification", function(msg)
+RegisterNetEvent('Renewed-Banking:client:sendNotification', function(msg, kind)
     if not msg then return end
-    SendNUIMessage({
-        action = "notify",
-        status = msg,
-    })
-end)
-
-RegisterNetEvent('Renewed-Banking:client:accountManagmentMenu', function(data)
-    local table = {
-        {
-            isMenuHeader = true,
-            header = Lang:t("menu.bank_name")
-        },
-        {
-            header = Lang:t("menu.create_account"),
-            txt = Lang:t("menu.create_account_txt"),
-            params = {
-                event = 'Renewed-Banking:client:createAccountMenu'
-            }
-        },
-        {
-            header = Lang:t("menu.manage_account"),
-            txt = Lang:t("menu.manage_account_txt"),
-            params = {
-                event = 'Renewed-Banking:client:viewAccountsMenu'
-            }
-        }
-    }
-    exports['qb-menu']:openMenu(table)
-end)
-
-RegisterNetEvent('Renewed-Banking:client:createAccountMenu', function(data)
-    local dialog = exports['qb-input']:ShowInput({
-        header = Lang:t("menu.bank_name"),
-        submitText = Lang:t("menu.create_account"),
-        inputs = {
-            {
-                text = Lang:t("menu.account_id"),
-                name = "accountid",
-                type = "text",
-                isRequired = true
-            }
-        }
-    })
-    if dialog and dialog.accountid then
-        dialog.accountid = dialog.accountid:lower():gsub("%s+", "")
-        TriggerServerEvent("Renewed-Banking:server:createNewAccount", dialog.accountid)
+    if isOpen then
+        SendNUIMessage({ action = 'notify', status = msg, kind = kind or 'error' })
+    else
+        QBCore.Functions.Notify(msg, kind == 'success' and 'success' or 'error', 5000)
     end
 end)
 
-RegisterNetEvent('Renewed-Banking:client:viewAccountsMenu', function(data)
-    TriggerServerEvent("Renewed-Banking:server:getPlayerAccounts")
-end)
-
-RegisterNetEvent('Renewed-Banking:client:addAccountMember', function(data)
-    local dialog = exports['qb-input']:ShowInput({
-        header = Lang:t("menu.bank_name"),
-        submitText = Lang:t("menu.add_account_member"),
-        inputs = {
-            {
-                text = Lang:t("menu.citizen_id"),
-                name = "accountid",
-                type = "text",
-                isRequired = true
-            }
-        }
-    })
-    if dialog and dialog.accountid then
-        dialog.accountid = dialog.accountid:upper():gsub("%s+", "")
-        TriggerServerEvent("Renewed-Banking:server:addAccountMember", data.account, dialog.accountid)
-    end
-end)
-
-RegisterNetEvent('Renewed-Banking:client:changeAccountName', function(data)
-    local dialog = exports['qb-input']:ShowInput({
-        header = Lang:t("menu.bank_name"),
-        submitText = Lang:t("menu.change_account_name"),
-        inputs = {
-            {
-                text = Lang:t("menu.account_id"),
-                name = "accountid",
-                type = "text",
-                isRequired = true
-            }
-        }
-    })
-    if dialog and dialog.accountid then
-        dialog.accountid = dialog.accountid:lower():gsub("%s+", "")
-        TriggerServerEvent("Renewed-Banking:server:changeAccountName", data.account, dialog.accountid)
-    end
-end)
-
--- Physical bank card item: using it from the inventory shows its own small
--- card preview (IBAN, holder, frozen state) instead of opening the full
--- bank NUI. All the data it needs already lives on the item itself, so this
--- doesn't need to touch the server at all.
-RegisterNetEvent("Renewed-Banking:client:openCardUI", function(item)
-    if not item or not item.info then return end
-
+-- Physical card item: using it from the inventory shows a card preview
+-- (data comes from the server so frozen / deactivated status is live).
+RegisterNetEvent('Renewed-Banking:client:openCardUI', function(card)
+    if isOpen or type(card) ~= 'table' then return end
+    sendLocale()
     SetNuiFocus(true, true)
-    SendNUIMessage({
-        action = "showCardPreview",
-        card = {
-            iban = item.info.iban,
-            holder = item.info.holder,
-            account = item.info.account,
-            frozen = item.info.frozen == true,
-            color = item.info.color or "blue"
-        }
-    })
+    SendNUIMessage({ action = 'showCardPreview', card = card })
 end)

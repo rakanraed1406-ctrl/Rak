@@ -11,9 +11,9 @@ This resource is a replacement for Renewed-Banking, qb-atm, qb-managment
 * [oxmysql](https://github.com/overextended/oxmysql)
 * [QBCore](https://github.com/qbcore-framework/qb-core)
 * [QB-Target](https://github.com/qbcore-framework/qb-target)
-* [qb-menu](https://github.com/qbcore-framework/qb-menu)
-* [qb-input](https://github.com/qbcore-framework/qb-input)
 * [progressbars](https://github.com/Project-Sloth/progressbar)
+
+(qb-menu and qb-input are no longer needed - every prompt is inside the NUI.)
 
 # Features
 * Personal, Job, Gang, Shared Accounts
@@ -24,7 +24,7 @@ This resource is a replacement for Renewed-Banking, qb-atm, qb-managment
 
 # Installation
 
-1) Insert the SQL provided
+1) Insert the SQL provided (optional - the resource creates/migrates its tables on start)
 
 2) Edit your QBCore/Shared/jobs.lua and add `bankAuth = true` to the job grades which have access to society funds
 
@@ -87,32 +87,47 @@ exports['qb-management']:RemoveGangMoney=> exports['Renewed-Banking']:removeAcco
  ```
 
 
-# Custom changes in this copy
+# Custom changes in this copy (v2.0.0)
 
-**New NUI (Dashboard / Accounts / Cards + ATM mode)**
-* Completely redesigned interface (`web/public/app.js` + `app.css`) — a dashboard with a live bar chart, searchable transaction lists, a dedicated Accounts tab, and a new Cards tab.
-* The NUI is now a plain HTML/CSS/JS app with **no build step** — you don't need Node/pnpm to install or edit it. Just edit `web/public/app.js` / `app.css` directly. (The original Svelte source is still in `web/src` for reference, but it is no longer what ships.)
-* A separate, compact **ATM view** vs the full **bank ped view** (deposit/withdraw only + "Request Card" at ATMs; full dashboard + transfers + Cards management at bank peds).
+## Interface
+* Plain HTML/CSS/JS in `web/public` - no build step. Edit `app.js` / `app.css` directly.
+* Four tabs at the bank: **Dashboard**, **Accounts**, **Cards**, **Statistics**.
+* **Statistics tab**: account + period picker (7 days / 30 days / all), totals (deposited, withdrawn, net, count, average, largest deposit/withdrawal), a daily money-flow chart and a balance-trend chart (both with hover tooltips), a daily breakdown table (deposits, withdrawals, net, closing balance + totals) and the largest transactions. Export to CSV (copied to clipboard).
+* Each transaction now stores the account balance after it, which feeds the balance trend.
+* **No more native browser popups.** Setting a PIN, amounts, confirmations, names and member IDs all use in-NUI dialogs. The PIN is entered on a keypad (mouse or keyboard) and has to be typed twice.
+* **ATM**: choose the card and enter its PIN inside the NUI (no qb-menu / qb-input), with quick-withdraw buttons and recent activity. Wrong PINs show the remaining attempts.
+* Shared account management (create, members, rename, freeze, close) moved from qb-menu into the Accounts tab.
+* Transfers accept an IBAN, account name, citizen ID or player server ID, and work for offline citizens.
+* UI scales with the screen resolution.
 
-**Bank cards + IBAN**
-* Every account now has a generated IBAN (e.g. `B617521932`), shown on the dashboard and on each card.
-* A new `bank_card` item is auto-registered into `QBCore.Shared.Items` (no need to edit qb-core's own item list) and is marked `useable` — using it from the inventory opens the bank UI straight to the Cards tab.
-* Cards are only obtainable **from an ATM** ("Request a bank card" button), not from bank peds — enforced both client- and server-side.
-* Freeze / Unfreeze a card straight from the Cards tab (personal accounts: anyone who owns it; shared/org accounts: only the creator). A frozen account is now also blocked **server-side** from deposits/withdrawals/transfers (previously this was a display-only bug, see below).
+## Security fixes
+* All server actions now check that the player may use the account. Before, any player could withdraw from or transfer out of **any** job/gang/shared account, or **another player's** bank account, just by sending its id.
+* An explicit balance check before taking bank money. Stock qb-core lets the bank balance go negative, so before this you could withdraw money you didn't have.
+* Amounts are whole, positive numbers with a maximum. Negative, fractional, NaN and huge amounts are rejected.
+* Bank actions only work while the bank is open next to a teller (checked on the server). ATM sessions only work while you still have the inserted card. Settings (PIN, cards, accounts) only work at the bank.
+* PINs are no longer stored as plain text on the item, where anyone holding a stolen card could read them. Only a salted hash is kept on the server. Old cards are migrated the first time they're used.
+* Wrong PIN limit (`config.pinMaxAttempts`), then the card locks for `config.pinLockSeconds`.
+* Shared account names are validated: they can't take a job/gang name, an existing account or a citizen ID. Before, renaming an account to `police` replaced the police account.
+* Account members can only be viewed or changed by the account's creator.
+* Card payments (`payWithCard`, `chargeCard`) check the card version, whether the account is frozen and the distance between the players.
+* Comments are cleaned and length-limited. All text in the UI is escaped.
+* One action per player at a time (no double-click races).
 
-**Bug fixes**
-* Fixed a real bug where the server sent the frozen flag as `frozen` but the UI always checked `isFrozen` — meaning a frozen account never actually showed as frozen or blocked any action. This is fixed and now enforced server-side too.
-* Fixed a typo (`"erorr"` → `"error"`) in the police-lockout notification type.
-* Removed some third-party promotional comments that had been injected into the original files.
+## Bug fixes
+* Locale strings now actually reach the UI. Before, the UI looked up `ui.x` inside the `ui` table, so it always fell back to English.
+* The transfer comment used an undefined `name`.
+* The bank no longer stops opening when `qb-stopservices` isn't installed. The check is skipped if that resource isn't running.
+* Fixed a crash when a shared account in the cache was missing, when a job grade wasn't defined, and when a player wasn't cached yet.
+* Shared account membership was found with `auth LIKE %cid%`, which could match other citizen IDs. Membership is now read from the cached list.
+* `addAccountMoney` / `removeAccountMoney` now save to the database. Before, money added through these exports was lost on restart.
+* The transaction history per account is capped (`config.maxTransactions`) so it no longer grows forever.
+* Card metadata is updated in place. Before, the item was removed and added again, which could lose the card if adding it back failed.
+* The schema check uses `INFORMATION_SCHEMA` instead of `ADD COLUMN IF NOT EXISTS`, which is MariaDB-only, so MySQL 8 works too.
+* Job/gang society accounts are created automatically the first time someone with access opens the bank.
+* A ped model that can't load no longer freezes the client. Peds and blips are cleaned up properly.
 
-**Database migration**
-If you already had this resource installed, run once (safe to re-run):
-```sql
-ALTER TABLE `bank_accounts_new` ADD COLUMN IF NOT EXISTS `iban` varchar(20) DEFAULT NULL;
-ALTER TABLE `player_transactions` ADD COLUMN IF NOT EXISTS `hasCard` int(11) DEFAULT 0;
-ALTER TABLE `player_transactions` ADD COLUMN IF NOT EXISTS `iban` varchar(20) DEFAULT NULL;
-```
-(Fresh installs: just run the updated `Renewed-Banking.sql`, it already includes these columns.)
+## New config options
+`sharedAccountCost`, `maxSharedAccounts`, `maxAccountMembers`, `cardPrepSeconds`, `maxCardBalance`, `pinMaxAttempts`, `pinLockSeconds`, `bankDistance`, `cardPaymentDistance`, `maxTransactionAmount`, `maxCommentLength`, `maxTransactions`, `bossAlwaysHasAccess`, `servicesCheck`.
 
-**Card artwork**
-The `bank_card` item ships with `image = 'bank_card.png'` — drop a `bank_card.png` into your inventory resource's item-images folder (e.g. `qb-inventory/html/images/`) so it has an icon; otherwise it'll just show as a missing image in the inventory grid (it still works fine either way).
+## Preview in a browser
+Open `web/public/index.html` directly to see the UI with demo data (`?atm` shows the ATM flow, `?card` shows the card preview).

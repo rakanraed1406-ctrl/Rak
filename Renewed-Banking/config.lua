@@ -9,16 +9,63 @@ config = {
     -- cost of your 3rd. #personalAccountCosts is also the max you can open.
     personalAccountCosts = { 2500, 5000 },
 
-    -- Cost to set a PIN on your physical card.
+    -- Shared accounts (created by a player, other citizens can be added as
+    -- members). Cost to create one, how many one citizen may create, and
+    -- how many members (creator included) one shared account may have.
+    sharedAccountCost = 0,
+    maxSharedAccounts = 3,
+    maxAccountMembers = 10,
+
+    -- Cost to set (or change) the PIN of a card.
     cardPinCost = 5000,
 
     -- Cost to replace a card you've reported lost or stolen. Also
     -- invalidates the old physical card (wherever it ends up).
     cardReplacementCost = 2500,
 
+    -- How long (seconds) a newly requested card takes before it can be
+    -- collected from the bank teller.
+    cardPrepSeconds = 60,
+
+    -- Maximum money that can sit on a physical card at once.
+    maxCardBalance = 50000,
+
+    -- Wrong PIN attempts allowed before the card is locked, and how long
+    -- (seconds) it stays locked.
+    pinMaxAttempts = 3,
+    pinLockSeconds = 300,
+
+    -- Max distance (server side check) between a player and a bank teller
+    -- ped for the bank interface to work. Stops people from triggering
+    -- the bank events from anywhere on the map.
+    bankDistance = 8.0,
+
+    -- Max distance between two players for a tap-to-pay card payment.
+    cardPaymentDistance = 3.0,
+
+    -- Limits applied to every deposit / withdraw / transfer.
+    maxTransactionAmount = 10000000,
+    maxCommentLength = 80,
+
+    -- How many transactions are kept per account (older ones are dropped).
+    maxTransactions = 150,
+
+    -- Job/gang bosses (isboss grades) can always use the society account,
+    -- even if their grade doesn't have bankAuth = true in shared/jobs.lua.
+    bossAlwaysHasAccess = true,
+
+    -- Optional integration with a "suspended services" script. If the
+    -- resource isn't started, the check is skipped instead of blocking the
+    -- bank. `metadata` is the player metadata key that blocks withdrawals
+    -- and transfers server side.
+    servicesCheck = {
+        resource = 'qb-stopservices',
+        callback = 'qb-stopservices:server:servicescheck',
+        metadata = 'services'
+    },
+
     -- Colors available for the physical bank card. Each card is given one of
-    -- these at random when it's issued (see server/main.lua "requestCard")
-    -- and it stays permanently attached to that card afterwards.
+    -- these at random when it's issued and it stays attached to that card.
     cardColors = {
         'blue',
         'gold',
@@ -69,4 +116,3 @@ config = {
         }
     }
 }
-

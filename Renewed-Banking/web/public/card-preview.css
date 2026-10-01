@@ -442,3 +442,41 @@
         max-width: 11rem;
     }
 }
+
+/* balance + PIN status on the back of the card */
+.card-preview-back-meta {
+    display: flex;
+    gap: 2.4rem;
+    padding: 0 2.6rem;
+    margin-top: 1.2rem;
+}
+
+.card-preview-back-meta div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.card-preview-back-meta span {
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    opacity: 0.65;
+}
+
+.card-preview-back-meta b {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.card-preview-back-meta b.warn {
+    color: #ffb54a;
+}
+
+.card-preview-frozen.deactivated {
+    background: rgba(160, 20, 20, 0.55);
+}
+
+.card-preview-frozen.deactivated i {
+    color: #ffb3b3;
+}

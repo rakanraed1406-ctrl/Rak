@@ -1,9 +1,8 @@
 fx_version 'cerulean'
 game 'gta5'
 
-description 'S8 Files V4'
-Author "! TMX"
-version '1.0.2'
+description 'Renewed-Banking - personal, job, gang and shared accounts with physical cards'
+version '2.0.0'
 
 lua54 'yes'
 
@@ -19,12 +18,18 @@ client_scripts {
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
-'server/*.lua',
+    'server/*.lua'
 }
 
 ui_page 'web/public/index.html'
 
 files {
-  'web/public/index.html',
-  'web/public/**/*'
+    'web/public/index.html',
+    'web/public/**/*'
+}
+
+dependencies {
+    'qb-core',
+    'oxmysql',
+    'qb-target'
 }
