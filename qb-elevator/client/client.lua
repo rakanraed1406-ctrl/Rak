@@ -223,21 +223,32 @@ local function setupKey()
         keyPoints[#keyPoints+1] = { b = b, f = f, side = side, coords = vector3(point.coords.x, point.coords.y, point.coords.z) }
     end)
     CreateThread(function()
+        local near = nil
         while true do
-            local sleep = 750
-            if not uiOpen and not travelling then
+            if uiOpen or travelling then
+                near = nil
+                Wait(500)
+            elseif near then
+                -- only this short loop runs every frame, and only while standing at a point
                 local pcoords = GetEntityCoords(PlayerPedId())
+                if #(pcoords - near.coords) > 1.5 then
+                    near = nil
+                else
+                    drawText3D(near.coords.x, near.coords.y, near.coords.z + 0.3, '[E] Elevator')
+                    if IsControlJustReleased(0, 38) then openElevator(near.b, near.f, near.side) end
+                    Wait(0)
+                end
+            else
+                -- far away: check the points once a second, a bit faster when close
+                local pcoords = GetEntityCoords(PlayerPedId())
+                local closest = 1000.0
                 for _, p in ipairs(keyPoints) do
                     local dist = #(pcoords - p.coords)
-                    if dist < 6.0 then sleep = 0 end
-                    if dist < 1.5 then
-                        drawText3D(p.coords.x, p.coords.y, p.coords.z + 0.3, '[E] Elevator')
-                        if IsControlJustReleased(0, 38) then openElevator(p.b, p.f, p.side) end
-                        break
-                    end
+                    if dist < closest then closest = dist end
+                    if dist <= 1.5 then near = p break end
                 end
+                if not near then Wait(closest < 15.0 and 250 or 1000) end
             end
-            Wait(sleep)
         end
     end)
 end
