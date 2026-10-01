@@ -50,6 +50,9 @@ config = {
     -- How many transactions are kept per account (older ones are dropped).
     maxTransactions = 150,
 
+    -- Flood protection: max bank actions/events per player every 5 seconds.
+    maxActionsPer5s = 15,
+
     -- Job/gang bosses (isboss grades) can always use the society account,
     -- even if their grade doesn't have bankAuth = true in shared/jobs.lua.
     bossAlwaysHasAccess = true,

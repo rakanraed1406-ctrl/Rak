@@ -8,6 +8,7 @@ local busy = {}             -- [source] = true while one of their bank actions i
 local pendingCards = {}     -- [citizenid] = { account, iban, holder, version, readyAt }
 local pinFails = {}         -- ["account:version"] = { count, lockedUntil }
 local nameCache = {}        -- citizenid -> "Firstname Lastname"
+local rateLimits = {}       -- [source] = { windowStart, count }
 local accountsReady = false
 
 -- =========================================================================
@@ -17,6 +18,22 @@ local accountsReady = false
 local function notify(src, msg, kind)
     if not msg then return end
     TriggerClientEvent('Renewed-Banking:client:sendNotification', src, msg, kind or 'error')
+end
+
+-- Simple per-player flood protection for every client-triggered entry point
+-- (stops event spam from hammering the database).
+local function rateLimited(src)
+    local now = GetGameTimer()
+    local r = rateLimits[src]
+    if not r or now - r.start > 5000 then
+        rateLimits[src] = { start = now, count = 1 }
+        return false
+    end
+    r.count = r.count + 1
+    if r.count == config.maxActionsPer5s + 1 then
+        print(('^3[Renewed-Banking] %s (%s) is spamming bank events^0'):format(GetPlayerName(src), src))
+    end
+    return r.count > config.maxActionsPer5s
 end
 
 local function fmtMoney(amount)
@@ -354,6 +371,7 @@ end)
 AddEventHandler('playerDropped', function()
     sessions[source] = nil
     busy[source] = nil
+    rateLimits[source] = nil
 end)
 
 -- =========================================================================
@@ -767,6 +785,7 @@ local function bankCallback(name, opts, handler)
         local src = source
         local Player = QBCore.Functions.GetPlayer(src)
         if not Player or not accountsReady then return cb(false) end
+        if rateLimited(src) then return cb(false) end
         if type(data) ~= 'table' then data = {} end
 
         local session, err = validateSession(src, Player, opts.bankOnly)
@@ -794,7 +813,7 @@ end
 QBCore.Functions.CreateCallback('Renewed-Banking:server:openBank', function(source, cb)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
-    if not Player or not waitUntilReady() then return cb(false) end
+    if not Player or rateLimited(src) or not waitUntilReady() then return cb(false) end
     if not isNearBank(src) then
         notify(src, Lang:t('notify.too_far'))
         return cb(false)
@@ -843,7 +862,7 @@ end
 QBCore.Functions.CreateCallback('Renewed-Banking:server:openAtmWithCard', function(source, cb, data)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
-    if not Player or not waitUntilReady() or type(data) ~= 'table' then return cb(false) end
+    if not Player or type(data) ~= 'table' or rateLimited(src) or not waitUntilReady() then return cb(false) end
     if busy[src] then return cb(false) end
     busy[src] = true
 
@@ -1391,7 +1410,7 @@ end)
 RegisterNetEvent('Renewed-Banking:server:collectCard', function()
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
-    if not Player then return end
+    if not Player or rateLimited(src) then return end
     local cid = Player.PlayerData.citizenid
     local pending = pendingCards[cid]
 
@@ -1408,9 +1427,11 @@ RegisterNetEvent('Renewed-Banking:server:collectCard', function()
         return
     end
 
+    -- claim it first: two spammed triggers can never both hand out a card
+    pendingCards[cid] = nil
+
     local state = cardState(pending.account)
     if not state or (state.cardVersion or 1) ~= pending.version then
-        pendingCards[cid] = nil
         TriggerClientEvent('QBCore:Notify', src, Lang:t('notify.card_deactivated'), 'error')
         return
     end
@@ -1426,11 +1447,11 @@ RegisterNetEvent('Renewed-Banking:server:collectCard', function()
         hasPin = state.cardPin ~= nil
     })
     if not added then
+        pendingCards[cid] = pending
         TriggerClientEvent('QBCore:Notify', src, Lang:t('notify.no_inventory_space'), 'error')
         return
     end
 
-    pendingCards[cid] = nil
     state.hasCard = true
     saveCardState(pending.account)
     TriggerClientEvent('Renewed-Banking:client:cardCollected', src)
@@ -1620,39 +1641,46 @@ local function firstUsableCard(Player, amount)
 end
 
 -- Pays another nearby player from the card balance (tap-to-pay, they get cash).
-QBCore.Functions.CreateCallback('Renewed-Banking:server:payWithCard', function(source, cb, data)
-    local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
-    if not Player or type(data) ~= 'table' then return cb(false) end
-
+local function payWithCard(src, Player, data)
     local amount = cleanAmount(data.amount)
     local targetId = tonumber(data.target)
     if not amount or not targetId or targetId == src then
         TriggerClientEvent('QBCore:Notify', src, Lang:t('notify.invalid_payment'), 'error')
-        return cb(false)
+        return false
     end
     local Target = QBCore.Functions.GetPlayer(targetId)
     if not Target then
         TriggerClientEvent('QBCore:Notify', src, Lang:t('notify.player_offline'), 'error')
-        return cb(false)
+        return false
     end
     local dist = #(GetEntityCoords(GetPlayerPed(src)) - GetEntityCoords(GetPlayerPed(targetId)))
     if dist > config.cardPaymentDistance then
         TriggerClientEvent('QBCore:Notify', src, Lang:t('notify.player_too_far'), 'error')
-        return cb(false)
+        return false
     end
 
     local card = firstUsableCard(Player, amount)
     if not card then
         TriggerClientEvent('QBCore:Notify', src, Lang:t('notify.card_insufficient'), 'error')
-        return cb(false)
+        return false
     end
     card.info.balance = (tonumber(card.info.balance) or 0) - amount
-    if not setItemInfo(Player, card.slot, card.info) then return cb(false) end
+    if not setItemInfo(Player, card.slot, card.info) then return false end
     Target.Functions.AddMoney('cash', amount, 'card-payment')
 
     TriggerClientEvent('QBCore:Notify', targetId, Lang:t('notify.card_payment_received', {amount = fmtMoney(amount), name = fullName(Player)}), 'success')
-    cb({ balance = card.info.balance })
+    return { balance = card.info.balance }
+end
+
+QBCore.Functions.CreateCallback('Renewed-Banking:server:payWithCard', function(source, cb, data)
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player or type(data) ~= 'table' or rateLimited(src) or busy[src] then return cb(false) end
+    busy[src] = true
+    local ok, res = pcall(payWithCard, src, Player, data)
+    busy[src] = nil
+    if not ok then print(('^1[Renewed-Banking] payWithCard failed: %s^0'):format(res)) end
+    cb(ok and res or false)
 end)
 
 -- Lets other resources (shops, POS terminals, vending machines...) charge
