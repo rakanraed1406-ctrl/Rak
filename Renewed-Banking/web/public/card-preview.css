@@ -1,0 +1,444 @@
+/* ------------------------------------------------------------------ */
+/* Physical bank card preview                                          */
+/* Shown when the player /use's their card item. Fully separate from   */
+/* the main banking NUI (app.js/app.css) on purpose - a small, instant */
+/* "glance at your card" popup, not the full banking interface.        */
+/* Click the card itself to flip between front/back.                   */
+/* ------------------------------------------------------------------ */
+
+#card-preview-root {
+    font-family: var(--font-family, 'Roboto', sans-serif);
+}
+
+.card-preview-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0);
+    transition: background 0.35s ease;
+}
+
+.card-preview-overlay.visible {
+    display: block;
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+/* Outer: handles position, entrance slide-in and perspective for the flip */
+.card-preview-scene {
+    position: absolute;
+    top: 50%;
+    right: 4vw;
+    width: 38rem;
+    aspect-ratio: 1.586 / 1;
+    perspective: 1800px;
+    pointer-events: auto;
+    transform: translateY(-50%) translateX(6rem);
+    opacity: 0;
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease;
+}
+
+.card-preview-overlay.visible .card-preview-scene {
+    transform: translateY(-50%) translateX(0);
+    opacity: 1;
+}
+
+/* Soft color-matched glow behind the card, set via JS per card color */
+.card-preview-scene::before {
+    content: '';
+    position: absolute;
+    inset: -3rem;
+    background: radial-gradient(circle, var(--glow-color, #2a5298) 0%, transparent 70%);
+    opacity: 0.4;
+    filter: blur(2.5rem);
+    z-index: -1;
+    pointer-events: none;
+}
+
+.card-preview-hint {
+    position: absolute;
+    bottom: -2.6rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.55);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.4s ease 0.3s;
+    pointer-events: none;
+}
+
+.card-preview-overlay.visible .card-preview-hint {
+    opacity: 1;
+}
+
+/* Middle: cursor-follow tilt, driven by inline style from JS only */
+.card-preview-tilt {
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.15s ease-out;
+    cursor: pointer;
+    will-change: transform;
+}
+
+/* Inner: the actual flip, driven purely by the .flipped class */
+.card-preview-flip {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.card-preview-flip.flipped {
+    transform: rotateY(180deg);
+}
+
+.card-preview-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: 1.8rem;
+    overflow: hidden;
+    padding: 2.4rem 2.6rem;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 2rem 5rem rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+
+.card-preview-face-back {
+    transform: rotateY(180deg);
+}
+
+/* Decorative sheen, on every face (dropped the repeating-gradient noise
+   layer - it forced a full repaint on every tilt frame for little payoff) */
+.card-preview-face::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 85% -10%, rgba(255, 255, 255, 0.28), transparent 55%),
+        radial-gradient(circle at -10% 115%, rgba(255, 255, 255, 0.12), transparent 45%);
+    pointer-events: none;
+}
+
+/* Light-sweep shine that glides across on hover */
+.card-preview-face::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -60%;
+    width: 40%;
+    height: 200%;
+    background: linear-gradient(75deg, transparent 0%, rgba(255, 255, 255, 0.28) 45%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0.28) 55%, transparent 100%);
+    transform: translateX(-40%) rotate(8deg);
+    transition: transform 0.9s ease;
+    pointer-events: none;
+}
+
+.card-preview-tilt:hover .card-preview-face::after {
+    transform: translateX(220%) rotate(8deg);
+}
+
+.card-preview-face > * {
+    position: relative;
+}
+
+/* ---- color variants (permanent per-card), applied to both faces ---- */
+.card-preview-flip[data-color='blue'] .card-preview-face {
+    background: linear-gradient(135deg, #16305c 0%, #2a5298 55%, #1c3d78 100%);
+}
+.card-preview-flip[data-color='gold'] .card-preview-face {
+    background: linear-gradient(135deg, #caa53d 0%, #f1dc9f 35%, #caa53d 60%, #8a6f22 100%);
+    color: #3a2c05;
+}
+.card-preview-flip[data-color='silver'] .card-preview-face {
+    background: linear-gradient(135deg, #eef0f1 0%, #c3c9cf 40%, #94a0aa 70%, #5f6971 100%);
+    color: #1d2226;
+}
+.card-preview-flip[data-color='purple'] .card-preview-face {
+    background: linear-gradient(135deg, #331a49 0%, #6a2ec7 55%, #401a6b 100%);
+}
+.card-preview-flip[data-color='green'] .card-preview-face {
+    background: linear-gradient(135deg, #0c3527 0%, #1f8a5f 55%, #11402d 100%);
+}
+.card-preview-flip[data-color='red'] .card-preview-face {
+    background: linear-gradient(135deg, #430909 0%, #b91e1e 55%, #690f0f 100%);
+}
+.card-preview-flip[data-color='black'] .card-preview-face {
+    background: linear-gradient(135deg, #202020 0%, #101010 60%, #000 100%);
+    box-shadow: 0 2rem 5rem rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(216, 178, 89, 0.4) inset;
+}
+.card-preview-flip[data-color='black'] .card-preview-face::after {
+    background: linear-gradient(75deg, transparent 0%, rgba(216, 178, 89, 0.25) 45%, rgba(216, 178, 89, 0.4) 50%, rgba(216, 178, 89, 0.25) 55%, transparent 100%);
+}
+
+/* ---- close button: sits above the scene, never flips/mirrors ---- */
+.card-preview-close {
+    position: absolute;
+    top: 1.4rem;
+    right: 1.4rem;
+    width: 3.2rem;
+    height: 3.2rem;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.28);
+    color: #fff;
+    cursor: pointer;
+    font-size: 1.4rem;
+    backdrop-filter: blur(3px);
+    transition: background 0.2s ease, transform 0.2s ease;
+    z-index: 3;
+}
+
+.card-preview-close:hover {
+    background: rgba(0, 0, 0, 0.5);
+    transform: scale(1.08);
+}
+
+/* ---- front face content ---- */
+.card-preview-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding-right: 3.6rem;
+}
+
+.card-preview-bank {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.95;
+    text-shadow: 0 0.1rem 0.3rem rgba(0, 0, 0, 0.25);
+}
+
+.card-preview-bank i {
+    font-size: 1.6rem;
+}
+
+.card-preview-frozen {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    backdrop-filter: blur(2px);
+}
+
+.card-preview-frozen i {
+    color: #7fd6ff;
+}
+
+.card-preview-chip-row {
+    display: flex;
+    align-items: center;
+}
+
+.card-preview-chip {
+    width: 4.6rem;
+    height: 3.5rem;
+    margin-top: 1.6rem;
+    border-radius: 0.7rem;
+    box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.35) inset, 0 0.1rem 0.3rem rgba(0, 0, 0, 0.3);
+    background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0, rgba(0, 0, 0, 0.18) 1px, transparent 1px, transparent 8px),
+        linear-gradient(135deg, #ffe9a8, #d8b24c 45%, #a9822b);
+    position: relative;
+}
+
+.card-preview-chip::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 15%;
+    bottom: 15%;
+    width: 1px;
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.card-preview-contactless {
+    margin-left: 1rem;
+    margin-top: 1.6rem;
+    font-size: 2rem;
+    opacity: 0.85;
+    transform: rotate(90deg);
+    display: inline-block;
+}
+
+.card-preview-iban-label {
+    font-size: 1rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.75;
+    margin-bottom: 0.4rem;
+}
+
+.card-preview-iban {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 2.15rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-shadow: 0 0.1rem 0.2rem rgba(0, 0, 0, 0.2);
+}
+
+.card-preview-bottom {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.2rem;
+}
+
+.card-preview-holder-label,
+.card-preview-expiry-label {
+    font-size: 0.95rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 0.3rem;
+}
+
+.card-preview-holder {
+    font-size: 1.5rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    max-width: 15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-preview-expiry {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 1.4rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+}
+
+.card-preview-network {
+    font-size: 2rem;
+    font-weight: 800;
+    font-style: italic;
+    letter-spacing: 0.01em;
+    opacity: 0.95;
+    text-shadow: 0 0.15rem 0.3rem rgba(0, 0, 0, 0.3);
+}
+
+.card-preview-flip-hint {
+    position: absolute;
+    bottom: 1.6rem;
+    right: 1.8rem;
+    font-size: 1.3rem;
+    opacity: 0.55;
+    pointer-events: none;
+    animation: card-preview-flip-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes card-preview-flip-pulse {
+    0%, 100% {
+        opacity: 0.4;
+        transform: rotate(0deg);
+    }
+    50% {
+        opacity: 0.85;
+        transform: rotate(180deg);
+    }
+}
+
+/* ---- back face content ---- */
+.card-preview-magstripe {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 2.4rem;
+    height: 3.6rem;
+    background: repeating-linear-gradient(180deg, #050505 0px, #050505 2px, #131313 2px, #131313 4px);
+}
+
+.card-preview-signature-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 5.6rem;
+}
+
+.card-preview-signature {
+    flex: 1;
+    height: 3.2rem;
+    border-radius: 0.4rem;
+    background: repeating-linear-gradient(135deg, #e9e5d8, #e9e5d8 4px, #ded9c8 4px, #ded9c8 8px);
+    display: flex;
+    align-items: center;
+    padding-left: 1rem;
+    color: rgba(0, 0, 0, 0.4);
+    font-style: italic;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.card-preview-cvv {
+    min-width: 4.4rem;
+    height: 3.2rem;
+    background: #fff;
+    border-radius: 0.4rem;
+    color: #222;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-weight: 700;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card-preview-back-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.card-preview-back-text {
+    font-size: 0.95rem;
+    line-height: 1.4;
+    opacity: 0.8;
+    max-width: 30rem;
+}
+
+.card-preview-back-iban {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 1.1rem;
+    letter-spacing: 0.1em;
+    opacity: 0.85;
+}
+
+@media (max-width: 900px) {
+    .card-preview-scene {
+        width: 32rem;
+        right: 2.5vw;
+    }
+    .card-preview-face {
+        padding: 2rem 2.1rem;
+    }
+    .card-preview-iban {
+        font-size: 1.7rem;
+    }
+    .card-preview-holder {
+        max-width: 11rem;
+    }
+}

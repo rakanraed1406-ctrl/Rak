@@ -1,0 +1,104 @@
+:root {
+    --clr-primary: #393A45;
+    --clr-primary-light: #393A45;
+    --clr-primary-dark: transparent;
+
+    --clr-green: #52E2C2;
+    --clr-orange: #e08c2b;
+    --clr-grey: #505050;
+
+    --font-family: "Roboto", sans-serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    outline: none;
+}
+a,
+img,
+button,
+input,
+label,
+select,
+span,
+i {
+    display: inline-block;
+}
+a {
+    text-decoration: none;
+    color: inherit;
+}
+ul {
+    list-style: none;
+}
+img {
+    width: 100%;
+    height: 100%;
+}
+html {
+    font-size: 62.5%;
+}
+body {
+    min-height: 100vh;
+    font-family: var(--font-family);
+    background-color: var(--clr-primary-dark);
+    color: #fff;
+}
+
+h3.heading {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+}
+
+.btn {
+    text-decoration: none;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: 700;
+    padding: 1rem;
+    transition: 0.25s;
+    color: rgb(243, 243, 243);
+}
+
+.btn-grey {
+    background-color: #4D505F;
+}
+.btn-orange {
+    background-color: #4D505F;
+}
+.btn-green {
+    background-color: #4D505F;
+}
+
+.btn-grey:is(:hover, :focus, :focus-within) {
+    background-color: rgba(165, 162, 162, 0.5);
+}
+.btn-orange:is(:hover, :focus, :focus-within) {
+    background-color: rgba(224, 140, 43, 0.5);
+}
+.btn-green:is(:hover, :focus, :focus-within) {
+    background-color: rgba(82, 227, 194, 0.5);
+}
+
+.scroller {
+    --size: 10rem;
+    overflow-y: scroll;
+    margin: auto 0;
+    height: calc(100% - 6rem);
+    /* margin-top: calc(var(--size) / 2); */
+}
+
+.scroller::-webkit-scrollbar {
+    display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scroller {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+}
