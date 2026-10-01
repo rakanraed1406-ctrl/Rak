@@ -126,7 +126,7 @@ end
 
 RegisterNetEvent('ems-tools:client:TreatClosest', function() EMS.OpenTreatMenu() end)
 
--- CPR: anyone can keep a bleeding-out patient alive a bit longer.
+-- CPR: anyone can bring a downed patient back (1-3 rounds depending on how bad it is).
 function EMS.StartCPR(targetId)
     if busy then return end
     if not Config.CPR.Enabled then return end
@@ -135,8 +135,10 @@ function EMS.StartCPR(targetId)
         targetId = pid and GetPlayerServerId(pid) or nil
     end
     if not targetId then return EMS.Notify('No patient nearby', 'error') end
-    local ok, err = EMS.TriggerCallback('ems-tools:server:StartCPR', targetId)
+    local ok, err, rounds = EMS.TriggerCallback('ems-tools:server:StartCPR', targetId)
     if not ok then return EMS.Notify(err or 'CPR is not possible', 'error') end
+    local label = 'Performing CPR...'
+    if type(rounds) == 'table' then label = ('Performing CPR (%d/%d)...'):format(rounds.done + 1, rounds.required) end
 
     busy = true
     local ped = PlayerPedId()
@@ -162,7 +164,7 @@ function EMS.StartCPR(targetId)
             Wait(300)
         end
     end)
-    EMS.Progress('Performing CPR...', Config.CPR.Time, function(done)
+    EMS.Progress(label, Config.CPR.Time, function(done)
         running = false
         EMS.StopAnim(anim, ped)
         busy = false

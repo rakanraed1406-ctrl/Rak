@@ -2,7 +2,7 @@ QBCore = exports['qb-core']:GetCoreObject()
 EMSServer = {}
 
 local Active = {}     -- [src] = { tool = name, target = src|nil, at = ms, time = ms }
-local CprCount = {}   -- [patient] = number of CPR rounds this time down
+local Cpr = {}        -- [patient] = { done, required, tier, by } for this time down
 local DeathAt = {}    -- [patient] = os.time() the heart stopped (VF → asystole on the monitor)
 
 local function IsMedic(Player)
@@ -132,18 +132,57 @@ RegisterNetEvent('ems-tools:server:FinishTool', function(name)
 end)
 
 -- ── CPR ────────────────────────────────────────────────────────────────────
+-- How bad is the patient? 1 = light, 2 = medium, 3 = critical.
+local function Severity(target, dead)
+    local status = {}
+    if GetResourceState(Config.HospitalResource) == 'started' then
+        local ok, res = pcall(function() return exports[Config.HospitalResource]:GetPatientStatus(target) end)
+        if ok and type(res) == 'table' then status = res end
+    end
+    local score = dead and 2.0 or 1.0
+    local bleed = tonumber(status.bleedLevel) or 0
+    if bleed >= 3 then score = score + 1.0 elseif bleed >= 1 then score = score + 0.5 end
+    for _, limb in ipairs(status.limbs or {}) do
+        if (limb.part == 'HEAD' or limb.part == 'NECK' or limb.part == 'UPPER_BODY') and (tonumber(limb.severity) or 0) >= 3 then
+            score = score + 1.0
+            break
+        end
+    end
+    if #(status.weapons or {}) >= 2 then score = score + 0.5 end
+    if score <= 1.5 then return 1 elseif score <= 2.5 then return 2 end
+    return 3
+end
+
+-- Rounds needed: random inside the severity window (light 1 · medium 1-2 · critical 2-3).
+local function RollRounds(tier)
+    return math.random(math.max(1, tier - 1), tier)
+end
+
 QBCore.Functions.CreateCallback('ems-tools:server:StartCPR', function(src, cb, targetId)
+    if not Config.CPR.Enabled then return cb(false) end
     targetId = tonumber(targetId)
     local Target = targetId and QBCore.Functions.GetPlayer(targetId)
     if not Target or targetId == src then return cb(false, 'No patient') end
     if Distance(src, targetId) > 3.0 then return cb(false, 'Get closer to the patient') end
     local dead, laststand = PatientState(Target)
-    if dead then return cb(false, 'No pulse — the patient needs a defibrillator') end
-    if not laststand then return cb(false, 'The patient doesn\'t need CPR') end
-    if (CprCount[targetId] or 0) >= Config.CPR.MaxPerDown then return cb(false, 'CPR isn\'t helping any more, the patient needs a paramedic') end
+    if not dead and not laststand then return cb(false, 'The patient doesn\'t need CPR') end
+    if dead and not Config.CPR.AllowNoPulse then return cb(false, 'No pulse — the patient needs a defibrillator') end
+    for other, act in pairs(Active) do
+        if other ~= src and act.tool == '__cpr' and act.target == targetId then
+            return cb(false, 'Someone is already doing CPR on this patient')
+        end
+    end
+
+    local c = Cpr[targetId]
+    if not c or c.dead ~= dead then
+        -- first round for this time down (or the patient got worse): roll the rounds needed
+        local tier = Severity(targetId, dead)
+        c = { done = 0, tier = tier, required = RollRounds(tier), dead = dead }
+        Cpr[targetId] = c
+    end
     Active[src] = { tool = '__cpr', target = targetId, at = GetGameTimer(), time = Config.CPR.Time }
     TriggerClientEvent('ems-tools:client:CPRPatient', targetId, Config.CPR.Time)
-    cb(true)
+    cb(true, nil, Config.CPR.ShowRounds and { done = c.done, required = c.required } or nil)
 end)
 
 RegisterNetEvent('ems-tools:server:FinishCPR', function()
@@ -155,22 +194,45 @@ RegisterNetEvent('ems-tools:server:FinishCPR', function()
     local target = act.target
     local Target = QBCore.Functions.GetPlayer(target)
     if not Target or Distance(src, target) > 4.0 then return end
-    local _, laststand = PatientState(Target)
-    if not laststand then return end
-    CprCount[target] = (CprCount[target] or 0) + 1
-    TriggerClientEvent('hospital:client:ApplyTreatment', target, 'stabilize', { seconds = Config.CPR.Seconds, max = Config.CPR.Max })
-    TriggerClientEvent('ems-tools:client:Treated', target, 'Someone is doing CPR on you — you have a bit more time')
-    Notify(src, ('CPR done (%d/%d)'):format(CprCount[target], Config.CPR.MaxPerDown), 'success')
-    EMSServer.Log(src, target, 'CPR')
+    local dead, laststand = PatientState(Target)
+    local c = Cpr[target]
+    if not c or (not dead and not laststand) then return end
+
+    c.done = c.done + 1
+    if c.done >= c.required then
+        -- enough rounds: the patient comes back (weak)
+        Cpr[target] = nil
+        TriggerClientEvent('hospital:client:Revive', target)
+        TriggerClientEvent('hospital:client:ApplyTreatment', target, 'sethealth', { health = Config.CPR.ReviveHealth })
+        TriggerClientEvent('ems-tools:client:Treated', target, 'You are breathing again — someone saved you with CPR')
+        Notify(src, 'The patient is breathing again!', 'success')
+        EMSServer.Log(src, target, ('CPR (%d round%s) — patient revived'):format(c.done, c.done > 1 and 's' or ''))
+        return
+    end
+
+    if laststand then
+        TriggerClientEvent('hospital:client:ApplyTreatment', target, 'stabilize', { seconds = Config.CPR.Seconds, max = Config.CPR.Max })
+    end
+    TriggerClientEvent('ems-tools:client:Treated', target, 'Someone is doing CPR on you — hold on')
+    if Config.CPR.ShowRounds then
+        Notify(src, ('CPR round %d/%d — keep going'):format(c.done, c.required), 'primary')
+    else
+        Notify(src, 'Still no response — keep going', 'primary')
+    end
+    EMSServer.Log(src, target, ('CPR round %d'):format(c.done))
 end)
 
--- Watch qb-hospital's own state events (CPR counter / monitor rhythm).
+-- Watch qb-hospital's own state events (CPR progress / monitor rhythm).
 RegisterNetEvent('hospital:server:SetLaststandStatus', function(bool)
-    if not bool then CprCount[source] = nil end
+    -- revived: forget the CPR progress (bleeding out → no pulse is handled by StartCPR)
+    if not bool and Cpr[source] and not Cpr[source].dead then
+        local Player = QBCore.Functions.GetPlayer(source)
+        if not (Player and Player.PlayerData.metadata.isdead) then Cpr[source] = nil end
+    end
 end)
 RegisterNetEvent('hospital:server:SetDeathStatus', function(isDead)
     local src = source
-    if isDead then DeathAt[src] = DeathAt[src] or os.time() else DeathAt[src] = nil; CprCount[src] = nil end
+    if isDead then DeathAt[src] = DeathAt[src] or os.time() else DeathAt[src] = nil; Cpr[src] = nil end
 end)
 
 -- Revives done by qb-hospital (first aid / defibrillator) also go to the patient's record.
@@ -215,6 +277,7 @@ function EMSServer.ComputeVitals(tsrc)
         bleeding = status.bleeding, bleedLevel = bleed, painkillers = status.painkillers == true,
         limbs = status.limbs or {}, weapons = status.weapons or {},
         dead = dead, laststand = laststand,
+        cpr = Cpr[tsrc] and Cpr[tsrc].done or 0,
     }
 
     if dead then
@@ -269,5 +332,5 @@ end)
 
 AddEventHandler('playerDropped', function()
     local src = source
-    Active[src], CprCount[src], DeathAt[src] = nil, nil, nil
+    Active[src], Cpr[src], DeathAt[src] = nil, nil, nil
 end)

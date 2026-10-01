@@ -193,10 +193,11 @@
         rhythm.classList.toggle('bad', state.rhythm === 'VF' || state.rhythm === 'ASYSTOLE');
 
         const tags = [];
-        if (v.dead) tags.push(['red', 'NO PULSE — DEFIBRILLATOR']);
+        if (v.dead) tags.push(['red', 'NO PULSE — DEFIBRILLATOR / CPR']);
         else if (v.laststand) tags.push(['red', 'BLEEDING OUT — ADRENALINE / CPR']);
         if (v.bleeding) tags.push([v.bleedLevel >= 3 ? 'red' : 'yellow', 'BLEEDING: ' + v.bleeding]);
         if (v.painkillers) tags.push(['blue', 'ANALGESIA ACTIVE']);
+        if (v.cpr > 0) tags.push(['yellow', 'CPR × ' + v.cpr]);
         for (const w of (v.weapons || []).slice(0, 3)) tags.push(['', 'CAUSE: ' + w]);
         $('tags').innerHTML = tags.map(([c, t]) => `<span class="tag ${c}">${esc(t)}</span>`).join('');
 

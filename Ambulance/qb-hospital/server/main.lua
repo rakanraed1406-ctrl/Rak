@@ -90,6 +90,22 @@ local function IsEms(Player)
 	return Player ~= nil and Player.PlayerData.job.name == 'ambulance'
 end
 
+-- simple per-player rate limit: Throttle('alert', src, 30) → false if called again within 30 s
+local throttles = {}
+local function Throttle(name, src, seconds)
+	throttles[name] = throttles[name] or {}
+	local now = os.time()
+	local last = throttles[name][src]
+	if last and now - last < seconds then return false end
+	throttles[name][src] = now
+	return true
+end
+
+local function IsDown(Player)
+	local meta = Player and Player.PlayerData.metadata or {}
+	return meta["isdead"] == true or meta["inlaststand"] == true
+end
+
 -- server-side distance check (OneSync): stops remote revives / heals from across the map
 local function IsNear(src, target, maxDist)
 	local a, b = GetPlayerPed(src), GetPlayerPed(target)
@@ -169,8 +185,8 @@ RegisterNetEvent('hospital:server:RespawnAtHospital', function()
 	local src = source
 	local Player = QBCore.Functions.GetPlayer(src)
 	if not Player then return end
-	-- only a dead player can respawn, and only once (no double bill / free heal)
-	if not Player.PlayerData.metadata["isdead"] and not Player.PlayerData.metadata["inlaststand"] then return end
+	-- only a dead player can respawn (not while still bleeding out), and only once (no double bill / free heal)
+	if not Player.PlayerData.metadata["isdead"] then return end
 	for _, owners in pairs(BedOwners) do
 		for _, owner in pairs(owners) do
 			if owner == src then return end
@@ -198,6 +214,8 @@ end)
 
 RegisterNetEvent('hospital:server:ambulanceAlert', function(text, kind, info)
     local src = source
+    -- only a player who is really down can call for help, and not more than every 20 s
+    if not IsDown(QBCore.Functions.GetPlayer(src)) or not Throttle('alert_' .. (kind == 'dead' and 'dead' or 'down'), src, 20) then return end
     if EmsTabletActive() then
         -- Dispatch call in the EMS tablet: red "No pulse" / yellow "Bleeding out", with injuries.
         TriggerEvent('ems-mdt:server:HospitalAlert', src, kind == 'dead' and 'dead' or 'down', type(info) == 'table' and info or {})
@@ -213,17 +231,41 @@ RegisterNetEvent('hospital:server:LeaveBed', function()
     FreeBedsOf(source) -- frees the bed this player really had (Pillbox or Sandy)
 end)
 
+-- Only keep what the hospital knows about (the client could send anything: huge tables,
+-- strings instead of numbers... which crashed the status callbacks).
+local function CleanInjuries(data)
+	local clean = { limbs = {}, isBleeding = 0, onPainKillers = data.onPainKillers == true }
+	local bleed = math.floor(tonumber(data.isBleeding) or 0)
+	clean.isBleeding = math.max(0, math.min(4, bleed))
+	for part in pairs(Config.BoneIndexes) do
+		local limb = type(data.limbs) == 'table' and data.limbs[part]
+		if part ~= 'NONE' and type(limb) == 'table' then
+			local severity = math.max(0, math.min(4, math.floor(tonumber(limb.severity) or 0)))
+			clean.limbs[part] = {
+				label = tostring(limb.label or part):sub(1, 40),
+				isDamaged = limb.isDamaged == true and severity > 0,
+				severity = severity,
+				causeLimp = limb.causeLimp == true,
+			}
+		end
+	end
+	return clean
+end
+
 RegisterNetEvent('hospital:server:SyncInjuries', function(data)
     if type(data) ~= 'table' then return end
-    PlayerInjuries[source] = data
+    PlayerInjuries[source] = CleanInjuries(data)
 end)
 
 RegisterNetEvent('hospital:server:SetWeaponDamage', function(data)
 	local src = source
-	local Player = QBCore.Functions.GetPlayer(src)
-	if Player then
-		PlayerWeaponWounds[Player.PlayerData.source] = data
+	if type(data) ~= 'table' or not QBCore.Functions.GetPlayer(src) then return end
+	local clean = {}
+	for _, weapon in ipairs(data) do
+		if #clean >= 15 then break end
+		if type(weapon) == 'string' and QBCore.Shared.Weapons[weapon] then clean[#clean + 1] = weapon end
 	end
+	PlayerWeaponWounds[src] = clean
 end)
 
 RegisterNetEvent('hospital:server:RestoreWeaponDamage', function()
@@ -273,9 +315,12 @@ end)
 RegisterNetEvent('hospital:server:SetArmor', function(amount)
 	local src = source
 	local Player = QBCore.Functions.GetPlayer(src)
-	if Player then
-		Player.Functions.SetMetaData("armor", amount)
-	end
+	if not Player then return end
+	-- was: any value from the client was saved (free 100 armor after relog)
+	amount = math.floor(tonumber(amount) or 0)
+	local ped = GetPlayerPed(src)
+	local real = ped ~= 0 and GetPedArmour(ped) or 0
+	Player.Functions.SetMetaData("armor", math.max(0, math.min(amount, real, 100)))
 end)
 
 RegisterNetEvent('hospital:server:TreatWounds', function(playerId)
@@ -293,6 +338,7 @@ RegisterNetEvent('hospital:server:TreatWounds', function(playerId)
 end)
 
 RegisterNetEvent('hospital:server:SetDoctor', function()
+	if not Throttle('setdoctor', source, 2) then return end
 	local amount = 0
     local players = QBCore.Functions.GetQBPlayers()
     for k,v in pairs(players) do
@@ -347,6 +393,7 @@ end)
 
 RegisterNetEvent('hospital:server:SendDoctorAlert', function(street)
     local src = source
+    if not Throttle('checkin', src, 30) then return end
     if EmsTabletActive() then
         -- Blue "patient waiting at check-in" call in the EMS tablet (rate limited there).
         TriggerEvent('ems-mdt:server:HospitalAlert', src, 'checkin', { street = type(street) == 'string' and street or nil })
@@ -414,6 +461,7 @@ AddEventHandler('playerDropped', function()
 	PlayerWeaponWounds[src] = nil
 	pendingHelp[src] = nil
 	lastNeedsRefill[src] = nil
+	for _, t in pairs(throttles) do t[src] = nil end
 	FreeBedsOf(src)
 end)
 
@@ -431,6 +479,9 @@ QBCore.Functions.CreateCallback('hospital:GetDoctors', function(source, cb)
 end)
 
 QBCore.Functions.CreateCallback('hospital:GetPlayerStatus', function(source, cb, playerId)
+	playerId = tonumber(playerId)
+	-- medics, or someone standing next to the patient (was: anyone, from anywhere)
+	if not playerId or (not IsEms(QBCore.Functions.GetPlayer(source)) and not IsNear(source, playerId, 10.0)) then return cb({ WEAPONWOUNDS = {} }) end
 	local Player = QBCore.Functions.GetPlayer(playerId)
 	local injuries = {}
 	injuries["WEAPONWOUNDS"] = {}
@@ -464,6 +515,8 @@ QBCore.Functions.CreateCallback('hospital:GetPlayerBleeding', function(source, c
 end)
 
 QBCore.Functions.CreateCallback('hospital:server:GetPlayerStatus', function(source, cb, playerId)
+	playerId = tonumber(playerId)
+	if not playerId or not IsNear(source, playerId, 10.0) then return cb(nil) end
 	local Player = QBCore.Functions.GetPlayer(playerId)
 	if Player then 
 		cb(Player.PlayerData.metadata['isdead'], Player.PlayerData.metadata['inlaststand'])

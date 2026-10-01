@@ -96,6 +96,8 @@ end)
 
 RegisterNetEvent('ems-tools:server:Placed', function(token, netId)
     local src = source
+    netId = tonumber(netId)
+    if not netId then return end
     local p = Pending[token]
     if not p or p.src ~= src then return end
     Pending[token] = nil
@@ -105,7 +107,17 @@ RegisterNetEvent('ems-tools:server:Placed', function(token, netId)
         if ent ~= 0 then break end
         Wait(100)
     end
-    if ent == 0 or not NearEntity(src, ent, 6.0) then
+    -- must be a NEW object of the right model (a client could send the netId of any
+    -- entity — e.g. someone's car — and then "fold" it to delete it)
+    local validModel = false
+    if ent ~= 0 and GetEntityType(ent) == 3 then
+        -- compare as unsigned 32-bit (server natives and joaat can differ in sign)
+        local model = GetEntityModel(ent) % 4294967296
+        for _, m in ipairs(KINDS[p.kind].cfg.Models or {}) do
+            if GetHashKey(m) % 4294967296 == model then validModel = true break end
+        end
+    end
+    if ent == 0 or not validModel or Placed[netId] or not NearEntity(src, ent, 6.0) then
         GiveBack(src, p.item, p.info)
         return
     end

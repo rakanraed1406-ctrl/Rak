@@ -4,7 +4,7 @@
 --
 --   server: TriggerClientEvent('hospital:client:ApplyTreatment', patientSrc, kind, data)
 --   kinds : bleed {amount}, stopbleed, limbs {parts?, max?}, painkiller {doses},
---           health {amount}, stabilize {seconds, max}, oxygen {health}, minor
+--           health {amount}, stabilize {seconds, max}, oxygen {health}, minor, sethealth {health}
 
 local LIMB_GROUPS = {
     legs = { 'LLEG', 'RLEG', 'LFOOT', 'RFOOT', 'LOWER_BODY' },
@@ -67,6 +67,14 @@ local Treatments = {
         fadeOutTimer, blackoutTimer = 0, 0
         if IsScreenFadedOut() and not isDead then DoScreenFadeIn(500) end
         AddHealth(tonumber(data.health) or 15)
+    end,
+    -- woke up weak (CPR): after the revive set the health lower
+    sethealth = function(data)
+        local health = math.max(101, math.min(200, tonumber(data.health) or 150))
+        SetTimeout(600, function()
+            local ped = PlayerPedId()
+            if not isDead and not InLaststand then SetEntityHealth(ped, health) end
+        end)
     end,
     stabilize = function(data)
         if not InLaststand or isDead then return end

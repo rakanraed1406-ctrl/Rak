@@ -43,7 +43,10 @@ CreateThread(function()
             },
             {
                 icon = 'fas fa-hand-holding-medical', label = 'Perform CPR',
-                canInteract = function(entity) return Config.CPR.Enabled and DownState(entity) == 'laststand' end,
+                canInteract = function(entity)
+                    local down = DownState(entity)
+                    return Config.CPR.Enabled and (down == 'laststand' or (down == 'dead' and Config.CPR.AllowNoPulse))
+                end,
                 action = function(entity) EMS.StartCPR(ServerIdOf(entity)) end,
             },
             {

@@ -253,6 +253,7 @@ local function ResetAll()
     onDrugs = 0
     wasOnDrugs = false
     onPainKiller = 0
+    onPainKillers = false -- was never reset after a revive / full heal
     wasOnPainKillers = false
     injured = {}
 
@@ -748,6 +749,7 @@ local function ResetPlayer()
     onDrugs = 0
     wasOnDrugs = false
     onPainKiller = 0
+    onPainKillers = false -- was never reset after a revive / full heal
     wasOnPainKillers = false
     injured = {}
 
@@ -876,6 +878,7 @@ local function AdminResetAll()
     onDrugs = 0
     wasOnDrugs = false
     onPainKiller = 0
+    onPainKillers = false -- was never reset after a revive / full heal
     wasOnPainKillers = false
     injured = {}
 
