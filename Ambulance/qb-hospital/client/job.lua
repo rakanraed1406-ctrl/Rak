@@ -218,15 +218,19 @@ RegisterNetEvent('hospital:client:RevivePlayer', function()
             QBCore.Functions.Notify(Lang:t('error.cant_help'), "error")
             return
         end
-        local item = isdead and 'defibrillator' or 'firstaid'
-        if not HasItem(item) then
-            QBCore.Functions.Notify(isdead and Lang:t('error.no_defib') or Lang:t('error.no_firstaid'), "error")
+        -- still bleeding out: CPR with a First Aid kit (qb-ems-tools)
+        if not isdead then
+            TriggerEvent('ems-tools:client:CPRClosest')
+            return
+        end
+        if not HasItem('defibrillator') then
+            QBCore.Functions.Notify(Lang:t('error.no_defib'), "error")
             return
         end
         local time = math.random(10000, 15000)
         isHealingPerson = true
-        HealAnim(time, isdead and 'defib' or 'cpr', GetPlayerPed(player))
-        QBCore.Functions.Progressbar("hospital_revive", isdead and "Defibrillating..." or "Helping person...", time, false, true, {
+        HealAnim(time, 'defib', GetPlayerPed(player))
+        QBCore.Functions.Progressbar("hospital_revive", "Defibrillating...", time, false, true, {
             disableMovement = true,
             disableCarMovement = true,
             disableMouse = false,

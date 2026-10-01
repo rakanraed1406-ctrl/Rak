@@ -139,45 +139,4 @@ RegisterNetEvent('hospital:client:isEscorted', function(bool)
     isEscorted = bool
 end)
 
-RegisterNetEvent('hospital:client:UseFirstAid', function()
-    if not isEscorting then
-        local player, distance = GetClosestPlayer()
-        if player ~= -1 and distance < 1.5 then
-            local playerId = GetPlayerServerId(player)
-            TriggerServerEvent('hospital:server:UseFirstAid', playerId)
-        end
-    else
-        QBCore.Functions.Notify(Lang:t('error.impossible'), 'error')
-    end
-end)
-
-RegisterNetEvent('hospital:client:CanHelp', function(helperId)
-    if InLaststand then
-        if LaststandTime <= 300 then
-            TriggerServerEvent('hospital:server:CanHelp', helperId, true)
-        else
-            TriggerServerEvent('hospital:server:CanHelp', helperId, false)
-        end
-    else
-        TriggerServerEvent('hospital:server:CanHelp', helperId, false)
-    end
-end)
-
-RegisterNetEvent('hospital:client:HelpPerson', function(targetId)
-    local time = math.random(30000, 60000)
-    local targetPlayer = GetPlayerFromServerId(targetId)
-    HealAnim(time, 'cpr', targetPlayer ~= -1 and GetPlayerPed(targetPlayer) or nil)
-    QBCore.Functions.Progressbar("hospital_revive", Lang:t('progress.revive'), time, false, true, {
-        disableMovement = true,
-        disableCarMovement = true,
-        disableMouse = false,
-        disableCombat = true,
-    }, {}, {}, {}, function() -- Done
-        StopHealAnim()
-        QBCore.Functions.Notify(Lang:t('success.revived'), 'success')
-        TriggerServerEvent("hospital:server:RevivePlayer", targetId)
-    end, function() -- Cancel
-        StopHealAnim()
-        QBCore.Functions.Notify(Lang:t('error.canceled'), "error")
-    end)
-end)
+-- The First Aid kit is used for CPR now (qb-ems-tools).

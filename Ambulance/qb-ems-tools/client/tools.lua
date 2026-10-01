@@ -126,7 +126,7 @@ end
 
 RegisterNetEvent('ems-tools:client:TreatClosest', function() EMS.OpenTreatMenu() end)
 
--- CPR: anyone can bring a downed patient back (1-3 rounds depending on how bad it is).
+-- CPR with a First Aid kit: anyone can bring a downed patient back (1-3 rounds depending on how bad it is).
 function EMS.StartCPR(targetId)
     if busy then return end
     if not Config.CPR.Enabled then return end
@@ -135,6 +135,7 @@ function EMS.StartCPR(targetId)
         targetId = pid and GetPlayerServerId(pid) or nil
     end
     if not targetId then return EMS.Notify('No patient nearby', 'error') end
+    if Config.CPR.Item and not EMS.HasItem(Config.CPR.Item) then return EMS.Notify('You need a First Aid kit to do CPR', 'error') end
     local ok, err, rounds = EMS.TriggerCallback('ems-tools:server:StartCPR', targetId)
     if not ok then return EMS.Notify(err or 'CPR is not possible', 'error') end
     local label = 'Performing CPR...'

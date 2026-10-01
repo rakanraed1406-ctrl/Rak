@@ -254,12 +254,12 @@ Config.Alerts = {
 Config.Protocols = {
     {
         title = 'Unconscious — no pulse (10-69)', icon = 'fa-heart-pulse', level = 'high',
-        steps = { 'Secure the scene (call police if armed suspects).', 'Attach the vitals monitor: V-FIB = shock now, ASYSTOLE = keep trying.', 'Use the defibrillator on the patient.', 'Stretcher → load into the ambulance → hospital.' },
-        items = { 'defibrillator', 'ems_monitor', 'ems_stretcher' },
+        steps = { 'Secure the scene (call police if armed suspects).', 'Attach the vitals monitor: V-FIB = shock now, ASYSTOLE = keep trying.', 'Use the defibrillator — or CPR with a First Aid kit (2-3 rounds).', 'Stretcher → load into the ambulance → hospital.' },
+        items = { 'defibrillator', 'firstaid', 'ems_monitor', 'ems_stretcher' },
     },
     {
         title = 'Bleeding out / last stand (10-47)', icon = 'fa-user-injured', level = 'medium',
-        steps = { 'Reach the patient before the timer runs out — bystanders can do CPR to buy time.', 'Adrenaline adds time, a tourniquet stops the bleeding.', 'Use a First Aid kit to get them back up.' },
+        steps = { 'Reach the patient before the timer runs out.', 'Adrenaline adds time, a tourniquet stops the bleeding.', 'CPR with a First Aid kit: 1-3 rounds depending on how bad it is, then the patient gets up.' },
         items = { 'adrenaline', 'ems_tourniquet', 'firstaid' },
     },
     {

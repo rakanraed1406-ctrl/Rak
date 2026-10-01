@@ -350,10 +350,10 @@ RegisterNetEvent('hospital:server:SetDoctor', function()
 
 end)
 
--- Medic / first-aid revive. Everything is checked here now: before, any client could
--- revive anybody from anywhere, and the civilian First Aid kit was never used up.
---   * patient bleeding out (last stand) -> costs one "firstaid" (medic or civilian)
---   * patient with no pulse (dead)      -> medics only, needs a "defibrillator" (not used up)
+-- Medic revive with the defibrillator (patient with no pulse). Checked here: before,
+-- any client could revive anybody from anywhere.
+-- A patient who is still bleeding out is brought back with CPR + a First Aid kit
+-- (qb-ems-tools) — the old instant first-aid revive is gone.
 RegisterNetEvent('hospital:server:RevivePlayer', function(playerId, isOldMan)
 	local src = source
 	local Player = QBCore.Functions.GetPlayer(src)
@@ -361,34 +361,18 @@ RegisterNetEvent('hospital:server:RevivePlayer', function(playerId, isOldMan)
 	local Patient = playerId and QBCore.Functions.GetPlayer(playerId)
 	if not Player or not Patient or playerId == src then return end
 	if not IsNear(src, playerId, 5.0) then return end
-	local meta = Patient.PlayerData.metadata
-	if not (meta["isdead"] or meta["inlaststand"]) then return end
-
-	if meta["isdead"] then
-		if not IsEms(Player) or not Player.Functions.GetItemByName('defibrillator') then
-			TriggerClientEvent('QBCore:Notify', src, Lang:t('error.no_defib'), "error")
-			return
-		end
-	elseif not Player.Functions.GetItemByName('firstaid') then
-		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.no_firstaid'), "error")
+	if not Patient.PlayerData.metadata["isdead"] then return end
+	if not IsEms(Player) or not Player.Functions.GetItemByName('defibrillator') then
+		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.no_defib'), "error")
 		return
 	end
-
 	-- paid revive: only charged once we know the revive can happen
 	if isOldMan and not Player.Functions.RemoveMoney("cash", 5000, "revived-player") then
 		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.not_enough_money'), "error")
 		return
 	end
-
-	if not meta["isdead"] then
-		if not Player.Functions.RemoveItem('firstaid', 1) then
-			TriggerClientEvent('QBCore:Notify', src, Lang:t('error.no_firstaid'), "error")
-			return
-		end
-		TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['firstaid'], "remove")
-	end
 	TriggerClientEvent('hospital:client:Revive', Patient.PlayerData.source)
-	TriggerEvent('hospital:server:PatientRevivedBy', src, Patient.PlayerData.source, meta["isdead"] and 'defib' or 'firstaid')
+	TriggerEvent('hospital:server:PatientRevivedBy', src, Patient.PlayerData.source, 'defib')
 end)
 
 RegisterNetEvent('hospital:server:SendDoctorAlert', function(street)
@@ -403,29 +387,6 @@ RegisterNetEvent('hospital:server:SendDoctorAlert', function(street)
         if v.PlayerData.job.name == 'ambulance' and v.PlayerData.job.onduty then
 			TriggerClientEvent('QBCore:Notify', v.PlayerData.source, Lang:t('info.dr_needed'), 'info')
 		end
-	end
-end)
-
-local pendingHelp = {} -- [patient] = helper, so a client can't answer for someone it wasn't asked about
-RegisterNetEvent('hospital:server:UseFirstAid', function(targetId)
-	local src = source
-	targetId = tonumber(targetId)
-	local Target = targetId and QBCore.Functions.GetPlayer(targetId)
-	if Target and targetId ~= src and IsNear(src, targetId, 3.0) then
-		pendingHelp[targetId] = src
-		TriggerClientEvent('hospital:client:CanHelp', targetId, src)
-	end
-end)
-
-RegisterNetEvent('hospital:server:CanHelp', function(helperId, canHelp)
-	local src = source
-	helperId = tonumber(helperId)
-	if not helperId or pendingHelp[src] ~= helperId then return end
-	pendingHelp[src] = nil
-	if canHelp then
-		TriggerClientEvent('hospital:client:HelpPerson', helperId, src)
-	else
-		TriggerClientEvent('QBCore:Notify', helperId, Lang:t('error.cant_help'), "error")
 	end
 end)
 
@@ -459,7 +420,6 @@ AddEventHandler('playerDropped', function()
 	local src = source
 	PlayerInjuries[src] = nil
 	PlayerWeaponWounds[src] = nil
-	pendingHelp[src] = nil
 	lastNeedsRefill[src] = nil
 	for _, t in pairs(throttles) do t[src] = nil end
 	FreeBedsOf(src)
@@ -757,9 +717,4 @@ end)
 
 AddEventHandler('playerDropped', function() pendingUse[source] = nil end)
 
-QBCore.Functions.CreateUseableItem("firstaid", function(source, item)
-	local Player = QBCore.Functions.GetPlayer(source)
-	if Player and Player.Functions.GetItemByName(item.name) then
-		TriggerClientEvent("hospital:client:UseFirstAid", source)
-	end
-end)
+-- "firstaid" is used by qb-ems-tools: it is the kit needed for CPR (1-3 rounds by severity).

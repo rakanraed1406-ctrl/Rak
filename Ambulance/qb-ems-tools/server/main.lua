@@ -158,8 +158,28 @@ local function RollRounds(tier)
     return math.random(math.max(1, tier - 1), tier)
 end
 
+local function HasKit(Player)
+    return not Config.CPR.Item or Player.Functions.GetItemByName(Config.CPR.Item) ~= nil
+end
+
+local function UseKit(src, Player)
+    if not Config.CPR.Item then return true end
+    if not Player.Functions.RemoveItem(Config.CPR.Item, 1) then return false end
+    TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[Config.CPR.Item], 'remove')
+    return true
+end
+
+-- Using the First Aid kit from the inventory = CPR on the closest downed patient.
+if Config.CPR.Item then
+    QBCore.Functions.CreateUseableItem(Config.CPR.Item, function(source)
+        TriggerClientEvent('ems-tools:client:CPRClosest', source)
+    end)
+end
+
 QBCore.Functions.CreateCallback('ems-tools:server:StartCPR', function(src, cb, targetId)
     if not Config.CPR.Enabled then return cb(false) end
+    local Rescuer = QBCore.Functions.GetPlayer(src)
+    if not Rescuer or not HasKit(Rescuer) then return cb(false, 'You need a First Aid kit to do CPR') end
     targetId = tonumber(targetId)
     local Target = targetId and QBCore.Functions.GetPlayer(targetId)
     if not Target or targetId == src then return cb(false, 'No patient') end
@@ -197,10 +217,14 @@ RegisterNetEvent('ems-tools:server:FinishCPR', function()
     local dead, laststand = PatientState(Target)
     local c = Cpr[target]
     if not c or (not dead and not laststand) then return end
+    local Rescuer = QBCore.Functions.GetPlayer(src)
+    if not Rescuer or not HasKit(Rescuer) then return Notify(src, 'You need a First Aid kit to do CPR', 'error') end
+    if Config.CPR.ConsumeOn == 'round' and not UseKit(src, Rescuer) then return end
 
     c.done = c.done + 1
     if c.done >= c.required then
         -- enough rounds: the patient comes back (weak)
+        if Config.CPR.ConsumeOn ~= 'round' and not UseKit(src, Rescuer) then return end
         Cpr[target] = nil
         TriggerClientEvent('hospital:client:Revive', target)
         TriggerClientEvent('hospital:client:ApplyTreatment', target, 'sethealth', { health = Config.CPR.ReviveHealth })
@@ -239,7 +263,7 @@ end)
 AddEventHandler('hospital:server:PatientRevivedBy', function(medicSrc, patientSrc, how)
     local Medic = QBCore.Functions.GetPlayer(medicSrc)
     if Medic and Medic.PlayerData.job.name == Config.Job then
-        EMSServer.Log(medicSrc, patientSrc, how == 'defib' and 'Defibrillation — pulse restored' or 'First aid — patient back on their feet')
+        EMSServer.Log(medicSrc, patientSrc, 'Defibrillation — pulse restored')
     end
 end)
 

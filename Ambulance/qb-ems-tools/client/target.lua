@@ -42,10 +42,11 @@ CreateThread(function()
                 action = function(entity) EMS.OpenTreatMenu(ServerIdOf(entity)) end,
             },
             {
-                icon = 'fas fa-hand-holding-medical', label = 'Perform CPR',
+                icon = 'fas fa-hand-holding-medical', label = 'Perform CPR (First Aid kit)',
                 canInteract = function(entity)
                     local down = DownState(entity)
                     return Config.CPR.Enabled and (down == 'laststand' or (down == 'dead' and Config.CPR.AllowNoPulse))
+                        and (not Config.CPR.Item or EMS.HasItem(Config.CPR.Item))
                 end,
                 action = function(entity) EMS.StartCPR(ServerIdOf(entity)) end,
             },
