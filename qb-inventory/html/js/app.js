@@ -181,10 +181,12 @@
             slotEl.appendChild(el('span', 'slot-amount', `${item.amount}x`));
         }
         slotEl.appendChild(el('span', 'slot-label', item.label || item.name));
-        if (q !== null) {
-            const bar = el('span', `quality-bar${q < 25 ? ' low' : q < 50 ? ' mid' : ''}`);
+        {
+            // Like the original: every item shows its quality bar (100% when it has none)
+            const shown = q === null ? 100 : q;
+            const bar = el('span', `quality-bar${shown < 25 ? ' low' : shown < 50 ? ' mid' : ''}`);
             const fill = el('i');
-            fill.style.setProperty('--q', `${q}%`);
+            fill.style.setProperty('--q', `${shown}%`);
             bar.appendChild(fill);
             slotEl.appendChild(bar);
         }
@@ -240,7 +242,7 @@
         const afterDash = label.includes('-') ? label.slice(label.indexOf('-') + 1) : '';
         let title = label;
         let sub = '';
-        if (type === 'ground') { title = t('ground'); }
+        if (type === 'ground') { title = t('ground'); sub = t('drop'); }
         else if (type === 'drop') { title = t('drop'); sub = `#${other.name}`; }
         else if (type === 'trunk') { title = t('trunk'); sub = afterDash; }
         else if (type === 'glovebox') { title = t('glovebox'); sub = afterDash; }
@@ -998,6 +1000,7 @@
         setText($('#id-name'), name);
         setText($('#player-sub'), name);
         setText($('#id-sid'), data.pid);
+        $('#id-name').parentElement.hidden = !name;
         setText($('#id-cid'), data.citizenid || '');
         $('#id-cid-wrap').hidden = !data.citizenid;
         setText($('#id-cash'), money(data.cash));
@@ -1029,6 +1032,9 @@
             S.strings = data.strings;
             applyStrings();
         }
+        $('#inv').classList.toggle('side-right', data.side !== 'left');
+        app.classList.toggle('side-left', data.side === 'left');
+        if (data.brandTag !== undefined) setText($('#brand-tag'), data.brandTag);
         S.special = Number(data.special) || 41;
         S.drops = data.drops !== false;
         S.dropSlots = Number(data.dropSlots) || 30;

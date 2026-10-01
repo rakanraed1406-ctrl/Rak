@@ -28,6 +28,7 @@ local UI_KEYS = {
     'broken', 'price', 'costs', 'serial', 'ammo', 'durability', 'no_attachments', 'remove', 'give_to', 'no_players',
     'received', 'removed', 'used', 'required', 'take_money', 'cash', 'job', 'all_items', 'weapons', 'food', 'tools',
     'general', 'hint_move', 'hint_quick', 'hint_use', 'hint_menu', 'in_use',
+    'personal', 'information', 'state_id', 'citizen_id', 'name',
 }
 
 local function UiStrings()
@@ -528,6 +529,8 @@ RegisterNetEvent('inventory:client:OpenInventory', function(PlayerAmmo, inventor
         dropSlots = Config.DropSlots,
         dropMaxWeight = Config.DropMaxWeight,
         special = Config.MaxInventorySlots,
+        side = Config.InventorySide,
+        brandTag = Config.BrandTag,
         strings = not stringsSent and UiStrings() or nil,
     })
     stringsSent = true

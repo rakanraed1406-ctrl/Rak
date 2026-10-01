@@ -108,6 +108,11 @@ local Translations = {
         ["hint_quick"] = "Shift + click: quick move",
         ["hint_use"] = "Double click: use",
         ["in_use"] = "In use by someone else",
+        ["personal"] = "Personal",
+        ["information"] = "Information",
+        ["state_id"] = "State ID",
+        ["citizen_id"] = "Citizen ID",
+        ["name"] = "Name",
         ["hint_menu"] = "Right click: options",
     },
 }

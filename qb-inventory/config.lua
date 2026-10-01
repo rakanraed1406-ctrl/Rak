@@ -8,6 +8,8 @@ Config.UseTarget = GetConvar('UseTarget', 'false') == 'true' -- set `setr UseTar
 Config.MaxInventoryWeight = 120000 -- grams (120 kg)
 Config.MaxInventorySlots = 41      -- slot 41 is the 6th hotbar key
 Config.Blur = true                 -- blur the game behind the inventory
+Config.InventorySide = 'right'     -- 'right' or 'left' side of the screen
+Config.BrandTag = 'JT'             -- small text on the blue line between the inventories
 
 -- ════════════════════════════════════════════════════════════
 --  Opening emote (plays a short animation, then the inventory opens)

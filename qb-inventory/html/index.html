@@ -13,69 +13,87 @@
     <div id="app" hidden>
         <div class="backdrop"></div>
 
-        <main class="inv">
+        <main class="inv" id="inv">
             <!-- Player -->
-            <section class="panel panel-player" id="panel-player">
-                <header class="panel-head">
-                    <span class="head-icon"><svg class="ic"><use href="#i-backpack" /></svg></span>
-                    <div class="head-text">
-                        <div class="head-title" data-t="pockets">Pockets</div>
-                        <div class="head-sub" id="player-sub"></div>
+            <section class="block block-player" id="panel-player">
+                <header class="block-head">
+                    <span class="head-icon"><svg class="ic"><use href="#i-user" /></svg></span>
+                    <div class="head-label">
+                        <span class="l1" data-t="player">Player</span>
+                        <span class="l2" data-t="inventory">Inventory</span>
                     </div>
-                    <div class="head-weight"><b id="player-weight">0.00</b><span id="player-maxweight">/ 0 kg</span></div>
+                    <div class="head-weight">
+                        <b id="player-weight">0.00</b>
+                        <span id="player-maxweight">/0.00</span>
+                    </div>
+                    <div class="head-line"><div class="weight-bar"><i id="player-weight-bar"></i></div></div>
+                    <div class="tools">
+                        <label class="search">
+                            <svg class="ic"><use href="#i-search" /></svg>
+                            <input type="text" id="search" maxlength="40" data-t-ph="search" placeholder="Search">
+                        </label>
+                        <div class="filters" id="filters">
+                            <button class="chip" data-filter="weapons" data-t-title="weapons"><svg class="ic"><use href="#i-gun" /></svg></button>
+                            <button class="chip" data-filter="general" data-t-title="general"><svg class="ic"><use href="#i-cube" /></svg></button>
+                            <button class="chip" data-filter="tools" data-t-title="tools"><svg class="ic"><use href="#i-wrench" /></svg></button>
+                            <button class="chip" data-filter="food" data-t-title="food"><svg class="ic"><use href="#i-food" /></svg></button>
+                        </div>
+                    </div>
                 </header>
-                <div class="weight-bar"><i id="player-weight-bar"></i></div>
-                <div class="tools">
-                    <label class="search">
-                        <svg class="ic"><use href="#i-search" /></svg>
-                        <input type="text" id="search" maxlength="40" data-t-ph="search" placeholder="Search items...">
-                    </label>
-                    <div class="filters" id="filters">
-                        <button class="chip active" data-filter="all" data-t-title="all_items"><svg class="ic"><use href="#i-grid" /></svg></button>
-                        <button class="chip" data-filter="weapons" data-t-title="weapons"><svg class="ic"><use href="#i-gun" /></svg></button>
-                        <button class="chip" data-filter="food" data-t-title="food"><svg class="ic"><use href="#i-food" /></svg></button>
-                        <button class="chip" data-filter="tools" data-t-title="tools"><svg class="ic"><use href="#i-wrench" /></svg></button>
-                        <button class="chip" data-filter="general" data-t-title="general"><svg class="ic"><use href="#i-cube" /></svg></button>
-                    </div>
-                </div>
                 <div class="grid scroll" id="grid-player" data-inv="player"></div>
-            </section>
-
-            <!-- Middle -->
-            <aside class="mid" id="mid">
-                <div class="card id-card">
-                    <div class="avatar" id="avatar">?</div>
-                    <div class="id-name" id="id-name"></div>
-                    <div class="id-tags">
-                        <span class="tag">ID <b id="id-sid"></b></span>
-                        <span class="tag" id="id-cid-wrap"><b id="id-cid"></b></span>
-                    </div>
-                    <div class="id-rows">
-                        <div class="id-row"><span><svg class="ic"><use href="#i-cash" /></svg><em data-t="cash">Cash</em></span><b class="cash" id="id-cash">$0</b></div>
-                        <div class="id-row" id="id-job-wrap"><span><svg class="ic"><use href="#i-briefcase" /></svg><em data-t="job">Job</em></span><b id="id-job"></b></div>
-                    </div>
-                </div>
-
-                <div class="card amount-card">
-                    <div class="card-label" data-t="amount">Amount</div>
+                <footer class="block-foot">
                     <div class="amount">
                         <button class="amount-btn" data-step="-1"><svg class="ic"><use href="#i-minus" /></svg></button>
-                        <input type="number" id="amount" min="0" max="100000" placeholder="All" data-t-ph="all">
+                        <input type="number" id="amount" min="0" max="100000" placeholder="Amount" data-t-ph="amount">
                         <button class="amount-btn" data-step="1"><svg class="ic"><use href="#i-plus" /></svg></button>
                     </div>
-                </div>
+                    <div class="action" id="action-use" data-zone="use"><svg class="ic"><use href="#i-bolt" /></svg><span data-t="use">Use</span></div>
+                    <div class="action" id="action-give" data-zone="give"><svg class="ic"><use href="#i-hand" /></svg><span data-t="give">Give</span></div>
+                    <button class="rob-btn" id="rob-btn" hidden><svg class="ic"><use href="#i-cash" /></svg><span data-t="take_money">Take money</span></button>
+                </footer>
+            </section>
 
-                <div class="actions">
-                    <div class="action" id="action-use" data-zone="use">
-                        <svg class="ic"><use href="#i-bolt" /></svg><span data-t="use">Use</span>
+            <!-- Blue line between the inventories -->
+            <div class="divider">
+                <i></i>
+                <span id="brand-tag">JT</span>
+            </div>
+
+            <!-- Other inventory -->
+            <section class="block block-other" id="panel-other">
+                <header class="block-head">
+                    <span class="head-icon" id="other-icon"><svg class="ic"><use href="#i-ground" /></svg></span>
+                    <div class="head-label">
+                        <span class="l1" id="other-title">Ground</span>
+                        <span class="l2" id="other-sub"></span>
                     </div>
-                    <div class="action" id="action-give" data-zone="give">
-                        <svg class="ic"><use href="#i-hand" /></svg><span data-t="give">Give</span>
+                    <div class="head-weight" id="other-weight-wrap">
+                        <b id="other-weight">0.00</b>
+                        <span id="other-maxweight">/0.00</span>
                     </div>
+                    <div class="head-line"><div class="weight-bar" id="other-weight-bar-wrap"><i id="other-weight-bar"></i></div></div>
+                </header>
+                <div class="grid scroll" id="grid-other" data-inv="other"></div>
+                <div class="other-empty" id="other-empty" hidden>
+                    <svg class="ic"><use href="#i-lock" /></svg>
+                    <span data-t="in_use">In use by someone else</span>
                 </div>
+            </section>
 
-                <button class="rob-btn" id="rob-btn" hidden><svg class="ic"><use href="#i-cash" /></svg><span data-t="take_money">Take money</span></button>
-
+            <!-- Personal information -->
+            <aside class="info" id="mid">
+                <header class="info-head">
+                    <span class="info-dot"></span>
+                    <div class="head-label">
+                        <span class="l1" data-t="personal">Personal</span>
+                        <span class="l2" data-t="information">Information</span>
+                    </div>
+                </header>
+                <div class="info-card"><span data-t="name">Name</span><b id="id-name"></b></div>
+                <div class="info-card"><span data-t="state_id">State ID</span><b>#<i id="id-sid"></i></b></div>
+                <div class="info-card" id="id-cid-wrap"><span data-t="citizen_id">Citizen ID</span><b id="id-cid"></b></div>
+                <div class="info-card"><span data-t="cash">Cash</span><b class="cash" id="id-cash">$0</b></div>
+                <div class="info-card" id="id-job-wrap"><span data-t="job">Job</span><b id="id-job"></b></div>
                 <ul class="hints">
                     <li><kbd><svg class="ic"><use href="#i-mouse" /></svg></kbd><span data-t="hint_move">Drag to move</span></li>
                     <li><kbd>⇧</kbd><span data-t="hint_quick">Shift + click: quick move</span></li>
@@ -83,24 +101,6 @@
                     <li><kbd>R</kbd><span data-t="hint_menu">Right click: options</span></li>
                 </ul>
             </aside>
-
-            <!-- Other inventory -->
-            <section class="panel panel-other" id="panel-other">
-                <header class="panel-head">
-                    <span class="head-icon" id="other-icon"><svg class="ic"><use href="#i-ground" /></svg></span>
-                    <div class="head-text">
-                        <div class="head-title" id="other-title">Ground</div>
-                        <div class="head-sub" id="other-sub"></div>
-                    </div>
-                    <div class="head-weight" id="other-weight-wrap"><b id="other-weight">0.00</b><span id="other-maxweight">/ 0 kg</span></div>
-                </header>
-                <div class="weight-bar" id="other-weight-bar-wrap"><i id="other-weight-bar"></i></div>
-                <div class="grid scroll" id="grid-other" data-inv="other"></div>
-                <div class="other-empty" id="other-empty" hidden>
-                    <svg class="ic"><use href="#i-lock" /></svg>
-                    <span data-t="in_use">In use by someone else</span>
-                </div>
-            </section>
         </main>
 
         <!-- Context menu -->

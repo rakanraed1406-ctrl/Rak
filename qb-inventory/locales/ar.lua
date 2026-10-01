@@ -108,6 +108,11 @@ local Translations = {
         ["hint_quick"] = "Shift + كليك: نقل سريع",
         ["hint_use"] = "دبل كليك: استخدام",
         ["in_use"] = "مستخدم من شخص ثاني",
+        ["personal"] = "المعلومات",
+        ["information"] = "الشخصية",
+        ["state_id"] = "الآيدي",
+        ["citizen_id"] = "رقم المواطن",
+        ["name"] = "الاسم",
         ["hint_menu"] = "كليك يمين: خيارات",
     },
 }
