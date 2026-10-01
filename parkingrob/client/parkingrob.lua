@@ -109,19 +109,31 @@ local function robMeter(entity)
     end, coords)
 end
 
+-- Same target setup as the original script (event + the entity remembered
+-- in canInteract), so it works on every qb-target version.
+local targetedMeter = nil
+
+RegisterNetEvent('parkingrob:client:rob', function(data)
+    local entity = (type(data) == 'table' and data.entity) or targetedMeter
+    if entity and DoesEntityExist(entity) then robMeter(entity) end
+end)
+
 CreateThread(function()
     exports['qb-target']:AddTargetModel(Config.MeterModels, {
         options = {
             {
+                type = 'client',
+                event = 'parkingrob:client:rob',
                 icon = 'fa-solid fa-square-parking',
                 label = 'Rob parking meter',
-                action = function(entity) robMeter(entity) end,
                 canInteract = function(entity)
-                    return not robbing and not meterOnCooldown(entity)
+                    if robbing or meterOnCooldown(entity) then return false end
+                    targetedMeter = entity
+                    return true
                 end,
             },
         },
-        distance = 1.5
+        distance = 2.0
     })
 end)
 
