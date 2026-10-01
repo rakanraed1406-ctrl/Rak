@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Elevator</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app" class="hidden">
+      <div class="panel">
+        <div class="head">
+          <div>
+            <div class="kicker">ELEVATOR</div>
+            <div class="building" id="building"></div>
+          </div>
+          <button class="close" id="close" title="Close (Esc)">&times;</button>
+        </div>
+        <div class="display">
+          <span class="arrow" id="arrow">&#9650;</span>
+          <span class="digit" id="digit">0</span>
+          <span class="floor-name" id="floorName"></span>
+        </div>
+        <div class="floors" id="floors"></div>
+        <div class="hint">Choose a floor &middot; <b>Esc</b> to close</div>
+      </div>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
