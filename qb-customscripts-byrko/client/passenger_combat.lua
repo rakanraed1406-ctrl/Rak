@@ -62,8 +62,12 @@ local function startThread()
                                 lastShot = t
                                 SetPedShootsAtCoord(ped, endCoords.x, endCoords.y, endCoords.z, true)
 
+                                -- نرسل الرصاص الحقيقي بعد ما تطلع الطلقة (قبل كان ينقص قبل الطلقة = يختلف مع الشنطة)
                                 if GetResourceState('ox_inventory') == 'started' then
-                                    TriggerServerEvent('ox_inventory:updateWeapon', 'ammo', clip - 1)
+                                    local w = weapon
+                                    SetTimeout(60, function()
+                                        TriggerServerEvent('ox_inventory:updateWeapon', 'ammo', GetAmmoInPedWeapon(cache.ped, w))
+                                    end)
                                 end
 
                                 if IsPedAPlayer(target) then

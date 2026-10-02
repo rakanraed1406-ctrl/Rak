@@ -71,51 +71,56 @@ CreateThread(function()
 end)
 
 ----------------------------------------------------------------------
--- لوب المشي: الرول وأنت مصوّب + النط المتكرر
+-- الرول وأنت مصوّب + النط المتكرر
+-- على أزرار (Key Mapping) بدل لوب كل فريم → وأنت ماشي ما فيه استهلاك
 ----------------------------------------------------------------------
-CreateThread(function()
-    local hop = RP.AntiBunnyHop
-    local jumps, wasJumping, blockUntil = {}, false, 0
+local aimHeld, jumpBlockUntil, blocking = false, 0, false
 
-    while true do
-        local sleep = 250
-        local ped = cache.ped
-
-        if not cache.vehicle then
-            local t = GetGameTimer()
-
-            if RP.NoCombatRoll and cache.weapon then
-                sleep = 0
-                if IsPlayerFreeAiming(PlayerId()) or IsControlPressed(0, 25) then
-                    DisableControlAction(0, 22, true)
-                end
-            end
-
-            if hop.Enabled then
-                sleep = 0
-                if t < blockUntil then
-                    DisableControlAction(0, 22, true)
-                end
-
-                local jumping = IsPedJumping(ped)
-                if jumping and not wasJumping then
-                    jumps[#jumps + 1] = t
-                    while jumps[1] and t - jumps[1] > hop.Window do table.remove(jumps, 1) end
-
-                    if #jumps >= hop.MaxJumps then
-                        jumps, blockUntil = {}, t + hop.BlockTime
-                        if hop.Ragdoll then
-                            SetPedToRagdoll(ped, 1500, 1500, 0, false, false, false)
-                        end
-                    end
-                end
-                wasJumping = jumping
-            end
+local function blockJumpLoop()
+    if blocking then return end
+    blocking = true
+    -- يشتغل بس وأنت مصوّب أو بوقت منع النط، وبعدها يوقف
+    CreateThread(function()
+        while (aimHeld and RP.NoCombatRoll and cache.weapon) or GetGameTimer() < jumpBlockUntil do
+            DisableControlAction(0, 22, true)
+            Wait(0)
         end
+        blocking = false
+    end)
+end
 
-        Wait(sleep)
-    end
-end)
+if RP.NoCombatRoll then
+    RegisterCommand('+rk_aim', function()
+        aimHeld = true
+        if cache.weapon and not cache.vehicle then blockJumpLoop() end
+    end, false)
+    RegisterCommand('-rk_aim', function() aimHeld = false end, false)
+    RegisterKeyMapping('+rk_aim', 'RP: منع الرول وأنت مصوّب', 'MOUSE_BUTTON', 'MOUSE_RIGHT')
+end
+
+if RP.AntiBunnyHop.Enabled then
+    local hop, jumps = RP.AntiBunnyHop, {}
+
+    RegisterCommand('+rk_jump', function()
+        local ped = cache.ped
+        if cache.vehicle or IsPedSwimming(ped) or IsPedClimbing(ped) then return end
+        SetTimeout(150, function()
+            if not IsPedJumping(cache.ped) then return end
+            local t = GetGameTimer()
+            jumps[#jumps + 1] = t
+            while jumps[1] and t - jumps[1] > hop.Window do table.remove(jumps, 1) end
+
+            if #jumps >= hop.MaxJumps then
+                jumps = {}
+                jumpBlockUntil = t + hop.BlockTime
+                blockJumpLoop()
+                if hop.Ragdoll then SetPedToRagdoll(cache.ped, 1500, 1500, 0, false, false, false) end
+            end
+        end)
+    end, false)
+    RegisterCommand('-rk_jump', function() end, false)
+    RegisterKeyMapping('+rk_jump', 'RP: منع النط المتكرر', 'keyboard', 'SPACE')
+end
 
 ----------------------------------------------------------------------
 -- كاميرا الخمول
@@ -156,6 +161,14 @@ if RP.Stuck.Enabled then
         end
         if IsEntityAttached(ped) then
             return Utils.Notify('ما تقدر وأحد ماسكك أو شايلك', 'error')
+        end
+        -- عشان ما ينستغل للقومة بعد ما أحد يطيحك (تاكل) أو وأنت طايح/بالباراشوت
+        if IsPedRagdoll(ped) or IsPedFalling(ped) or IsPedGettingUp(ped) or IsPedInParachuteFreeFall(ped)
+            or GetPedParachuteState(ped) ~= -1 or IsPedSwimmingUnderWater(ped) then
+            return Utils.Notify('ما تقدر الحين، انتظر لين توقف', 'error')
+        end
+        if GetEntitySpeed(ped) > 2.0 then
+            return Utils.Notify('وقّف أول', 'error')
         end
 
         lastUse = t

@@ -92,6 +92,23 @@ Config.PassengerCombat = {
     HeadshotRadius  = 0.25,
     Damage          = 50,      -- الضرر بالطلقة (السيرفر هو اللي يحدده)
     FireInterval    = 180,     -- أقل وقت بين طلقتين (ملّي ثانية)
+    MaxHitsPerSecond = 6,      -- أقصى ضربات على نفس الشخص بالثانية (من كل اللاعبين)
+    -- ما يحسب الضرب بهذي (أسلحة بيضاء / رمي)
+    BlockedWeapons = {
+        'WEAPON_KNIFE', 'WEAPON_NIGHTSTICK', 'WEAPON_HAMMER', 'WEAPON_BAT', 'WEAPON_CROWBAR',
+        'WEAPON_GOLFCLUB', 'WEAPON_BOTTLE', 'WEAPON_DAGGER', 'WEAPON_HATCHET', 'WEAPON_KNUCKLE',
+        'WEAPON_MACHETE', 'WEAPON_FLASHLIGHT', 'WEAPON_SWITCHBLADE', 'WEAPON_POOLCUE', 'WEAPON_WRENCH',
+        'WEAPON_BATTLEAXE', 'WEAPON_STONE_HATCHET', 'WEAPON_GRENADE', 'WEAPON_STICKYBOMB',
+        'WEAPON_PROXMINE', 'WEAPON_BZGAS', 'WEAPON_MOLOTOV', 'WEAPON_SMOKEGRENADE', 'WEAPON_FLARE',
+        'WEAPON_PIPEBOMB', 'WEAPON_BALL', 'WEAPON_SNOWBALL', 'WEAPON_PETROLCAN', 'WEAPON_FIREEXTINGUISHER',
+        'WEAPON_STUNGUN', 'WEAPON_STUNGUN_MP',
+    },
+}
+
+-- الحماية من الغش (الأحداث اللي تجي من الكلاينت)
+Config.Security = {
+    KickOnAbuse = false,   -- true = يطرد اللي يكرر محاولات الغش
+    MaxStrikes  = 5,       -- كم محاولة بالدقيقة قبل الطرد
 }
 
 --[[═════════════════════════════════════════════════════════════════════
