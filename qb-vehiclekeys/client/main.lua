@@ -12,123 +12,264 @@ local lastPickedVehicle = nil
 local usingAdvanced = false
 local IsHotwiring = false
 local runningClaims = {}   -- [vehicle] = 'pending' | 'granted' | 'denied'
-local lastDriven = nil
 
 -----------------------
 ----   Threads     ----
 -----------------------
+-- كل شي هنا يشتغل على الأحداث (زر F / ركبت سيارة) — وأنت ماشي ما فيه أي لوب شغال
+
+local npcPending = {}      -- [vehicle] = true  (سيارة بوت طلعت مفتوحة)
+local pullHeld = false
+local pulling = false
+local inVehicleSession = false
+
+local function isImmune(veh)
+    local model = GetEntityModel(veh)
+    for _, name in ipairs(Config.ImmuneVehicles) do
+        if model == joaat(name) then return true end
+    end
+    return false
+end
+
+local function applyPedFlags()
+    -- ما أحد يسحبك من سيارتك بضغطة F، لازم يعلّق عليها (Config.PullOut)
+    if Config.PullOut.Enabled then SetPedCanBeDraggedOut(PlayerPedId(), false) end
+end
+
+local function waitTryingToEnter(ped, ms)
+    local deadline = GetGameTimer() + ms
+    while GetGameTimer() < deadline do
+        local veh = GetVehiclePedIsTryingToEnter(ped)
+        if veh ~= 0 then return veh end
+        Wait(50)
+    end
+    return 0
+end
+
+local function closestPlayerDrivenVehicle(ped, maxDist)
+    local pos = GetEntityCoords(ped)
+    local best, bestDist = 0, maxDist
+    for _, veh in ipairs(GetGamePool('CVehicle')) do
+        local d = #(GetEntityCoords(veh) - pos)
+        if d < bestDist then
+            local driver = GetPedInVehicleSeat(veh, -1)
+            if driver ~= 0 and driver ~= ped and IsPedAPlayer(driver) then best, bestDist = veh, d end
+        end
+    end
+    return best
+end
+
+local function nearDriverDoor(ped, veh)
+    local pos = GetEntityCoords(ped)
+    local bone = GetEntityBoneIndexByName(veh, 'door_dside_f')
+    if bone ~= -1 then
+        return #(GetWorldPositionOfEntityBone(veh, bone) - pos) <= Config.PullOut.DoorDistance
+    end
+    return #(GetEntityCoords(veh) - pos) <= 3.0
+end
+
+-- السواق البوت ميت: تاخذ المفتاح من جثته
+local function takeKeysFromBody(veh, plate)
+    if isTakingKeys then return end
+    isTakingKeys = true
+    TriggerServerEvent('qb-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(veh), 1)
+    QBCore.Functions.Progressbar("steal_keys", Lang:t("progress.takekeys"), 2500, false, false, {
+        disableMovement = false,
+        disableCarMovement = true,
+        disableMouse = false,
+        disableCombat = true
+    }, {}, {}, {}, function()
+        TriggerServerEvent('qb-vehiclekeys:server:AcquireVehicleKeys', plate)
+        isTakingKeys = false
+    end, function()
+        isTakingKeys = false
+    end)
+end
+
+-- البوت يشرد بسيارته
+local function npcFlee(driver, veh)
+    if not NetworkHasControlOfEntity(driver) then NetworkRequestControlOfEntity(driver) end
+    SetBlockingOfNonTemporaryEvents(driver, true)
+    SetDriverAbility(driver, 1.0)
+    SetDriverAggressiveness(driver, 1.0)
+    TaskVehicleMissionPedTarget(driver, veh, PlayerPedId(), 8, Config.NpcCarjack.FleeSpeed, 786468, 1000.0, 10.0, true)
+    SetPedKeepTask(driver, true)
+    StartVehicleHorn(veh, 1500, `HELDDOWN`, false)
+end
+
+-- سيارة بوت بالشارع: 50% مفتوحة (تنزله وتاخذ المفتاح) / 50% مقفلة (يشرد)
+local function handleNpcVehicle(ped, veh, driver)
+    local plate = QBCore.Functions.GetPlate(veh)
+    if HasKeys(plate) then return end
+
+    if IsEntityDead(driver) then return takeKeysFromBody(veh, plate) end
+    if not Config.NpcCarjack.Enabled or IsEntityAMissionEntity(veh) then return end
+
+    local state = Entity(veh).state.npcLock
+    if not state then
+        state = (math.random() < Config.NpcCarjack.UnlockedChance) and 'unlocked' or 'locked'
+        TriggerServerEvent('qb-vehiclekeys:server:NpcLockRoll', NetworkGetNetworkIdFromEntity(veh), state)
+    end
+
+    if state == 'locked' then
+        SetVehicleDoorsLocked(veh, 2)
+        ClearPedTasks(ped)
+        npcFlee(driver, veh)
+        QBCore.Functions.Notify(Lang:t('notify.npc_locked'), 'error')
+    else
+        SetVehicleDoorsLocked(veh, 1)
+        npcPending[veh] = true
+    end
+end
+
+-- لاعب سايق: تعلّق على F عند باب السواق وينزل (لو الباب مفتوح)
+local function tryPullOut(ped, veh)
+    if pulling then return end
+    ClearPedTasks(ped)
+
+    if not nearDriverDoor(ped, veh) then
+        return QBCore.Functions.Notify(Lang:t('notify.pull_door'), 'error')
+    end
+    if GetVehicleDoorLockStatus(veh) >= 2 then
+        return QBCore.Functions.Notify(Lang:t('notify.pull_locked'), 'error')
+    end
+    if GetEntitySpeed(veh) * 3.6 > Config.PullOut.MaxSpeed then
+        return QBCore.Functions.Notify(Lang:t('notify.pull_moving'), 'error')
+    end
+
+    pulling = true
+    QBCore.Functions.Progressbar('pull_driver', Lang:t('progress.pulldriver'), Config.PullOut.HoldTime, false, true, {
+        disableMovement = true,
+        disableCarMovement = true,
+        disableMouse = false,
+        disableCombat = true,
+    }, {}, {}, {}, function()
+        pulling = false
+        if pullHeld and DoesEntityExist(veh) then
+            TriggerServerEvent('qb-vehiclekeys:server:PullOutDriver', NetworkGetNetworkIdFromEntity(veh))
+        end
+    end, function()
+        pulling = false
+    end)
+end
+
+RegisterCommand('+vehkeys_f', function()
+    pullHeld = true
+    local ped = PlayerPedId()
+    if not LocalPlayer.state.isLoggedIn or pulling or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) then return end
+
+    CreateThread(function()
+        local veh = waitTryingToEnter(ped, 400)
+        if veh == 0 and Config.PullOut.Enabled and pullHeld then veh = closestPlayerDrivenVehicle(ped, 3.5) end
+        if veh == 0 or isBlacklistedVehicle(veh) then return end
+
+        local driver = GetPedInVehicleSeat(veh, -1)
+        if driver == 0 or driver == ped then return end
+
+        if IsPedAPlayer(driver) then
+            if Config.PullOut.Enabled and pullHeld then tryPullOut(ped, veh) end
+        elseif not isImmune(veh) then
+            handleNpcVehicle(ped, veh, driver)
+        end
+    end)
+end, false)
+
+RegisterCommand('-vehkeys_f', function()
+    pullHeld = false
+    if pulling then TriggerEvent('progressbar:client:cancel') end
+end, false)
+
+RegisterKeyMapping('+vehkeys_f', 'Vehicle: enter / hold to pull out driver', 'keyboard', 'F')
+
+-- انسحبت من سيارتك
+RegisterNetEvent('qb-vehiclekeys:client:PulledOut', function(netId)
+    local ped = PlayerPedId()
+    local veh = NetworkGetEntityFromNetworkId(netId)
+    if veh == 0 or GetPedInVehicleSeat(veh, -1) ~= ped then return end
+
+    QBCore.Functions.Notify(Lang:t('notify.pulled_out'), 'error')
+    TaskLeaveVehicle(ped, veh, 256)
+    CreateThread(function()
+        local deadline = GetGameTimer() + 2500
+        while GetGameTimer() < deadline do
+            DisableControlAction(0, 71, true)
+            DisableControlAction(0, 72, true)
+            DisableControlAction(0, 75, true)
+            DisableControlAction(0, 23, true)
+            Wait(0)
+        end
+    end)
+end)
+
+-- وأنت داخل سيارة بس: المفتاح / إطفاء الموتر لو ما عندك مفتاح / تبليغ لما تنزل
+local function startVehicleSession()
+    if inVehicleSession then return end
+    inVehicleSession = true
+
+    CreateThread(function()
+        local lastDriverVeh = nil
+        while true do
+            local ped = PlayerPedId()
+            local veh = GetVehiclePedIsIn(ped, false)
+            if veh == 0 then break end
+
+            local sleep = 1000
+            if GetPedInVehicleSeat(veh, -1) == ped then
+                lastDriverVeh = veh
+                sleep = 500
+                local plate = QBCore.Functions.GetPlate(veh)
+                if not IsHotwiring and not HasKeys(plate) and not isBlacklistedVehicle(veh) and not AreKeysJobShared(veh) then
+                    if ClaimRunningVehicle(veh) then
+                        sleep = 100
+                    else
+                        SetVehicleEngineOn(veh, false, false, true)
+                    end
+                end
+            end
+            Wait(sleep)
+        end
+
+        if lastDriverVeh then ReportLeftVehicle(lastDriverVeh) end
+        runningClaims, npcPending = {}, {}
+        inVehicleSession = false
+    end)
+end
+
+AddEventHandler('gameEventTriggered', function(name, args)
+    if name ~= 'CEventNetworkPlayerEnteredVehicle' or args[1] ~= PlayerId() then return end
+    applyPedFlags()
+    startVehicleSession()
+end)
 
 CreateThread(function()
-    while true do
-        local sleep = 1000
-        if LocalPlayer.state.isLoggedIn then
-            sleep = 100
-
-            local ped = PlayerPedId()
-            local entering = GetVehiclePedIsTryingToEnter(ped)
-            local carIsImmune = false
-            if entering ~= 0 and not isBlacklistedVehicle(entering) then
-                sleep = 2000
-                local plate = QBCore.Functions.GetPlate(entering)
-
-                local driver = GetPedInVehicleSeat(entering, -1)
-                for _, veh in ipairs(Config.ImmuneVehicles) do
-                    if GetEntityModel(entering) == joaat(veh) then
-                        carIsImmune = true
-                    end
-                end
-                -- Driven vehicle logic
-                if driver ~= 0 and not IsPedAPlayer(driver) and not HasKeys(plate) and not carIsImmune then
-                    if IsEntityDead(driver) then
-                        if not isTakingKeys then
-                            isTakingKeys = true
-
-                            TriggerServerEvent('qb-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(entering), 1)
-                            QBCore.Functions.Progressbar("steal_keys", Lang:t("progress.takekeys"), 2500, false, false, {
-                                disableMovement = false,
-                                disableCarMovement = true,
-                                disableMouse = false,
-                                disableCombat = true
-                            }, {}, {}, {}, function() -- Done
-                                TriggerServerEvent('qb-vehiclekeys:server:AcquireVehicleKeys', plate)
-                                isTakingKeys = false
-                            end, function()
-                                isTakingKeys = false
-                            end)
-                        end
-                    -- elseif Config.LockNPCDrivingCars then
-                    --     TriggerServerEvent('qb-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(entering), 2)
-                    -- else
-                    --     TriggerServerEvent('qb-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(entering), 1)
-                        -- if math.random(1, 100) >= 80 then 
-                        --     TriggerServerEvent('qb-vehiclekeys:server:AcquireVehicleKeys', plate)
-
-                        --     --Make passengers flee
-                        --     local pedsInVehicle = GetPedsInVehicle(entering)
-                        --     for _, pedInVehicle in pairs(pedsInVehicle) do
-                        --         if pedInVehicle ~= GetPedInVehicleSeat(entering, -1) then
-                        --             MakePedFlee(pedInVehicle)
-                        --         end
-                        --     end
-                        -- end
-                    end
-                -- Parked car logic
-                -- elseif driver == 0 and entering ~= lastPickedVehicle and not HasKeys(plate) and not isTakingKeys then
-                --     if Config.LockNPCParkedCars then
-                --         TriggerServerEvent('qb-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(entering), 2)
-                --     else
-                --         TriggerServerEvent('qb-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(entering), 1)
-                --     end
-                end
-            end
-
-            -- Hotwiring while in vehicle, also keeps engine off for vehicles you don't own keys to
-            if IsPedInAnyVehicle(ped, false) and not IsHotwiring then
-                sleep = 1000
-                local vehicle = GetVehiclePedIsIn(ped)
-                local plate = QBCore.Functions.GetPlate(vehicle)
-
-                if GetPedInVehicleSeat(vehicle, -1) == ped then
-                    lastDriven = vehicle
-                    if not HasKeys(plate) and not isBlacklistedVehicle(vehicle) and not AreKeysJobShared(vehicle) then
-                        sleep = 0
-                        -- الموتر شغال (أحد نزل وتركه شغال) → نطلب المفتاح بدل ما نطفيه
-                        if not ClaimRunningVehicle(vehicle) then
-                            SetVehicleEngineOn(vehicle, false, false, true)
-                        end
-                    end
-                end
-            elseif not IsPedInAnyVehicle(ped, false) and lastDriven then
-                ReportLeftVehicle(lastDriven)
-                lastDriven = nil
-                runningClaims = {}
-            end
-
-            if Config.CarJackEnable and canCarjack then
-                local playerid = PlayerId()
-                local aiming, target = GetEntityPlayerIsFreeAimingAt(playerid)
-                if aiming and (target ~= nil and target ~= 0) then
-                    if DoesEntityExist(target) and IsPedInAnyVehicle(target, false) and not IsEntityDead(target) and not IsPedAPlayer(target) then
-                        local targetveh = GetVehiclePedIsIn(target)
-                        for _, veh in ipairs(Config.ImmuneVehicles) do
-                            if GetEntityModel(targetveh) == joaat(veh) then
-                                carIsImmune = true
-                            end
-                        end
-                        if GetPedInVehicleSeat(targetveh, -1) == target and not IsBlacklistedWeapon() then
-                            local pos = GetEntityCoords(ped, true)
-                            local targetpos = GetEntityCoords(target, true)
-                            if #(pos - targetpos) < 5.0 and not carIsImmune then
-                                CarjackVehicle(target)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        Wait(sleep)
-    end
+    Wait(1000)
+    applyPedFlags()
+    if IsPedInAnyVehicle(PlayerPedId(), false) then startVehicleSession() end
 end)
+
+-- سرقة بالسلاح (Config.CarJackEnable) — اللوب يشتغل بس إذا مفعّلة
+if Config.CarJackEnable then
+    CreateThread(function()
+        while true do
+            local sleep = 1000
+            local playerid = PlayerId()
+            if LocalPlayer.state.isLoggedIn and canCarjack and IsPlayerFreeAiming(playerid) then
+                sleep = 100
+                local ped = PlayerPedId()
+                local aiming, target = GetEntityPlayerIsFreeAimingAt(playerid)
+                if aiming and target and target ~= 0 and DoesEntityExist(target) and IsPedInAnyVehicle(target, false)
+                    and not IsEntityDead(target) and not IsPedAPlayer(target) then
+                    local targetveh = GetVehiclePedIsIn(target)
+                    if GetPedInVehicleSeat(targetveh, -1) == target and not IsBlacklistedWeapon() and not isImmune(targetveh)
+                        and #(GetEntityCoords(ped, true) - GetEntityCoords(target, true)) < 5.0 then
+                        CarjackVehicle(target)
+                    end
+                end
+            end
+            Wait(sleep)
+        end
+    end)
+end
 
 function isBlacklistedVehicle(vehicle)
     local isBlacklisted = false
@@ -363,12 +504,14 @@ end
 -- ركبت سواق بسيارة موترها شغال وما عندك مفتاحها: نطلب المفتاح من السيرفر.
 -- يرجّع true = خل الموتر شغال (الطلب ماشي أو انقبل)
 function ClaimRunningVehicle(vehicle)
-    if not Config.RunningEngine.Enabled then return false end
+    local npcUnlocked = Entity(vehicle).state.npcLock == 'unlocked'   -- سيارة بوت طلعت مفتوحة ونزلته
+    if not Config.RunningEngine.Enabled and not npcUnlocked then return false end
 
     local claim = runningClaims[vehicle]
     if claim == 'pending' or claim == 'granted' then return true end
     if claim == 'denied' then return false end
-    if not GetIsVehicleEngineRunning(vehicle) or not NetworkGetEntityIsNetworked(vehicle) then return false end
+    if not NetworkGetEntityIsNetworked(vehicle) then return false end
+    if not npcUnlocked and not GetIsVehicleEngineRunning(vehicle) then return false end
 
     runningClaims[vehicle] = 'pending'
     CreateThread(function()

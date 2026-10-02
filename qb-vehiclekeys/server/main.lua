@@ -149,14 +149,17 @@ QBCore.Functions.CreateCallback('qb-vehiclekeys:server:ClaimRunningVehicle', fun
     local veh = vehicleFromNet(netId)
     if not veh then return cb(false) end
     if GetPedInVehicleSeat(veh, -1) ~= GetPlayerPed(src) then return cb(false) end
-    if not GetIsVehicleEngineRunning(veh) then return cb(false) end
+
+    -- سيارة بوت طلعت مفتوحة (50/50) ونزلت السواق → المفتاح لك
+    local npcUnlocked = Config.NpcCarjack.Enabled and Entity(veh).state.npcLock == 'unlocked'
+    if not npcUnlocked and (not Cfg.Enabled or not GetIsVehicleEngineRunning(veh)) then return cb(false) end
 
     local plate = vehiclePlate(veh)
     if not plate then return cb(false) end
     if HasKeys(src, plate) then return cb(true) end
 
     local left = LeftRunning[plate]
-    local ok = left ~= nil and (os.time() - left) <= Cfg.ExpireMinutes * 60
+    local ok = npcUnlocked or (left ~= nil and (os.time() - left) <= Cfg.ExpireMinutes * 60)
     if not ok and Cfg.IncludeNPCVehicles and not VehicleList[plate] then ok = true end
     if not ok then return cb(false) end
 
@@ -168,8 +171,56 @@ QBCore.Functions.CreateCallback('qb-vehiclekeys:server:ClaimRunningVehicle', fun
 
     LeftRunning[plate] = nil
     GiveKeys(src, plate)
-    TriggerClientEvent('QBCore:Notify', src, Lang:t('notify.running_keys'), 'success')
+    if not npcUnlocked then TriggerClientEvent('QBCore:Notify', src, Lang:t('notify.running_keys'), 'success') end
     cb(true)
+end)
+
+-- سيارة بوت: أول واحد يجرب عليها يحدد هي مفتوحة ولا مقفلة (ما تنعاد القرعة)
+RegisterNetEvent('qb-vehiclekeys:server:NpcLockRoll', function(netId, state)
+    local src = source
+    if not Config.NpcCarjack.Enabled or (state ~= 'locked' and state ~= 'unlocked') then return end
+    local veh = vehicleFromNet(netId)
+    if not veh or distanceTo(src, veh) > 15.0 then return end
+
+    local driver = GetPedInVehicleSeat(veh, -1)
+    if driver == 0 or IsPedAPlayer(driver) then return end
+
+    local current = Entity(veh).state.npcLock
+    if current then
+        state = current
+    else
+        Entity(veh).state:set('npcLock', state, true)
+    end
+    SetVehicleDoorsLocked(veh, state == 'locked' and 2 or 1)
+end)
+
+-- تعلّق على F عند باب لاعب سايق → ينزل (لو الباب مفتوح)
+local pullCooldown = {}
+RegisterNetEvent('qb-vehiclekeys:server:PullOutDriver', function(netId)
+    local src = source
+    if not Config.PullOut.Enabled then return end
+
+    local now = GetGameTimer()
+    if pullCooldown[src] and now - pullCooldown[src] < 3000 then return end
+    pullCooldown[src] = now
+
+    local veh = vehicleFromNet(netId)
+    if not veh then return end
+    if GetVehiclePedIsIn(GetPlayerPed(src), false) ~= 0 then return end
+    if distanceTo(src, veh) > 4.0 then return end
+    if GetVehicleDoorLockStatus(veh) >= 2 then return end
+    if #GetEntityVelocity(veh) * 3.6 > Config.PullOut.MaxSpeed + 2.0 then return end
+
+    local driver = GetPedInVehicleSeat(veh, -1)
+    if driver == 0 or not IsPedAPlayer(driver) then return end
+    local target = NetworkGetEntityOwner(driver)
+    if not target or target == src then return end
+
+    TriggerClientEvent('qb-vehiclekeys:client:PulledOut', target, netId)
+end)
+
+AddEventHandler('playerDropped', function()
+    pullCooldown[source] = nil
 end)
 
 QBCore.Functions.CreateCallback('qb-vehiclekeys:server:GetVehicleKeys', function(source, cb)

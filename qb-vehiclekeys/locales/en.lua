@@ -14,11 +14,17 @@ local Translations = {
         engine_air = 'ما تقدر تطفي الموتر وأنت بالجو',
         engine_gbusy = 'زر G مستخدم لشي ثاني — الموتر ما انطفى',
         running_keys = 'الموتر كان شغال والمفتاح فيه — صار معك المفتاح',
+        npc_locked = 'الباب مقفل! السواق شرد بسيارته',
+        pull_locked = 'الباب مقفل',
+        pull_moving = 'السيارة ماشية',
+        pull_door = 'لازم تكون عند باب السواق',
+        pulled_out = 'أحد نزّلك من السيارة',
     },
     progress = {
         takekeys = 'Taking keys from body...',
         hskeys = 'Searching for the car keys...',
         acjack = 'Attempting Carjacking...',
+        pulldriver = 'تنزّل السواق...',
     },
     info = {
         skeys = '~g~[H]~w~ - Search for Keys',
