@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS `jt_logistics_orders` (
 CREATE TABLE IF NOT EXISTS `jt_logistics_depot` (
     `shop` VARCHAR(50) NOT NULL,
     `product` VARCHAR(60) NOT NULL,
-    `amount` INT NOT NULL DEFAULT 0,
+    `amount` INT NOT NULL DEFAULT 0,      -- in the garage / ready
+    `out_count` INT NOT NULL DEFAULT 0,   -- fleet vehicles taken out (in the world)
     PRIMARY KEY (`shop`, `product`)
 );
+-- upgrading from 3.0.0 (the script does this by itself too):
+-- ALTER TABLE `jt_logistics_depot` ADD COLUMN `out_count` INT NOT NULL DEFAULT 0;

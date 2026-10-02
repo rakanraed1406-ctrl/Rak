@@ -1,5 +1,5 @@
 --[[ ==========================================================================
-     JINXED TOWN — MILITARY LOGISTICS  (qb-militaryhelipad-byrko 3.0)
+     JINXED TOWN — MILITARY LOGISTICS  (qb-militaryhelipad-byrko 3.1)
 
      فتح المتجر من أي سكربت (interact / qb-target / زر…):
          TriggerEvent('jt-logistics:open', 'cia')          -- كلاينت
@@ -25,6 +25,14 @@ Config.ItemImages = 'nui://qb-inventory/html/images/'
 -- صور المركبات: أولاً الصور اللي يطلعها /logisticsphotos (html/img/vehicles)،
 -- بعدين صور FiveM الرسمية للمركبات الأصلية (نفس الزاوية للكل). false = بدونها
 Config.VehicleImageFallback = 'https://docs.fivem.net/vehicles/%s.webp'
+
+-- الأسطول (الكراج): المركبة اللي توصل تثبت بمكان العرض وما تختفي أبد.
+-- تطلعها بـ qb-target عليها، وترجعها: تقرّبها من بوت الأغراض (itemPed) → "Store the vehicle".
+Config.Fleet = {
+    DestroyedAreLost = true,   -- true = المركبة اللي تنفجر تروح من الأسطول، false = ترجع للكراج
+    KeepInWorld = false,       -- true = المركبة الطالعة تبقى مكانها حتى لو ما أحد قريب منها
+                               -- false = لو السيرفر شالها (ما أحد قريب / ريستارت) ترجع للكراج تلقائي
+}
 
 Config.FuelResource = 'LegacyFuel'   -- فاضي = نيتف
 Config.GiveKeys = function(vehicle, plate)
@@ -82,8 +90,9 @@ Config.Shops = {
         -- اختياري: بوت يفتح المتجر بـ qb-target (nil = بس بالـ event)
         openPed = { model = 's_m_y_pilot_01', coords = vector4(-2035.03, 3116.78, 32.81, 120.52), label = 'Military Logistics' },
 
-        -- المدني اللي تستلم منه الأسلحة والأغراض (qb-target)
-        itemPed = { model = 's_m_y_marine_01', coords = vector4(-2031.20, 3121.90, 32.81, 150.0), label = 'Receive supplies' },
+        -- ضابط الإمداد (qb-target): تستلم منه الأسلحة والأغراض، و تخزن عنده المركبات
+        itemPed = { model = 's_m_y_marine_01', coords = vector4(-2031.20, 3121.90, 32.81, 150.0), label = 'Receive supplies', storeLabel = 'Store the vehicle' },
+        storeRadius = 30.0, -- المركبة لازم تكون ضمن هالمسافة من الضابط عشان تتخزن
 
         -- وين تطلع المركبات لما تستخرجها (تقدر تحط أكثر من مكان لكل مجموعة)
         spawnPoints = {
@@ -151,7 +160,8 @@ Config.Shops = {
         platePrefix = 'LSPD',
         terminal = { coords = vector3(441.10, -978.90, 30.69), distance = 20.0 },
         openPed = nil,
-        itemPed = { model = 's_m_y_cop_01', coords = vector4(458.90, -1017.10, 28.40, 90.0), label = 'Receive supplies' },
+        itemPed = { model = 's_m_y_cop_01', coords = vector4(458.90, -1017.10, 28.40, 90.0), label = 'Receive supplies', storeLabel = 'Store the vehicle' },
+        storeRadius = 25.0,
         spawnPoints = {
             air = { vector4(449.20, -981.30, 43.69, 90.0) },
             ground = { vector4(445.40, -1025.60, 28.40, 5.0), vector4(441.70, -1025.90, 28.40, 5.0) },
@@ -184,8 +194,10 @@ Config.Lang = {
     pads_busy = 'كل أماكن الرسبنة مشغولة',
     items_received = 'استلمت %s',
     inventory_full = 'شنطتك ما تتسع لكل شي — الباقي بالمستودع',
-    returned = 'رجعت %s للمستودع',
-    cannot_return = 'ما تقدر ترجع هالمركبة هنا',
+    stored = 'خزنت %s مركبة بالكراج',
+    nothing_to_store = 'ما فيه مركبات للأسطول قريبة من الضابط',
+    wrecked = 'المركبة مدمرة — ما تنخزن',
+    recalled = 'رجعت %s مركبة للكراج',
     photos_start = 'جاري تصوير %s مركبة… لا تتحرك',
     photos_done = 'خلص التصوير: %s صورة. سو ريستارت للسكربت عشان توصل الصور للاعبين',
     photos_missing = 'تحتاج screenshot-basic عشان التصوير',

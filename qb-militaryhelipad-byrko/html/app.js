@@ -81,7 +81,7 @@ const S = {
     open: false,
     mode: null,          // 'shop' | 'pickup'
     depFrom: null,
-    pickup: null,
+    pickup: null,        // { data, amounts, picked } — picked: fleet vehicles to store
 };
 
 function product(id) { return S.data && S.data.products.find((p) => p.id === id); }
@@ -186,6 +186,13 @@ function card(p, i) {
 
     const box = el('div', 'c-img');
     box.appendChild(image(p.image, p.fallback, p.category));
+    if (p.type === 'vehicle' && (p.garage || 0) + (p.out || 0) > 0) {
+        // this sector already owns some: parked in the garage / out in the field
+        const f = el('div', 'fleet');
+        f.appendChild(el('b', '', 'FLEET'));
+        f.appendChild(el('span', '', `${p.garage || 0} GARAGE · ${p.out || 0} OUT`));
+        box.appendChild(f);
+    }
     c.appendChild(box);
     c.appendChild(el('div', 'c-name', p.label));
     c.appendChild(el('div', 'c-desc', p.desc || ''));
@@ -312,13 +319,18 @@ function renderOrders() {
         th.appendChild(image(d.image, p && p.fallback, p ? p.category : 'items'));
         const info = el('div', 'info');
         info.appendChild(el('b', '', d.label));
-        info.appendChild(el('small', '', `${d.amount} READY · ${d.type === 'vehicle' ? 'DISPLAY' : 'SUPPLY OFFICER'}`));
+        info.appendChild(el('small', '', d.type === 'vehicle'
+            ? `${d.amount} IN GARAGE · ${d.out || 0} OUT`
+            : `${d.amount} READY · SUPPLY OFFICER`));
         const go = el('button', 'locate', 'LOCATE');
         go.onclick = () => { post('locate', { id: d.id }); toast('WAYPOINT SET', 'ok'); };
         line.append(th, info, go);
         depot.appendChild(line);
     });
     if (!S.data.depot.length) depot.appendChild(el('div', 'd-empty', 'THE DEPOT IS EMPTY'));
+    if (S.data.depot.some((d) => d.type === 'vehicle')) {
+        depot.appendChild(el('div', 'd-hint', 'TO STORE A VEHICLE: PARK IT NEXT TO THE SUPPLY OFFICER → STORE THE VEHICLE'));
+    }
     tick();
 }
 
@@ -566,19 +578,68 @@ function close() {
 }
 
 // ---------------------------------------------------------------------------
-// Pickup (display vehicle / supply officer)
+// Pickup (garage vehicle / supply officer) and storing fleet vehicles
 // ---------------------------------------------------------------------------
+const PICKUP = {
+    vehicle: { title: 'TAKE OUT VEHICLES', button: 'TAKE OUT' },
+    items: { title: 'RECEIVE SUPPLIES', button: 'RECEIVE' },
+    store: { title: 'STORE VEHICLES', button: 'STORE' },
+};
+
 function openPickup(data) {
+    if (!data || !Array.isArray(data.list)) return;
+    const kind = PICKUP[data.kind] ? data.kind : 'items';
     S.open = true;
     S.mode = 'pickup';
-    S.pickup = { data, amounts: {} };
+    S.pickup = { data, amounts: {}, picked: new Set() };
     $('app').classList.add('hidden');
     $('pShop').textContent = data.shop || '';
-    $('pTitle').textContent = data.kind === 'vehicle' ? 'TAKE OUT VEHICLES' : 'RECEIVE SUPPLIES';
-    $('btnPickup').textContent = data.kind === 'vehicle' ? 'TAKE OUT' : 'RECEIVE';
-    data.list.forEach((x) => { S.pickup.amounts[x.id] = data.kind === 'vehicle' ? Math.min(1, x.max) : x.max; });
-    renderPickup();
+    $('pTitle').textContent = PICKUP[kind].title;
+    if (kind === 'store') {
+        data.list.forEach((x) => { if (!x.wrecked) S.pickup.picked.add(x.id); });
+        renderStore();
+    } else {
+        $('btnPickup').textContent = PICKUP[kind].button;
+        data.list.forEach((x) => { S.pickup.amounts[x.id] = kind === 'vehicle' ? Math.min(1, x.max) : x.max; });
+        renderPickup();
+    }
     $('pickup').classList.remove('hidden');
+}
+
+// fleet vehicles parked around the supply officer: tap to select, store
+function renderStore() {
+    const { data, picked } = S.pickup;
+    const list = $('pList');
+    list.textContent = '';
+    data.list.forEach((x) => {
+        const cond = Math.max(0, Math.min(100, Number(x.condition) || 0));
+        const line = el('div', 'line pick' + (x.wrecked ? ' wrecked' : '') + (picked.has(x.id) ? ' on' : ''));
+        const th = el('div', 'thumb');
+        th.appendChild(image(x.image, x.fallback, x.category || 'armored'));
+        const info = el('div', 'info');
+        info.appendChild(el('b', '', x.label));
+        info.appendChild(el('small', '', `${x.plate || '—'} · ${x.dist}M AWAY · ${x.wrecked ? 'DESTROYED' : cond + '%'}`));
+        const bar = el('div', 'cond ' + (cond < 35 ? 'bad' : cond < 70 ? 'mid' : ''));
+        const fill = el('i');
+        fill.style.transform = `scaleX(${(cond / 100).toFixed(3)})`;
+        bar.appendChild(fill);
+        info.appendChild(bar);
+        line.append(th, info, x.wrecked ? el('span', 'flag', 'WRECKED') : el('span', 'check'));
+        if (!x.wrecked) {
+            line.onclick = () => {
+                if (picked.has(x.id)) picked.delete(x.id); else picked.add(x.id);
+                renderStore();
+            };
+        }
+        list.appendChild(line);
+    });
+    if (!data.list.length) list.appendChild(el('div', 'd-empty', `NO FLEET VEHICLES WITHIN ${data.radius || 0}M OF THE OFFICER`));
+    let note = '';
+    if (!data.list.length) note = 'PARK THE VEHICLE NEXT TO THE SUPPLY OFFICER, THEN TRY AGAIN';
+    else if (!picked.size) note = data.list.every((x) => x.wrecked) ? 'WRECKED VEHICLES CANNOT BE STORED' : 'SELECT THE VEHICLES TO STORE';
+    $('pNote').textContent = note;
+    $('btnPickup').textContent = picked.size ? `STORE (${picked.size})` : 'STORE';
+    $('btnPickup').disabled = !picked.size;
 }
 
 function renderPickup() {
@@ -592,7 +653,7 @@ function renderPickup() {
         th.appendChild(image(x.image, x.fallback, x.category || (data.kind === 'vehicle' ? 'armored' : 'items')));
         const info = el('div', 'info');
         info.appendChild(el('b', '', x.label));
-        info.appendChild(el('small', '', `${x.amount} AT THE DEPOT`));
+        info.appendChild(el('small', '', data.kind === 'vehicle' ? `${x.amount} IN GARAGE · ${x.out || 0} OUT` : `${x.amount} AT THE DEPOT`));
         const n = amounts[x.id] || 0;
         if (n > 0) any = true;
         line.append(th, info, stepper(n, (d) => {
@@ -604,7 +665,9 @@ function renderPickup() {
     let note = '';
     if (data.kind === 'vehicle') {
         const x = data.list[0];
-        note = x && x.max < 1 ? 'ALL PADS ARE BUSY — CLEAR ONE FIRST' : `FREE PADS: ${x ? x.max : 0} (ONE VEHICLE PER PAD)`;
+        if (!x || x.amount < 1) note = 'ALL UNITS ARE OUT — STORE ONE AT THE SUPPLY OFFICER';
+        else if (x.max < 1) note = 'ALL PADS ARE BUSY — CLEAR ONE FIRST';
+        else note = `FREE PADS: ${x.max} (ONE VEHICLE PER PAD)`;
     }
     $('pNote').textContent = note;
     $('btnPickup').disabled = !any;
@@ -613,9 +676,15 @@ function renderPickup() {
 async function confirmPickup() {
     const btn = $('btnPickup');
     btn.disabled = true;
-    const amounts = {};
-    Object.entries(S.pickup.amounts).forEach(([id, n]) => { if (n > 0) amounts[id] = n; });
-    const res = await post('pickupConfirm', { amounts });
+    let body;
+    if (S.pickup.data.kind === 'store') {
+        body = { ids: [...S.pickup.picked] };
+    } else {
+        const amounts = {};
+        Object.entries(S.pickup.amounts).forEach(([id, n]) => { if (n > 0) amounts[id] = n; });
+        body = { amounts };
+    }
+    const res = await post('pickupConfirm', body);
     if (res && res.ok) {
         hideAll();
         post('close');

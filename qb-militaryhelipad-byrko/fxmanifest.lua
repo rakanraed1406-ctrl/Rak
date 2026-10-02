@@ -3,8 +3,8 @@ game 'gta5'
 lua54 'yes'
 
 author 'byrko · Jinxed Town'
-description 'Jinxed Town — Military Logistics (department shops, budget, stock, delivery, depot)'
-version '3.0.0'
+description 'Jinxed Town — Military Logistics (department shops, budget, stock, delivery, fleet garage)'
+version '3.1.0'
 
 shared_script 'config.lua'
 client_script 'client.lua'

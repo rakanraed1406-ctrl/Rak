@@ -205,6 +205,11 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 }
 .add:hover { background: var(--navy-2); box-shadow: 0 0 14px rgba(74, 125, 255, .45); }
 .add:disabled { border-color: var(--line-2); background: transparent; color: var(--mute); box-shadow: none; cursor: not-allowed; }
+.fleet {
+    position: absolute; left: 4px; bottom: 0; display: flex; gap: 6px; align-items: center; padding: 3px 7px; border-radius: 4px;
+    border: 1px solid rgba(74, 125, 255, .28); background: rgba(6, 10, 20, .85); font: 700 8px var(--mono); letter-spacing: 1.2px; color: #c6cfe2;
+}
+.fleet b { color: var(--glow-text); letter-spacing: 2px; }
 .incart {
     position: absolute; right: 12px; top: 40px; z-index: 2;
     font: 700 10px var(--mono); letter-spacing: 1px; color: #fff; padding: 3px 7px; border-radius: 4px;
@@ -259,6 +264,7 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .stepper span { min-width: 30px; text-align: center; font: 700 12px var(--mono); }
 .rm { width: 26px; height: 26px; border-radius: 6px; color: var(--mute); }
 .rm:hover { color: var(--bad); }
+.d-hint { margin: 10px 4px 4px; font: 500 8px var(--mono); letter-spacing: 1.5px; line-height: 1.6; color: var(--mute); text-align: center; }
 .d-empty { padding: 26px 0; text-align: center; font: 500 10px var(--mono); letter-spacing: 2px; color: var(--dim); }
 
 .order { padding: 12px; margin-bottom: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); }
@@ -320,3 +326,17 @@ button { font: inherit; color: inherit; cursor: pointer; border: 0; background: 
 .p-note { min-height: 14px; margin: 6px 0 10px; text-align: center; font: 500 9px var(--mono); letter-spacing: 1.5px; color: var(--warn); }
 .p-foot { margin-top: 12px; text-align: center; font: 500 8px var(--mono); letter-spacing: 3px; color: var(--mute); }
 .p-foot b { color: var(--glow-text); }
+
+/* store: pick fleet vehicles parked around the officer */
+.line.pick { cursor: pointer; transition: border-color .15s ease, background-color .15s ease; }
+.line.pick:hover { border-color: var(--line-2); }
+.line.pick.on { border-color: var(--navy-2); background: rgba(22, 51, 127, .14); }
+.line.pick.wrecked { cursor: default; opacity: .55; }
+.check { width: 18px; height: 18px; flex: none; border-radius: 4px; border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: center; }
+.line.pick.on .check { border-color: var(--glow); background: var(--navy-2); box-shadow: 0 0 10px rgba(74, 125, 255, .45); }
+.line.pick.on .check::after { content: ''; width: 8px; height: 4px; margin-top: -2px; border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg); }
+.flag { font: 700 8px var(--mono); letter-spacing: 1.5px; color: var(--bad); padding: 4px 6px; border-radius: 4px; border: 1px solid rgba(226, 72, 94, .4); }
+.cond { position: relative; height: 3px; margin-top: 7px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.cond i { position: absolute; inset: 0; transform-origin: 0 50%; background: var(--money); }
+.cond.mid i { background: var(--warn); }
+.cond.bad i { background: var(--bad); }

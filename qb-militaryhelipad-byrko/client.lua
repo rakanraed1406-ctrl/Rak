@@ -3,6 +3,13 @@
      Open from anywhere (interact, qb-target, a key…):
          TriggerEvent('jt-logistics:open', 'cia')
          exports['qb-militaryhelipad-byrko']:Open('cia')
+     Supply officer (the player has to be next to him; the server checks):
+         TriggerEvent('jt-logistics:supplies', 'cia')   -- receive weapons / items
+         TriggerEvent('jt-logistics:store', 'cia')      -- store fleet vehicles parked nearby
+
+     Fleet = garage: a delivered vehicle stays parked on its display spot for
+     good (locked, frozen). Take units out from it with qb-target; bring them
+     back by parking near the supply officer → "Store the vehicle".
 
      Idle cost: one distance check every 2 s. The display vehicles and NPCs
      only exist while you are near a shop; the NUI does nothing while closed. ]]
@@ -12,8 +19,8 @@ local L = Config.Lang
 
 local PlayerData = {}
 local isOpen, openShop, introShown = false, nil, false
-local pickup = nil            -- { shop, kind, pid } while the pickup dialog is open
-local depot = {}              -- [shopId] = { [pid] = amount } vehicle products at the depot (from the server)
+local pickup = nil            -- { shop, kind, pid } while the pickup / store dialog is open
+local depot = {}              -- [shopId] = { [pid] = { g = in the garage, o = out } } (from the server)
 local displays = {}           -- ["shop|pid"] = { veh } (local display vehicles)
 local peds = {}               -- ["shop|kind"] = ped
 local areas = {}              -- [shopId] = { center, radius }
@@ -128,9 +135,34 @@ local function openPickup(shopId, kind, pid)
     end, shopId, kind, pid)
 end
 
+-- the supply officer: which fleet vehicles are parked around him
+local function openStore(shopId)
+    if isOpen or type(shopId) ~= 'string' or not Config.Shops[shopId] then return end
+    QBCore.Functions.TriggerCallback('jt-logistics:server:storeInfo', function(data)
+        if not data or isOpen then return end
+        isOpen, openShop, pickup = true, shopId, { shop = shopId, kind = 'store' }
+        SetNuiFocus(true, true)
+        SendNUIMessage({ action = 'pickup', data = data })
+    end, shopId)
+end
+
+local function openSupplies(shopId)
+    if type(shopId) == 'string' and Config.Shops[shopId] then openPickup(shopId, 'items') end
+end
+
+RegisterNetEvent('jt-logistics:supplies', openSupplies)
+RegisterNetEvent('jt-logistics:store', openStore)
+exports('OpenSupplies', openSupplies)
+exports('OpenStore', openStore)
+
 RegisterNUICallback('pickupConfirm', function(data, cb)
     local p = pickup
-    if not p or type(data) ~= 'table' or type(data.amounts) ~= 'table' then return cb({ ok = false }) end
+    if not p or type(data) ~= 'table' then return cb({ ok = false }) end
+    if p.kind == 'store' then
+        if type(data.ids) ~= 'table' then return cb({ ok = false }) end
+        return QBCore.Functions.TriggerCallback('jt-logistics:server:storeVehicles', function(res) cb(res or { ok = false }) end, p.shop, data.ids)
+    end
+    if type(data.amounts) ~= 'table' then return cb({ ok = false }) end
     if p.kind == 'vehicle' then
         QBCore.Functions.TriggerCallback('jt-logistics:server:takeVehicles', function(res) cb(res or { ok = false }) end, p.shop, p.pid, data.amounts[p.pid])
     else
@@ -180,6 +212,18 @@ end)
 -- ---------------------------------------------------------------------------
 local function hasTarget() return GetResourceState('qb-target') == 'started' end
 
+local function fleetSize(f)
+    if type(f) ~= 'table' then return 0 end
+    return (tonumber(f.g) or 0) + (tonumber(f.o) or 0)
+end
+
+local function fleetOut(shopId)
+    for _, f in pairs(depot[shopId] or {}) do
+        if type(f) == 'table' and (tonumber(f.o) or 0) > 0 then return true end
+    end
+    return false
+end
+
 local function loadModel(model)
     local hash = type(model) == 'number' and model or joaat(model)
     if not IsModelInCdimage(hash) then return nil end
@@ -220,14 +264,14 @@ local function spawnDisplay(shopId, p)
     SetEntityCanBeDamaged(veh, false)
     SetVehicleDoorsLocked(veh, 2)
     SetVehicleDirtLevel(veh, 0.0)
-    SetVehicleNumberPlateText(veh, 'DEPOT')
+    SetVehicleNumberPlateText(veh, 'GARAGE')
     SetVehicleEngineOn(veh, false, true, true)
     entry.veh = veh
     if hasTarget() then
         exports['qb-target']:AddTargetEntity(veh, {
             options = { {
                 icon = 'fas fa-warehouse',
-                label = ('Take out — %s'):format(p.label or p.model),
+                label = ('Garage — %s'):format(p.label or p.model),
                 action = function() openPickup(shopId, 'vehicle', p.id) end,
                 canInteract = function() return can(shopId, 'pickup') end,
             } },
@@ -261,17 +305,22 @@ local function spawnPed(shopId, kind, cfg)
     TaskStartScenarioInPlace(ped, kind == 'item' and 'WORLD_HUMAN_CLIPBOARD' or 'WORLD_HUMAN_GUARD_STAND', 0, true)
     peds[key] = ped
     if not hasTarget() then return end
-    local option
+    local options
     if kind == 'item' then
-        option = { icon = 'fas fa-box-open', label = cfg.label or 'Receive supplies',
-            action = function() openPickup(shopId, 'items') end,
-            canInteract = function() return can(shopId, 'pickup') end }
+        options = {
+            { icon = 'fas fa-box-open', label = cfg.label or 'Receive supplies',
+                action = function() openPickup(shopId, 'items') end,
+                canInteract = function() return can(shopId, 'pickup') end },
+            { icon = 'fas fa-warehouse', label = cfg.storeLabel or 'Store the vehicle',
+                action = function() openStore(shopId) end,
+                canInteract = function() return fleetOut(shopId) and can(shopId, 'pickup') end },
+        }
     else
-        option = { icon = 'fas fa-helicopter', label = cfg.label or 'Military Logistics',
+        options = { { icon = 'fas fa-helicopter', label = cfg.label or 'Military Logistics',
             action = function() open(shopId) end,
-            canInteract = function() return can(shopId) end }
+            canInteract = function() return can(shopId) end } }
     end
-    exports['qb-target']:AddTargetEntity(ped, { options = { option }, distance = 3.0 })
+    exports['qb-target']:AddTargetEntity(ped, { options = options, distance = 3.0 })
 end
 
 local function shopArea(shopId, shop)
@@ -311,11 +360,12 @@ CreateThread(function()
                 local shop = Config.Shops[id]
                 spawnPed(id, 'open', shop.openPed)
                 spawnPed(id, 'item', shop.itemPed)
-                local counts = depot[id] or {}
+                local fleet = depot[id] or {}
                 for _, p in ipairs(shop.products or {}) do
                     if p.type == 'vehicle' and p.display then
                         local key = id .. '|' .. p.id
-                        local want = (counts[p.id] or 0) > 0 and #(pos - vector3(p.display.x, p.display.y, p.display.z)) <= range
+                        -- stays parked as long as the shop owns at least one (garage or out)
+                        local want = fleetSize(fleet[p.id]) > 0 and #(pos - vector3(p.display.x, p.display.y, p.display.z)) <= range
                         if want and not displays[key] then spawnDisplay(id, p)
                         elseif not want and displays[key] then removeDisplay(key) end
                     end
@@ -328,35 +378,12 @@ CreateThread(function()
     end
 end)
 
-RegisterNetEvent('jt-logistics:client:displays', function(shopId, counts)
-    if type(shopId) ~= 'string' or type(counts) ~= 'table' then return end
-    depot[shopId] = counts
-    for pid, n in pairs(counts) do
-        if n < 1 then removeDisplay(shopId .. '|' .. pid) end
+RegisterNetEvent('jt-logistics:client:displays', function(shopId, fleet)
+    if type(shopId) ~= 'string' or type(fleet) ~= 'table' then return end
+    depot[shopId] = fleet
+    for pid, f in pairs(fleet) do
+        if fleetSize(f) < 1 then removeDisplay(shopId .. '|' .. pid) end -- the whole fleet is gone (lost / admin)
     end
-end)
-
--- vehicles that came from the depot can be brought back
-CreateThread(function()
-    Wait(2000)
-    if not hasTarget() then return end
-    exports['qb-target']:AddGlobalVehicle({
-        options = { {
-            icon = 'fas fa-warehouse',
-            label = 'Return to depot',
-            canInteract = function(entity)
-                if not NetworkGetEntityIsNetworked(entity) then return false end -- display cars / local vehicles
-                local shopId = Entity(entity).state.jtLogistics
-                return shopId ~= nil and can(shopId, 'pickup')
-            end,
-            action = function(entity)
-                QBCore.Functions.TriggerCallback('jt-logistics:server:returnVehicle', function(res)
-                    if res and not res.ok and res.msg then QBCore.Functions.Notify(res.msg, 'error') end
-                end, NetworkGetNetworkIdFromEntity(entity))
-            end,
-        } },
-        distance = 5.0,
-    })
 end)
 
 RegisterNetEvent('jt-logistics:client:coords', function()
