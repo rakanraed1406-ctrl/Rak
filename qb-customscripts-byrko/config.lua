@@ -159,12 +159,6 @@ Config.Roleplay = {
         IgnoreClasses = { [8] = true, [13] = true, [14] = true, [15] = true, [16] = true, [21] = true },
     },
 
-    -- ما يقدر يسوي رول (شقلبة) وهو مصوّب
-    NoCombatRoll = true,
-
-    -- نط متكرر = يطيح
-    AntiBunnyHop = { Enabled = true, MaxJumps = 4, Window = 6000, Ragdoll = true, BlockTime = 3000 },
-
     -- ما يلبس خوذة تلقائي على الدباب
     NoAutoHelmet = true,
 
