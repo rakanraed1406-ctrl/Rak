@@ -15,21 +15,12 @@ Config.DeathTime = 300
 
 -- شاشة الموت (html/)
 Config.DeathScreen = {
-    FadeToBlack = true,                   -- الشاشة تسود لما تموت وبعدين ترجع أبيض وأسود
-    FadeOutTime = 400,                    -- مدة السواد وهو يدخل (ملي ثانية)
-    BlackTime = 900,                      -- كم تبقى سوداء (ملي ثانية)
-    FadeInTime = 1800,                    -- مدة رجوع الشاشة (ملي ثانية)
-
-    Grayscale = true,                     -- الشاشة تصير أبيض وأسود
+    Grayscale = true,                     -- الشاشة تصير أبيض وأسود لما تموت (فلتر واحد بس)
     Timecycle = 'rply_saturation_neg',    -- فلتر الأبيض والأسود
     TimecycleStrength = 1.0,              -- قوته من 0.0 إلى 1.0
-    ExtraTimecycle = 'rply_contrast',     -- فلتر إضافي يزيد التباين عشان الأبيض والأسود ما يطلع باهت (حطه false تلغيه)
-    ExtraTimecycleStrength = 0.35,
-
-    CameraShake = 0.3,                    -- اهتزاز خفيف للكاميرا وقت الموت (0 يلغيه)
 
     Sound = true,                         -- صوت جهاز دقات القلب
-    Volume = 0.15,                        -- مستوى الصوت من 0.0 إلى 1.0
+    Volume = 0.05,                        -- مستوى الصوت من 0.0 إلى 1.0 (هادي)
 }
 Config.CheckTime = 10
 

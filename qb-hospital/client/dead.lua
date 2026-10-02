@@ -107,9 +107,7 @@ end
 local nuiReady = false
 local deathScreenVisible = false
 local respawnCost, respawnInsured = Config.BillCost, false
-local weFadedOut = false
 local deathScreenState = nil
-local deathScreenToken = 0
 
 -- only used when the html page did not load
 local function DrawTxt(x, y, width, height, scale, text, r, g, b, a)
@@ -145,14 +143,6 @@ local function SendShowMessage()
     })
 end
 
-local function SetDeathFilter(strength)
-    local cfg = Config.DeathScreen
-    SetTimecycleModifierStrength(cfg.TimecycleStrength * strength)
-    if cfg.ExtraTimecycle then
-        SetExtraTimecycleModifierStrength(cfg.ExtraTimecycleStrength * strength)
-    end
-end
-
 -- asks the server what this player pays (insurance → cheaper) and updates the E prompt
 local function RefreshRespawnCost()
     QBCore.Functions.TriggerCallback('hospital:server:GetRespawnCost', function(cost, insured)
@@ -168,90 +158,27 @@ local function RefreshRespawnCost()
     end)
 end
 
+-- one black & white filter, no screen fades, no camera shake
 local function ShowDeathScreen()
     local cfg = Config.DeathScreen
     RefreshRespawnCost()
     deathScreenVisible = true
     deathScreenState = nil
-    deathScreenToken = deathScreenToken + 1
-
-    -- screen goes black, comes back black and white, then the timer animates in
-    local token = deathScreenToken
-    local function stillDown()
-        return token == deathScreenToken and (isDead or InLaststand) and not isInHospitalBed
-    end
-
-    if cfg.FadeToBlack then
-        weFadedOut = true
-        DoScreenFadeOut(cfg.FadeOutTime)
-        local timeout = GetGameTimer() + cfg.FadeOutTime + 1000
-        while not IsScreenFadedOut() and GetGameTimer() < timeout do
-            Wait(0)
-        end
-    end
-
-    -- revived / put in a bed while the screen was going black: stop here
-    if not stillDown() then
-        if weFadedOut and token == deathScreenToken then
-            weFadedOut = false
-            DoScreenFadeIn(500)
-        end
-        return
-    end
-
     if cfg.Grayscale then
         SetTimecycleModifier(cfg.Timecycle)
-        if cfg.ExtraTimecycle then
-            SetExtraTimecycleModifier(cfg.ExtraTimecycle)
-        end
-        SetDeathFilter(1.0)
+        SetTimecycleModifierStrength(cfg.TimecycleStrength)
     end
-    if cfg.CameraShake > 0 then
-        ShakeGameplayCam('DRUNK_SHAKE', cfg.CameraShake)
-    end
-
-    if cfg.FadeToBlack then
-        Wait(cfg.BlackTime)
-    end
-    if token ~= deathScreenToken then return end
     SendShowMessage()
-    if cfg.FadeToBlack and weFadedOut then
-        weFadedOut = false
-        DoScreenFadeIn(cfg.FadeInTime)
-    end
 end
 
 local function HideDeathScreen()
-    local cfg = Config.DeathScreen
     deathScreenVisible = false
     deathScreenState = nil
-    deathScreenToken = deathScreenToken + 1
-    local token = deathScreenToken
-
-    SendNUIMessage({ action = 'hide' })
-    StopGameplayCamShaking(true)
     respawnRequestedAt = -1e9
-    -- only undo our own black screen. The hospital bed / respawn does its own
-    -- fade out → teleport → fade in; fading in here used to break that and
-    -- could leave the respawn stuck on a black screen.
-    if weFadedOut then
-        weFadedOut = false
-        if not isInHospitalBed then DoScreenFadeIn(500) end
-    end
-    if not cfg.Grayscale then return end
-
-    -- colour comes back smoothly
-    CreateThread(function()
-        local steps = 25
-        for i = steps - 1, 0, -1 do
-            if token ~= deathScreenToken then return end
-            SetDeathFilter(i / steps)
-            Wait(40)
-        end
-        if token ~= deathScreenToken then return end
+    SendNUIMessage({ action = 'hide' })
+    if Config.DeathScreen.Grayscale then
         ClearTimecycleModifier()
-        ClearExtraTimecycleModifier()
-    end)
+    end
 end
 
 local function UpdateDeathScreen()
@@ -500,8 +427,5 @@ end)
 AddEventHandler('onResourceStop', function(resource)
     if resource == GetCurrentResourceName() and deathScreenVisible then
         ClearTimecycleModifier()
-        ClearExtraTimecycleModifier()
-        StopGameplayCamShaking(true)
-        if weFadedOut or IsScreenFadedOut() or IsScreenFadingOut() then DoScreenFadeIn(0) end
     end
 end)

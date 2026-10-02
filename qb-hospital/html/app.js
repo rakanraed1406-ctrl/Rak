@@ -4,8 +4,6 @@ const ctx = canvas.getContext('2d');
 const timerEl = document.getElementById('timer');
 const statusEl = document.getElementById('status');
 const subEl = document.getElementById('sub');
-const pulseEl = document.getElementById('pulse');
-const flashEl = document.getElementById('flash');
 const helpEl = document.getElementById('help');
 const helpLabel = document.getElementById('help-label');
 const respawnEl = document.getElementById('respawn');
@@ -13,11 +11,9 @@ const respawnLabel = document.getElementById('respawn-label');
 const respawnRing = document.getElementById('respawn-ring');
 
 const LINE_COLOR = '#3da2ff';
-const GLOW_COLOR = 'rgba(61, 162, 255, 0.85)';
 const HEAD_POS = 0.94;      // where the newest point is drawn (fraction of width)
 const SPEED = 0.2;          // how fast the trace scrolls (fraction of width per second)
-const INTRO_DELAY = 250;    // ms, matches the CSS intro delays
-const INTRO_TIME = 1300;    // ms the line takes to open up and the timer to count in
+const FRAME_MS = 1000 / 30; // the trace is redrawn at 30 fps, plenty for a slow line
 
 // One heartbeat (P, QRS, T), as [seconds since beat, height]
 const BEAT = [
@@ -29,14 +25,12 @@ const R_PEAK = 0.19;
 
 let texts = {};
 let sound = true;
-let volume = 0.15;
+let volume = 0.05;
 
 let visible = false;
 let state = null;
 let maxTime = 1;
 let shownTime = null;
-let introStart = 0;
-let introTimer = null;
 
 let width = 0;
 let height = 0;
@@ -49,50 +43,75 @@ let amplitude = 1;
 let flat = false;
 let frame = null;
 let prevTs = 0;
+let lastDraw = 0;
 
 function clamp(v, min, max) {
     return Math.max(min, Math.min(max, v));
 }
 
-function easeOut(t) {
-    return 1 - Math.pow(1 - t, 3);
-}
-
-function restartAnimation(el, cls) {
-    el.classList.remove(cls);
-    void el.offsetWidth;
-    el.classList.add(cls);
-}
-
 // Audio
 
 let audio = null;
+let master = null;
 
 function getAudio() {
     if (!audio) {
-        try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; }
+        try {
+            audio = new (window.AudioContext || window.webkitAudioContext)();
+            // soft low-pass so the beeps are not sharp
+            const filter = audio.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 1800;
+            master = audio.createGain();
+            master.connect(filter);
+            filter.connect(audio.destination);
+        } catch (e) {
+            audio = null;
+        }
     }
+    if (audio && audio.state === 'suspended') audio.resume().catch(() => {});
     return audio;
 }
 
-function tone(freq, duration, gain) {
-    if (!sound) return;
+// short monitor beep: quick attack, smooth exponential decay
+function beep(freq, duration, gain) {
+    if (!sound || volume <= 0) return;
     const ac = getAudio();
     if (!ac) return;
-    if (ac.state === 'suspended') ac.resume().catch(() => {});
     const now = ac.currentTime;
+    const peak = Math.max(0.0001, volume * gain);
     const osc = ac.createOscillator();
     const amp = ac.createGain();
     osc.type = 'sine';
     osc.frequency.value = freq;
-    amp.gain.setValueAtTime(0, now);
-    amp.gain.linearRampToValueAtTime(volume * gain, now + 0.01);
-    amp.gain.setValueAtTime(volume * gain, now + duration - 0.05);
-    amp.gain.linearRampToValueAtTime(0, now + duration);
+    amp.gain.setValueAtTime(0.0001, now);
+    amp.gain.exponentialRampToValueAtTime(peak, now + 0.008);
+    amp.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     osc.connect(amp);
-    amp.connect(ac.destination);
+    amp.connect(master);
     osc.start(now);
     osc.stop(now + duration + 0.02);
+}
+
+// flat line: one quiet steady tone that fades away on its own
+function flatTone() {
+    if (!sound || volume <= 0) return;
+    const ac = getAudio();
+    if (!ac) return;
+    const now = ac.currentTime;
+    const peak = Math.max(0.0001, volume * 0.5);
+    const osc = ac.createOscillator();
+    const amp = ac.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    amp.gain.setValueAtTime(0.0001, now);
+    amp.gain.exponentialRampToValueAtTime(peak, now + 0.03);
+    amp.gain.setValueAtTime(peak, now + 1.2);
+    amp.gain.exponentialRampToValueAtTime(0.0001, now + 2.2);
+    osc.connect(amp);
+    amp.connect(master);
+    osc.start(now);
+    osc.stop(now + 2.25);
 }
 
 // Waveform
@@ -111,12 +130,11 @@ function beatValue(t) {
 }
 
 function onBeat() {
-    tone(1050, 0.09, 1);
-    restartAnimation(pulseEl, 'thump');
+    beep(880, 0.14, 1);
 }
 
 function resize() {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = 1; // no need for hi-dpi on a thin line, keeps the canvas small
     width = canvas.clientWidth;
     height = canvas.clientHeight;
     canvas.width = Math.round(width * dpr);
@@ -158,47 +176,32 @@ function step(dt) {
     if (samples.length > len) samples.splice(0, samples.length - len);
 }
 
-function draw(intro) {
+function draw() {
     ctx.clearRect(0, 0, width, height);
-    if (!samples.length || intro <= 0) return;
+    if (!samples.length) return;
 
     const mid = height * 0.56;
     const scale = height * 0.48;
     const headX = width * HEAD_POS;
     const start = headX - (samples.length - 1);
 
-    // intro: the line opens up from the middle
-    ctx.save();
-    if (intro < 1) {
-        const half = (width / 2) * intro;
-        ctx.beginPath();
-        ctx.rect(width / 2 - half, 0, half * 2, height);
-        ctx.clip();
-    }
-
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.strokeStyle = LINE_COLOR;
-    ctx.shadowColor = GLOW_COLOR;
-    ctx.shadowBlur = 10;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2.5;
 
     ctx.beginPath();
     for (let i = 0; i < samples.length; i++) {
-        const x = start + i;
         const y = mid - samples[i] * scale;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        if (i === 0) ctx.moveTo(start, y); else ctx.lineTo(start + i, y);
     }
     ctx.stroke();
 
-    // bright head of the trace
-    const headY = mid - samples[samples.length - 1] * scale;
-    ctx.shadowBlur = 18;
+    // head of the trace
     ctx.fillStyle = '#e8f4ff';
     ctx.beginPath();
-    ctx.arc(headX, headY, 3.4, 0, Math.PI * 2);
+    ctx.arc(headX, mid - samples[samples.length - 1] * scale, 3, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
 }
 
 // Timer
@@ -209,26 +212,23 @@ function formatTime(sec) {
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
 
-function updateTimer(intro) {
-    const target = state ? state.time : 0;
-    // intro: count up to the real time, then tick down normally
-    const value = intro < 1 ? Math.round(target * easeOut(intro)) : target;
+function updateTimer() {
+    const value = state ? state.time : 0;
     if (value === shownTime) return;
-    const ticking = intro >= 1 && shownTime !== null && value < shownTime && !flat;
     shownTime = value;
     timerEl.textContent = formatTime(value);
-    if (ticking) restartAnimation(timerEl, 'tick');
 }
 
 function loop(ts) {
     if (!visible) return;
+    frame = requestAnimationFrame(loop);
+    if (lastDraw && ts - lastDraw < FRAME_MS) return;
+    lastDraw = ts;
     const dt = prevTs ? Math.min(0.1, (ts - prevTs) / 1000) : 0;
     prevTs = ts;
-    const intro = introStart ? clamp((performance.now() - introStart) / INTRO_TIME, 0, 1) : 1;
     step(dt);
-    draw(easeOut(intro));
-    updateTimer(intro);
-    frame = requestAnimationFrame(loop);
+    draw();
+    updateTimer();
 }
 
 // UI
@@ -238,10 +238,7 @@ function setFlat(value, animate) {
     flat = value;
     root.classList.toggle('flat', flat);
     root.classList.toggle('bleeding', !flat);
-    if (flat && animate) {
-        tone(1050, 2.6, 0.8);
-        restartAnimation(flashEl, 'go');
-    }
+    if (flat && animate) flatTone();
 }
 
 function render(next) {
@@ -270,7 +267,7 @@ function render(next) {
 function show(data) {
     texts = data.texts || {};
     sound = data.sound !== false;
-    volume = typeof data.volume === 'number' ? data.volume : 0.15;
+    volume = typeof data.volume === 'number' ? clamp(data.volume, 0, 1) : 0.05;
 
     state = null;
     shownTime = null;
@@ -284,24 +281,21 @@ function show(data) {
     root.classList.add('bleeding');
     root.classList.remove('hidden');
 
-    // intro animation (CSS classes + line/timer in the loop)
-    clearTimeout(introTimer);
-    restartAnimation(root, 'intro');
-    introStart = performance.now() + INTRO_DELAY;
-    introTimer = setTimeout(() => root.classList.remove('intro'), 2400);
-
     visible = true;
     resize();
     prevTs = 0;
+    lastDraw = 0;
     cancelAnimationFrame(frame);
     frame = requestAnimationFrame(loop);
 }
 
 function hide() {
     visible = false;
-    introStart = 0;
     root.classList.add('hidden');
     cancelAnimationFrame(frame);
+    ctx.clearRect(0, 0, width, height);
+    // let the audio thread sleep while nobody is dead
+    if (audio && audio.state === 'running') audio.suspend().catch(() => {});
 }
 
 window.addEventListener('resize', () => { if (visible) resize(); });
