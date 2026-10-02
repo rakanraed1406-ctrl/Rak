@@ -19,6 +19,7 @@ local Translations = {
         pull_moving = 'السيارة ماشية',
         pull_door = 'لازم تكون عند باب السواق',
         pulled_out = 'أحد نزّلك من السيارة',
+        veh_locked = 'السيارة مقفلة',
     },
     progress = {
         takekeys = 'Taking keys from body...',

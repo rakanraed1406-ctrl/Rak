@@ -46,18 +46,25 @@ local function waitTryingToEnter(ped, ms)
     return 0
 end
 
-local function closestPlayerDrivenVehicle(ped, maxDist)
+local function closestDrivenVehicle(ped, maxDist)
     local pos = GetEntityCoords(ped)
     local best, bestDist = 0, maxDist
     for _, veh in ipairs(GetGamePool('CVehicle')) do
         local d = #(GetEntityCoords(veh) - pos)
         if d < bestDist then
             local driver = GetPedInVehicleSeat(veh, -1)
-            if driver ~= 0 and driver ~= ped and IsPedAPlayer(driver) then best, bestDist = veh, d end
+            if driver ~= 0 and driver ~= ped then best, bestDist = veh, d end
         end
     end
     return best
 end
+
+-- مقفلة؟ (حالة القفل من السيرفر + حالة اللعبة)
+local function isLocked(veh)
+    return Entity(veh).state.vehLocked == true or GetVehicleDoorLockStatus(veh) >= 2
+end
+
+local pulledVehicles = {}   -- [vehicle] = true  (نزّلت سواقها بالتعليق على F)
 
 local function nearDriverDoor(ped, veh)
     local pos = GetEntityCoords(ped)
@@ -119,7 +126,7 @@ local function handleNpcVehicle(ped, veh, driver, seat)
     else
         SetVehicleDoorsLocked(veh, 1)
         npcPending[veh] = true
-        -- ضغطت F عند باب الراكب: اللعبة كانت تنزّل الراكب. الحين تروح لباب السواق وتنزّله هو
+        -- مفتوحة: تروح لباب السواق وتنزّله (حتى لو ضغطت من جهة الراكب)
         if Config.NpcCarjack.DriverOnly and seat ~= -1 then
             ClearPedTasks(ped)
             TaskEnterVehicle(ped, veh, 10000, -1, 2.0, 8, 0)
@@ -135,7 +142,7 @@ local function tryPullOut(ped, veh)
     if not nearDriverDoor(ped, veh) then
         return QBCore.Functions.Notify(Lang:t('notify.pull_door'), 'error')
     end
-    if GetVehicleDoorLockStatus(veh) >= 2 then
+    if isLocked(veh) then
         return QBCore.Functions.Notify(Lang:t('notify.pull_locked'), 'error')
     end
     if GetEntitySpeed(veh) * 3.6 > Config.PullOut.MaxSpeed then
@@ -165,16 +172,25 @@ RegisterCommand('+vehkeys_f', function()
 
     CreateThread(function()
         local veh = waitTryingToEnter(ped, 400)
-        if veh == 0 and Config.PullOut.Enabled and pullHeld then veh = closestPlayerDrivenVehicle(ped, 3.5) end
+        local seat = veh ~= 0 and GetSeatPedIsTryingToEnter(ped) or nil   -- nil = ما بدأت تركب
+        if veh == 0 and Config.PullOut.Enabled and pullHeld then veh = closestDrivenVehicle(ped, 3.5) end
         if veh == 0 or isBlacklistedVehicle(veh) then return end
+
+        -- قفلها صاحبها: محد يفتح الباب
+        if Entity(veh).state.vehLocked == true then
+            ClearPedTasks(ped)
+            return QBCore.Functions.Notify(Lang:t('notify.veh_locked'), 'error')
+        end
 
         local driver = GetPedInVehicleSeat(veh, -1)
         if driver == 0 or driver == ped then return end
 
         if IsPedAPlayer(driver) then
+            -- لاعب: تعلّق على F عند باب السواق
             if Config.PullOut.Enabled and pullHeld then tryPullOut(ped, veh) end
         elseif not isImmune(veh) then
-            handleNpcVehicle(ped, veh, driver, GetSeatPedIsTryingToEnter(ped))
+            -- بوت: 50/50
+            handleNpcVehicle(ped, veh, driver, seat)
         end
     end)
 end, false)
@@ -185,6 +201,20 @@ RegisterCommand('-vehkeys_f', function()
 end, false)
 
 RegisterKeyMapping('+vehkeys_f', 'Vehicle: enter / hold to pull out driver', 'keyboard', 'F')
+
+-- السيرفر وافق: السواق ينزل وأنت تركب مكانه (والمفتاح يجيك لما تقعد)
+RegisterNetEvent('qb-vehiclekeys:client:PullOutGo', function(netId)
+    local veh = NetworkGetEntityFromNetworkId(netId)
+    if veh == 0 or not DoesEntityExist(veh) then return end
+    pulledVehicles[veh] = true
+    CreateThread(function()
+        local deadline = GetGameTimer() + 5000
+        while GetGameTimer() < deadline and not IsVehicleSeatFree(veh, -1) do Wait(100) end
+        if IsVehicleSeatFree(veh, -1) then
+            TaskEnterVehicle(PlayerPedId(), veh, 10000, -1, 2.0, 1, 0)
+        end
+    end)
+end)
 
 -- انسحبت من سيارتك
 RegisterNetEvent('qb-vehiclekeys:client:PulledOut', function(netId)
@@ -212,7 +242,6 @@ local function startVehicleSession()
     inVehicleSession = true
 
     CreateThread(function()
-        local lastDriverVeh = nil
         while true do
             local ped = PlayerPedId()
             local veh = GetVehiclePedIsIn(ped, false)
@@ -220,7 +249,6 @@ local function startVehicleSession()
 
             local sleep = 1000
             if GetPedInVehicleSeat(veh, -1) == ped then
-                lastDriverVeh = veh
                 sleep = 500
                 local plate = QBCore.Functions.GetPlate(veh)
                 if not IsHotwiring and not HasKeys(plate) and not isBlacklistedVehicle(veh) and not AreKeysJobShared(veh) then
@@ -234,8 +262,7 @@ local function startVehicleSession()
             Wait(sleep)
         end
 
-        if lastDriverVeh then ReportLeftVehicle(lastDriverVeh) end
-        runningClaims, npcPending = {}, {}
+        runningClaims, npcPending, pulledVehicles = {}, {}, {}
         inVehicleSession = false
     end)
 end
@@ -243,6 +270,15 @@ end
 AddEventHandler('gameEventTriggered', function(name, args)
     if name ~= 'CEventNetworkPlayerEnteredVehicle' or args[1] ~= PlayerId() then return end
     applyPedFlags()
+
+    -- ركبت سيارة مقفلة بدون مفتاح (تأخير شبكة/غش) → تنزل
+    local veh = args[2]
+    if veh and veh ~= 0 and Entity(veh).state.vehLocked == true
+        and not HasKeys(QBCore.Functions.GetPlate(veh)) and not AreKeysJobShared(veh) then
+        TaskLeaveVehicle(PlayerPedId(), veh, 16)
+        return QBCore.Functions.Notify(Lang:t('notify.veh_locked'), 'error')
+    end
+
     startVehicleSession()
 end)
 
@@ -508,15 +544,20 @@ end
 
 -- ركبت سواق بسيارة موترها شغال وما عندك مفتاحها: نطلب المفتاح من السيرفر.
 -- يرجّع true = خل الموتر شغال (الطلب ماشي أو انقبل)
+-- تجيك المفاتيح لما تقعد سواق إذا:
+--   1) الموتر شغال والأبواب مفتوحة
+--   2) سيارة بوت طلعت مفتوحة (50/50) ونزلته
+--   3) نزّلت السواق بالتعليق على F
 function ClaimRunningVehicle(vehicle)
-    local npcUnlocked = Entity(vehicle).state.npcLock == 'unlocked'   -- سيارة بوت طلعت مفتوحة ونزلته
-    if not Config.RunningEngine.Enabled and not npcUnlocked then return false end
+    local npcUnlocked = Entity(vehicle).state.npcLock == 'unlocked'
+    local pulled = pulledVehicles[vehicle] == true
+    local running = Config.RunningEngine.Enabled and GetIsVehicleEngineRunning(vehicle) and not isLocked(vehicle)
+    if not npcUnlocked and not pulled and not running then return false end
 
     local claim = runningClaims[vehicle]
     if claim == 'pending' or claim == 'granted' then return true end
     if claim == 'denied' then return false end
     if not NetworkGetEntityIsNetworked(vehicle) then return false end
-    if not npcUnlocked and not GetIsVehicleEngineRunning(vehicle) then return false end
 
     runningClaims[vehicle] = 'pending'
     CreateThread(function()
@@ -535,18 +576,6 @@ function ClaimRunningVehicle(vehicle)
         if runningClaims[vehicle] == 'pending' then runningClaims[vehicle] = 'denied' end
     end)
     return true
-end
-
--- نزلت من سيارتك: نقول للسيرفر إذا تركت الموتر شغال (المفتاح فيها)
-function ReportLeftVehicle(vehicle)
-    if not Config.RunningEngine.Enabled or not DoesEntityExist(vehicle) then return end
-    if not HasKeys(QBCore.Functions.GetPlate(vehicle)) then return end
-    if not NetworkGetEntityIsNetworked(vehicle) then return end
-
-    local netId = NetworkGetNetworkIdFromEntity(vehicle)
-    SetTimeout(1500, function() -- بعد وقت "F مطوّل يطفي الموتر"
-        TriggerServerEvent('qb-vehiclekeys:server:LeftVehicle', netId)
-    end)
 end
 
 function loadAnimDict(dict)
@@ -621,7 +650,7 @@ function ToggleVehicleLocks(veh)
                 TriggerServerEvent("InteractSound_SV:PlayWithinDistance", 5, "lock", 0.3)
 
                 NetworkRequestControlOfEntity(veh)
-                if vehLockStatus == 1 then
+                if vehLockStatus <= 1 then
                     TriggerServerEvent('qb-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(veh), 2)
                     QBCore.Functions.Notify(Lang:t("notify.vlock"), "primary")
                 else

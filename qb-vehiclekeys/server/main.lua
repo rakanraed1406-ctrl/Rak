@@ -12,7 +12,7 @@ local VehicleList = {}
 ----   Helpers     ----
 -----------------------
 
-local LeftRunning = {} -- [plate] = os.time() — صاحب المفتاح نزل وترك الموتر شغال
+local PulledOut = {} -- [netId] = { src = لاعب نزّل السواق, t = os.time() }
 
 local function trimPlate(plate)
     if type(plate) ~= 'string' then return nil end
@@ -123,55 +123,45 @@ RegisterNetEvent('qb-vehiclekeys:server:setVehLockState', function(vehNetId, sta
     local veh = vehicleFromNet(vehNetId)
     if not veh or distanceTo(src, veh) > 10.0 then return end
     SetVehicleDoorsLocked(veh, state)
+    -- حالة القفل للكل (محد يفتح الباب لو مقفلة حتى لو صار تأخير بالشبكة)
+    Entity(veh).state:set('vehLocked', state == 2, true)
 end)
 
--- نزلت وتركت الموتر شغال → المفتاح يبقى بالسيارة
-RegisterNetEvent('qb-vehiclekeys:server:LeftVehicle', function(netId)
-    local src = source
-    local veh = vehicleFromNet(netId)
-    if not veh then return end
-    local plate = vehiclePlate(veh)
-    if not plate or not HasKeys(src, plate) or distanceTo(src, veh) > 50.0 then return end
-
-    if GetIsVehicleEngineRunning(veh) and GetPedInVehicleSeat(veh, -1) == 0 then
-        LeftRunning[plate] = os.time()
-    else
-        LeftRunning[plate] = nil
-    end
-end)
-
--- ركب سواق بسيارة موترها شغال وما معه مفتاح → ياخذ المفتاح
+-- قعدت سواق وما معك مفتاح → ياخذك المفتاح إذا:
+--   1) الموتر شغال والأبواب مفتوحة
+--   2) سيارة بوت طلعت مفتوحة (50/50) ونزّلت السواق
+--   3) أنت اللي نزّلت السواق بالتعليق على F
 QBCore.Functions.CreateCallback('qb-vehiclekeys:server:ClaimRunningVehicle', function(source, cb, netId)
     local src = source
-    local Cfg = Config.RunningEngine
-    if not Cfg.Enabled or not QBCore.Functions.GetPlayer(src) then return cb(false) end
+    if not QBCore.Functions.GetPlayer(src) then return cb(false) end
 
     local veh = vehicleFromNet(netId)
     if not veh then return cb(false) end
     if GetPedInVehicleSeat(veh, -1) ~= GetPlayerPed(src) then return cb(false) end
 
-    -- سيارة بوت طلعت مفتوحة (50/50) ونزلت السواق → المفتاح لك
-    local npcUnlocked = Config.NpcCarjack.Enabled and Entity(veh).state.npcLock == 'unlocked'
-    if not npcUnlocked and (not Cfg.Enabled or not GetIsVehicleEngineRunning(veh)) then return cb(false) end
-
     local plate = vehiclePlate(veh)
     if not plate then return cb(false) end
     if HasKeys(src, plate) then return cb(true) end
 
-    local left = LeftRunning[plate]
-    local ok = npcUnlocked or (left ~= nil and (os.time() - left) <= Cfg.ExpireMinutes * 60)
-    if not ok and Cfg.IncludeNPCVehicles and not VehicleList[plate] then ok = true end
-    if not ok then return cb(false) end
+    local locked = GetVehicleDoorLockStatus(veh) >= 2 or Entity(veh).state.vehLocked == true
+    local npcUnlocked = Config.NpcCarjack.Enabled and Entity(veh).state.npcLock == 'unlocked'
+    local pull = PulledOut[NetworkGetNetworkIdFromEntity(veh)]
+    local pulled = pull ~= nil and pull.src == src and os.time() - pull.t <= 30
+    local running = Config.RunningEngine.Enabled and not locked and GetIsVehicleEngineRunning(veh)
 
-    if Cfg.RemoveOwnerKey and VehicleList[plate] then
+    if not (npcUnlocked or pulled or running) then return cb(false) end
+
+    if Config.RunningEngine.RemoveOwnerKey and VehicleList[plate] then
         for _, Player in pairs(QBCore.Functions.GetQBPlayers()) do
             if VehicleList[plate][Player.PlayerData.citizenid] then RemoveKeys(Player.PlayerData.source, plate) end
         end
     end
 
-    LeftRunning[plate] = nil
+    PulledOut[NetworkGetNetworkIdFromEntity(veh)] = nil
     GiveKeys(src, plate)
-    if not npcUnlocked then TriggerClientEvent('QBCore:Notify', src, Lang:t('notify.running_keys'), 'success') end
+    if running and not npcUnlocked and not pulled then
+        TriggerClientEvent('QBCore:Notify', src, Lang:t('notify.running_keys'), 'success')
+    end
     cb(true)
 end)
 
@@ -211,12 +201,16 @@ RegisterNetEvent('qb-vehiclekeys:server:PullOutDriver', function(netId)
     if GetVehicleDoorLockStatus(veh) >= 2 then return end
     if #GetEntityVelocity(veh) * 3.6 > Config.PullOut.MaxSpeed + 2.0 then return end
 
+    if Entity(veh).state.vehLocked == true then return end
+
     local driver = GetPedInVehicleSeat(veh, -1)
     if driver == 0 or not IsPedAPlayer(driver) then return end
     local target = NetworkGetEntityOwner(driver)
     if not target or target == src then return end
 
+    PulledOut[NetworkGetNetworkIdFromEntity(veh)] = { src = src, t = os.time() }
     TriggerClientEvent('qb-vehiclekeys:client:PulledOut', target, netId)
+    TriggerClientEvent('qb-vehiclekeys:client:PullOutGo', src, netId)
 end)
 
 AddEventHandler('playerDropped', function()
