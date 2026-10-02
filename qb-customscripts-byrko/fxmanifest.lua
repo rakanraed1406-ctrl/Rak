@@ -19,9 +19,11 @@ client_scripts {
     'client/aircraft.lua',
     'client/npc_vehicles.lua',
     'client/passenger_combat.lua',
+    'client/vehicle_tuning.lua',
     'client/roleplay.lua'
 }
 
 server_scripts {
-    'server/server.lua'
+    'server/server.lua',
+    'server/vehicle_tuning.lua'
 }
