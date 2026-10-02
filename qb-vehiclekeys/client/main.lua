@@ -98,7 +98,7 @@ local function npcFlee(driver, veh)
 end
 
 -- سيارة بوت بالشارع: 50% مفتوحة (تنزله وتاخذ المفتاح) / 50% مقفلة (يشرد)
-local function handleNpcVehicle(ped, veh, driver)
+local function handleNpcVehicle(ped, veh, driver, seat)
     local plate = QBCore.Functions.GetPlate(veh)
     if HasKeys(plate) then return end
 
@@ -119,6 +119,11 @@ local function handleNpcVehicle(ped, veh, driver)
     else
         SetVehicleDoorsLocked(veh, 1)
         npcPending[veh] = true
+        -- ضغطت F عند باب الراكب: اللعبة كانت تنزّل الراكب. الحين تروح لباب السواق وتنزّله هو
+        if Config.NpcCarjack.DriverOnly and seat ~= -1 then
+            ClearPedTasks(ped)
+            TaskEnterVehicle(ped, veh, 10000, -1, 2.0, 8, 0)
+        end
     end
 end
 
@@ -169,7 +174,7 @@ RegisterCommand('+vehkeys_f', function()
         if IsPedAPlayer(driver) then
             if Config.PullOut.Enabled and pullHeld then tryPullOut(ped, veh) end
         elseif not isImmune(veh) then
-            handleNpcVehicle(ped, veh, driver)
+            handleNpcVehicle(ped, veh, driver, GetSeatPedIsTryingToEnter(ped))
         end
     end)
 end, false)

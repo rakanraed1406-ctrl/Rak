@@ -17,7 +17,6 @@ client_scripts {
     'client/utils.lua',
     'client/engine.lua',
     'client/aircraft.lua',
-    'client/npc_vehicles.lua',
     'client/passenger_combat.lua',
     'client/vehicle_tuning.lua',
     'client/roleplay.lua'
