@@ -28,27 +28,31 @@ local function shake(amount)
     end
 end
 
---- أقرب طيارة/هيلي موترها شغال
+--- أقرب طيارة/هيلي موترها شغال (نفحص المسافة أول = أخف) + السيارات القريبة منها للدفع
 local function findAircraft(pos)
     local best, bestDist = 0, Cfg.Range
+    local near = {}
     for _, veh in ipairs(GetGamePool('CVehicle')) do
-        local model = GetEntityModel(veh)
-        if IsThisModelAHeli(model) or IsThisModelAPlane(model) then
-            local d = #(GetEntityCoords(veh) - pos)
-            if d < bestDist and GetIsVehicleEngineRunning(veh) and not IsEntityDead(veh) then
-                best, bestDist = veh, d
+        local d = #(GetEntityCoords(veh) - pos)
+        if d < Cfg.Range + Cfg.PushRange then
+            near[#near + 1] = veh
+            if d < bestDist then
+                local model = GetEntityModel(veh)
+                if (IsThisModelAHeli(model) or IsThisModelAPlane(model))
+                    and GetIsVehicleEngineRunning(veh) and not IsEntityDead(veh) then
+                    best, bestDist = veh, d
+                end
             end
         end
     end
-    return best
+    return best, near
 end
 
-local function pushVehicles(aircraft, coords, scale, isPlane)
+local function pushVehicles(aircraft, coords, scale, isPlane, near)
     local force = (isPlane and Cfg.PushForcePlane or Cfg.PushForceHeli) * scale
-    for _, v in ipairs(GetGamePool('CVehicle')) do
-        if v ~= aircraft and NetworkHasControlOfEntity(v) then
-            local vPos = GetEntityCoords(v)
-            local diff = vPos - coords
+    for _, v in ipairs(near) do
+        if v ~= aircraft and DoesEntityExist(v) and NetworkHasControlOfEntity(v) then
+            local diff = GetEntityCoords(v) - coords
             local dist = #diff
             if dist < Cfg.PushRange and dist > 0.5 and GetPedInVehicleSeat(v, -1) == 0 then
                 local dir = vector3(diff.x, diff.y, 0.0) / math.max(#vector3(diff.x, diff.y, 0.0), 0.01)
@@ -59,22 +63,22 @@ local function pushVehicles(aircraft, coords, scale, isPlane)
     end
 end
 
+-- خفيف: مسح كل 2.5 ثانية لما ما فيه طيارة، والهزة كل 100ms بس لما فيه وحدة قريبة
 CreateThread(function()
-    local aircraft, nextScan = 0, 0
+    local aircraft, near, nextScan, nextPush = 0, {}, 0, 0
 
     while true do
         local sleep = 1000
         local t = GetGameTimer()
-        local ped = cache.ped
-        local pos = GetEntityCoords(ped)
+        local pos = GetEntityCoords(cache.ped)
 
         if t >= nextScan then
-            aircraft = findAircraft(pos)
-            nextScan = t + 1000
+            aircraft, near = findAircraft(pos)
+            nextScan = t + (aircraft ~= 0 and 1000 or 2500)
         end
 
         if aircraft ~= 0 and DoesEntityExist(aircraft) and GetIsVehicleEngineRunning(aircraft) then
-            sleep = 50
+            sleep = 100
             local isPlane = IsThisModelAPlane(GetEntityModel(aircraft))
             local coords  = GetEntityCoords(aircraft)
             local height  = GetEntityHeightAboveGround(aircraft)
@@ -96,8 +100,9 @@ CreateThread(function()
                     stopShake()
                 end
 
-                if Cfg.PushVehicles and height < Cfg.PushRange then
-                    pushVehicles(aircraft, coords, scale, isPlane)
+                if Cfg.PushVehicles and height < Cfg.PushRange and t >= nextPush then
+                    nextPush = t + 300
+                    pushVehicles(aircraft, coords, scale * 3.0, isPlane, near)
                 end
             else
                 stopShake()

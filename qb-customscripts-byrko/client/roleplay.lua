@@ -45,24 +45,39 @@ end
 ----------------------------------------------------------------------
 -- لوب السيارة: أسلحة سيارات الشرطة + التحكم بالجو + القلب
 ----------------------------------------------------------------------
+-- خفيف: كل فريم بس وقت الركوب (السلاح ينعطى وقت الركوب) أو والسيارة طايرة/مقفلبة
+local rewardUntil, airClassOk = 0, false
+lib.onCache('vehicle', function(veh)
+    if veh then
+        rewardUntil = GetGameTimer() + 2000
+        airClassOk = not RP.AntiAirControl.IgnoreClasses[GetVehicleClass(veh)]
+    end
+end)
+
 CreateThread(function()
     local air = RP.AntiAirControl
     while true do
         local sleep = 500
-        local ped, veh = cache.ped, cache.vehicle
+        local ped, veh, t = cache.ped, cache.vehicle, GetGameTimer()
 
-        if RP.NoVehicleRewards and (veh or GetVehiclePedIsTryingToEnter(ped) ~= 0) then
-            sleep = 0
-            DisablePlayerVehicleRewards(PlayerId())
+        if RP.NoVehicleRewards then
+            if not veh then
+                sleep = 250
+                if GetVehiclePedIsTryingToEnter(ped) ~= 0 then rewardUntil = t + 2000 end
+            end
+            if t < rewardUntil then
+                DisablePlayerVehicleRewards(PlayerId())
+                sleep = 0
+            end
         end
 
-        if air.Enabled and veh and GetPedInVehicleSeat(veh, -1) == ped
-            and not air.IgnoreClasses[GetVehicleClass(veh)] then
-            sleep = 0
-            local upsideDown = air.BlockFlipBack and math.abs(GetEntityRoll(veh)) > 75.0
-            if IsEntityInAir(veh) or upsideDown then
+        if air.Enabled and veh and airClassOk and GetPedInVehicleSeat(veh, -1) == ped then
+            if IsEntityInAir(veh) or (air.BlockFlipBack and math.abs(GetEntityRoll(veh)) > 75.0) then
                 DisableControlAction(0, 59, true) -- يمين/يسار
                 DisableControlAction(0, 60, true) -- قدام/ورا
+                sleep = 0
+            elseif sleep > 100 then
+                sleep = 100
             end
         end
 

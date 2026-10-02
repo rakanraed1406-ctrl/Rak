@@ -50,15 +50,27 @@ for name, limit in pairs(Cfg.Reverse.Models or {}) do reverseLimits[joaat(name)]
 
 if Cfg.Reverse.Enabled then
     CreateThread(function()
+        local curVeh, limit, skip = 0, Cfg.Reverse.Default, true
         while true do
             local sleep = 500
             local veh = cache.vehicle
-            if veh and not testing and GetPedInVehicleSeat(veh, -1) == cache.ped and not SKIP_CLASSES[GetVehicleClass(veh)] then
-                sleep = 0
-                local limit = reverseLimits[GetEntityModel(veh)] or Cfg.Reverse.Default
+            if veh ~= curVeh then
+                curVeh = veh or 0
+                if veh then
+                    limit = reverseLimits[GetEntityModel(veh)] or Cfg.Reverse.Default
+                    skip = SKIP_CLASSES[GetVehicleClass(veh)] or false
+                end
+            end
+            if veh and not skip and not testing and GetPedInVehicleSeat(veh, -1) == cache.ped then
+                -- خفيف: كل 200ms، وكل فريم بس لما ترجع ريوس قريب من الحد
                 local back = -GetEntitySpeedVector(veh, true).y * 3.6
                 if back > limit then
                     DisableControlAction(0, 72, true) -- يوقف دعسة الريوس فوق الحد
+                    sleep = 0
+                elseif back > limit - 8.0 then
+                    sleep = 0
+                else
+                    sleep = 200
                 end
             end
             Wait(sleep)

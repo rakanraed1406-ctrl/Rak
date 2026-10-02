@@ -36,7 +36,7 @@ local function startThread()
             local ped, veh, weapon = cache.ped, cache.vehicle, cache.weapon
 
             if veh and weapon and weapon ~= UNARMED then
-                sleep = 100
+                sleep = 250
                 local aiming = IsControlPressed(0, 25)
                 local canShoot = aiming
                 if not Cfg.RequireAiming then canShoot = aiming or IsControlPressed(0, 69) end

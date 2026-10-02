@@ -287,9 +287,10 @@ local function startVehicleSession()
 
             local sleep = 1000
             if GetPedInVehicleSeat(veh, -1) == ped then
-                sleep = 500
                 local plate = QBCore.Functions.GetPlate(veh)
-                if not IsHotwiring and not HasKeys(plate) and not isBlacklistedVehicle(veh) and not AreKeysJobShared(veh) then
+                -- معك المفتاح = ما فيه شي نسويه (فحص كل ثانية بس)
+                sleep = HasKeys(plate) and 1000 or 500
+                if sleep == 500 and not IsHotwiring and not isBlacklistedVehicle(veh) and not AreKeysJobShared(veh) then
                     if ClaimRunningVehicle(veh) then
                         sleep = 100
                     else

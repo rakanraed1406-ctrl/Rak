@@ -24,10 +24,10 @@ local guard = {
     lastG = -100000, lastGBusy = -100000, allowUntil = 0,
     blocks = {}, lastBlock = 0,
     health = 0, lastDamage = -100000,
-    wasDriving = false, nextKeepFlag = 0,
+    nextKeepFlag = 0,
 }
 
-local exitState = { pressAt = 0, veh = 0, handled = false, angle = 0.0, applyUntil = 0 }
+local exitState = { pressAt = 0, veh = 0, handled = false, extended = false, angle = 0.0, applyUntil = 0 }
 
 local MESSAGES = {
     speed = function()
@@ -43,13 +43,6 @@ local MESSAGES = {
 ----------------------------------------------------------------------
 -- أدوات
 ----------------------------------------------------------------------
-local function gKeyPressed()
-    for _, c in ipairs(Cfg.GKey.Controls) do
-        if IsControlPressed(0, c) or IsDisabledControlPressed(0, c) then return true end
-    end
-    return false
-end
-
 local function getFuel(veh)
     local st = Entity(veh).state.fuel                         -- ox_fuel
     if type(st) == 'number' then return st end
@@ -129,69 +122,8 @@ local function setGuardVehicle(veh, t)
     guard.lastDamage   = -100000
 end
 
-----------------------------------------------------------------------
--- النزول من السيارة: F مطوّل يطفي الموتر + الكفرات تبقى ملفوفة
-----------------------------------------------------------------------
-local function exitPressed(just)
-    if just then
-        return IsControlJustPressed(0, 75) or IsDisabledControlJustPressed(0, 75)
-    end
-    return IsControlPressed(0, 75) or IsDisabledControlPressed(0, 75)
-        or IsControlPressed(0, 23) or IsDisabledControlPressed(0, 23)
-end
-
-local function handleExit(ped, veh, t, driving)
-    if driving then
-        if t >= exitState.applyUntil then exitState.angle = GetVehicleSteeringAngle(veh) end
-
-        if exitPressed(true) then
-            exitState.pressAt, exitState.veh, exitState.handled = t, veh, false
-            exitState.applyUntil = t + 4000
-        end
-    elseif guard.wasDriving and exitState.veh == veh then
-        exitState.applyUntil = math.max(exitState.applyUntil, t + 1500)
-    end
-
-    -- F مطوّل
-    if exitState.pressAt > 0 then
-        if not exitPressed(false) then
-            exitState.pressAt = 0
-        elseif Keep.HoldToTurnOff and not exitState.handled and t - exitState.pressAt >= Keep.HoldTime then
-            exitState.handled = true
-            local v = exitState.veh
-            if DoesEntityExist(v) and GetIsVehicleEngineRunning(v) and Utils.Speed(v) < Cfg.MaxOffSpeed then
-                guard.allowUntil = t + 1500
-                SetVehicleEngineOn(v, false, false, true)
-                Utils.Notify('طفيت الموتر', 'inform')
-            end
-        end
-    end
-
-    -- الكفرات تبقى على نفس اللفة
-    if Keep.KeepWheelAngle and exitState.veh == veh and t < exitState.applyUntil
-        and (not driving or GetIsTaskActive(ped, 2)) and Utils.Owns(veh) then
-        SetVehicleSteeringAngle(veh, exitState.angle)
-    end
-end
-
-----------------------------------------------------------------------
--- اللوب
-----------------------------------------------------------------------
-local function tick(ped, veh, t, driving)
-    if gKeyPressed() then guard.lastG = t end
-    if guard.staticBusy or Cfg.GKey.Always or LocalPlayer.state.gKeyBusy then guard.lastGBusy = t end
-
-    local h = GetVehicleEngineHealth(veh) + GetVehicleBodyHealth(veh)
-    if guard.health - h >= Cfg.CrashDamage then guard.lastDamage = t end
-    guard.health = h
-
-    if driving and t >= guard.nextKeepFlag then
-        guard.nextKeepFlag = t + 1000
-        applyKeepFlag(veh)
-    end
-
-    handleExit(ped, veh, t, driving)
-
+--- انطفى الموتر بوقت ما يصير؟ → نرجعه بنفس اللحظة
+local function checkEngine(veh, t, driving)
     local running = GetIsVehicleEngineRunning(veh)
     if running then
         if not guard.running then guard.runningSince, guard.disarmed = t, false end
@@ -205,18 +137,95 @@ local function tick(ped, veh, t, driving)
         end
     end
     guard.running = running
-    guard.wasDriving = driving
     return running
 end
 
+----------------------------------------------------------------------
+-- زر G: على Key Mapping بدل فحص الأزرار كل فريم.
+-- لما تضغطه نراقب الموتر كل فريم لمدة قصيرة بس (يرجع بنفس اللحظة لو انطفى)
+----------------------------------------------------------------------
+local gWatchUntil = 0
+
+RegisterCommand('+rk_gkey', function()
+    if not Cfg.Enabled then return end
+    local t = GetGameTimer()
+    guard.lastG = t
+    if guard.staticBusy or Cfg.GKey.Always or LocalPlayer.state.gKeyBusy then guard.lastGBusy = t end
+    if guard.veh == 0 or not DoesEntityExist(guard.veh) then return end
+
+    local watching = t < gWatchUntil
+    gWatchUntil = t + Cfg.GKey.Window
+    if watching then return end
+
+    CreateThread(function()
+        while GetGameTimer() < gWatchUntil and guard.veh ~= 0 and DoesEntityExist(guard.veh) do
+            local veh = guard.veh
+            checkEngine(veh, GetGameTimer(), cache.vehicle == veh and GetPedInVehicleSeat(veh, -1) == cache.ped)
+            Wait(0)
+        end
+    end)
+end, false)
+RegisterCommand('-rk_gkey', function() end, false)
+RegisterKeyMapping('+rk_gkey', 'Engine guard (G)', 'keyboard', Cfg.GKey.Key or 'G')
+
+----------------------------------------------------------------------
+-- النزول (F): ضغطة = الموتر يبقى شغال | مطوّل = يطفي + الكفرات تبقى ملفوفة
+-- يشتغل بس وقت النزول (Key Mapping) بدل لوب كل فريم
+----------------------------------------------------------------------
+local exitHeld = false
+
+local function exitWatch(veh)
+    CreateThread(function()
+        local started = GetGameTimer()
+        while (GetGameTimer() < exitState.applyUntil or exitHeld) and GetGameTimer() - started < 8000 do
+            local t, ped = GetGameTimer(), cache.ped
+            if not DoesEntityExist(veh) then break end
+            local driving = GetPedInVehicleSeat(veh, -1) == ped
+
+            if exitHeld and Keep.HoldToTurnOff and not exitState.handled and t - exitState.pressAt >= Keep.HoldTime then
+                exitState.handled = true
+                if GetIsVehicleEngineRunning(veh) and Utils.Speed(veh) < Cfg.MaxOffSpeed then
+                    guard.allowUntil = t + 1500
+                    SetVehicleEngineOn(veh, false, false, true)
+                    Utils.Notify('طفيت الموتر', 'inform')
+                end
+            end
+
+            if Keep.KeepWheelAngle and (not driving or GetIsTaskActive(ped, 2)) and Utils.Owns(veh) then
+                SetVehicleSteeringAngle(veh, exitState.angle)
+                if not driving and not exitState.extended then
+                    exitState.extended = true
+                    exitState.applyUntil = math.max(exitState.applyUntil, t + 1500)
+                end
+            end
+            Wait(0)
+        end
+    end)
+end
+
+RegisterCommand('+rk_exit', function()
+    exitHeld = true
+    local veh = cache.vehicle
+    if not Keep.Enabled or not veh or GetPedInVehicleSeat(veh, -1) ~= cache.ped then return end
+    local t = GetGameTimer()
+    exitState.pressAt, exitState.veh, exitState.handled, exitState.extended = t, veh, false, false
+    exitState.angle = GetVehicleSteeringAngle(veh)
+    exitState.applyUntil = t + 2500
+    exitWatch(veh)
+end, false)
+RegisterCommand('-rk_exit', function() exitHeld = false end, false)
+RegisterKeyMapping('+rk_exit', 'Exit vehicle (hold = engine off)', 'keyboard', 'F')
+
+----------------------------------------------------------------------
+-- اللوب: كل 100ms وأنت سايق (مو كل فريم)، 500ms جنب سيارتك، ثانية غير كذا
+----------------------------------------------------------------------
 CreateThread(function()
     if not Cfg.Enabled and not Keep.Enabled then return end
 
     while true do
-        local sleep = 500
-        local ped   = cache.ped
-        local veh   = cache.vehicle
-        local t     = GetGameTimer()
+        local sleep = 1000
+        local ped, veh = cache.ped, cache.vehicle
+        local t = GetGameTimer()
         local driving = veh and GetPedInVehicleSeat(veh, -1) == ped or false
 
         local target = nil
@@ -231,21 +240,20 @@ CreateThread(function()
         if target then
             if target ~= guard.veh then setGuardVehicle(target, t) end
 
-            if Cfg.Enabled then
-                local running = tick(ped, target, t, driving)
-                sleep = (driving or running or exitState.pressAt > 0 or t < exitState.applyUntil) and 0 or 250
-            else
-                if driving and t >= guard.nextKeepFlag then
-                    guard.nextKeepFlag = t + 1000
-                    applyKeepFlag(target)
-                end
-                handleExit(ped, target, t, driving)
-                guard.wasDriving = driving
-                sleep = (driving or exitState.pressAt > 0 or t < exitState.applyUntil) and 0 or 250
+            if driving and t >= guard.nextKeepFlag then
+                guard.nextKeepFlag = t + 1000
+                applyKeepFlag(target)
             end
+
+            if Cfg.Enabled then
+                local h = GetVehicleEngineHealth(target) + GetVehicleBodyHealth(target)
+                if guard.health - h >= Cfg.CrashDamage then guard.lastDamage = t end
+                guard.health = h
+                checkEngine(target, t, driving)
+            end
+            sleep = driving and 100 or 500
         elseif guard.veh ~= 0 then
             setGuardVehicle(0, t)
-            guard.wasDriving = false
         end
 
         Wait(sleep)
