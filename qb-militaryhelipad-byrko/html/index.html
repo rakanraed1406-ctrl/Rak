@@ -2,77 +2,117 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Advanced Helipad System</title>
+    <title>Military Logistics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="app" class="container">
-        <!-- طبقة الإضاءة الخلفية الهولوجرامية -->
-        <div class="hologram-grid"></div>
+    <div id="app" class="hidden">
+        <div id="panel" class="intro">
 
-        <!-- الهيدر العلوي الفاخر -->
-        <div class="header">
-            <div class="header-title">
-                <div class="header-icon-box">
-                    <span>🚁</span>
-                    <div class="pulse-ring"></div>
-                </div>
-                <div>
-                    <h2>TACTICAL AVIATION COMMAND</h2>
-                    <p class="header-subtitle">SECURE HELIPAD & HANGAR DEFENSE SYSTEM</p>
-                </div>
-            </div>
-            <button id="close-btn" class="close-btn" title="Close Menu">&times;</button>
-        </div>
-        
-        <!-- شريط التنقل والبحث المدمج -->
-        <div class="nav-bar-container">
-            <div class="nav-tabs">
-                <button class="tab-btn active" onclick="switchTab('shop')">
-                    <span class="tab-icon">⚡</span> STORE
-                </button>
-                <button class="tab-btn" onclick="switchTab('garage')">
-                    <span class="tab-icon">🛡️</span> HANGAR & RADAR
-                </button>
-            </div>
-            <div class="search-box">
-                <span class="search-icon">🔍</span>
-                <input type="text" id="search-input" placeholder="SEARCH AIRCRAFT..." onkeyup="filterHelicopters()">
-                <div class="search-border-glow"></div>
-            </div>
-        </div>
-
-        <!-- محتوى القوائم -->
-        <div class="content-body">
-            <div id="shop-content" class="tab-content active">
-                <div id="shop-list" class="grid-list"></div>
+            <!-- ========== intro: logo → loading bar → shop ========== -->
+            <div id="intro" class="hidden">
+                <img id="introLogo" src="img/logo.webp" alt="">
+                <div class="intro-name">JINXED TOWN</div>
+                <div class="intro-sub"><span id="introAuthority">MINISTRY OF INTERIOR</span> · <span id="introTitle">MILITARY LOGISTICS</span></div>
+                <div class="intro-bar"><i id="introFill"></i></div>
+                <div class="intro-status" id="introStatus">INITIALIZING SYSTEM…</div>
             </div>
 
-            <div id="garage-content" class="tab-content">
-                <div class="section-header">
-                    <h3><span>📡</span> ACTIVE RADAR (NEARBY SECTOR)</h3>
+            <!-- ========== header ========== -->
+            <header id="hdr">
+                <div class="hdr-left">
+                    <img id="hdrLogo" src="img/logo.webp" alt="">
+                    <div class="hdr-text">
+                        <small>UNDER AUTHORITY OF</small>
+                        <div><b id="hdrAuthority">MINISTRY OF INTERIOR</b><span class="sep">//</span><span id="hdrTitle">MILITARY LOGISTICS</span></div>
+                    </div>
                 </div>
-                <div id="nearby-list" class="grid-list" style="margin-bottom: 20px;"></div>
-                
-                <div class="section-header">
-                    <h3><span>🛡️</span> HANGAR INVENTORY (STORED ASSETS)</h3>
+                <div class="hdr-right">
+                    <div class="badge" title=""><i></i><span id="hdrBadge">—</span></div>
+                    <button class="hbtn" id="btnOrders">ORDERS <em id="ordersCount">0</em></button>
+                    <button class="hbtn cart" id="btnCart">CART <em id="cartCount">0</em></button>
+                    <button class="hbtn x" id="btnClose" aria-label="Close">✕</button>
                 </div>
-                <div id="garage-list" class="grid-list"></div>
+            </header>
+
+            <!-- ========== budget ========== -->
+            <section id="budget">
+                <div class="b-main">
+                    <small>DEPARTMENT BUDGET</small>
+                    <div class="b-amount" id="balance">$0</div>
+                    <div class="b-meta">DAILY <b id="daily">+$0</b><span class="dot">·</span>NEXT IN <b id="incomeIn" data-end="income">--:--:--</b></div>
+                </div>
+                <div class="b-side">
+                    <div class="b-stat"><small>STOCK RESET</small><b id="restockIn" data-end="restock">--:--:--</b></div>
+                    <div class="b-stat"><small>DELIVERY</small><b id="delivery">30 MIN</b></div>
+                    <button class="btn navy" id="btnDeposit">DEPOSIT</button>
+                </div>
+            </section>
+
+            <nav id="tabs"></nav>
+            <main id="grid"></main>
+
+            <footer id="foot"><i></i><span>COOKED BY</span><b>JINXEDTOWN</b><i></i></footer>
+
+            <!-- ========== cart ========== -->
+            <aside id="cart" class="drawer">
+                <div class="d-head"><b>CART</b><button class="hbtn x" data-close="cart">✕</button></div>
+                <div class="d-body" id="cartList"></div>
+                <div class="d-foot">
+                    <div class="row"><small>TOTAL</small><b class="money" id="cartTotal">$0</b></div>
+                    <div class="row"><small>BUDGET AFTER</small><b id="cartAfter">$0</b></div>
+                    <div class="row eta"><small>DELIVERY</small><b id="cartEta">30 MIN</b></div>
+                    <button class="btn navy wide" id="btnCheckout">PLACE ORDER</button>
+                    <div class="d-note" id="cartNote"></div>
+                </div>
+            </aside>
+
+            <!-- ========== orders / depot ========== -->
+            <aside id="orders" class="drawer">
+                <div class="d-head"><b>LOGISTICS</b><button class="hbtn x" data-close="orders">✕</button></div>
+                <div class="d-body">
+                    <div class="d-section">IN TRANSIT</div>
+                    <div id="transitList"></div>
+                    <div class="d-section">AT THE DEPOT</div>
+                    <div id="depotList"></div>
+                </div>
+            </aside>
+
+            <!-- ========== deposit ========== -->
+            <div id="depositModal" class="modal hidden">
+                <div class="m-card">
+                    <div class="m-head"><b>DEPOSIT TO BUDGET</b><button class="hbtn x" data-close="deposit">✕</button></div>
+                    <label class="m-label">AMOUNT</label>
+                    <div class="m-input"><span>$</span><input id="depAmount" type="text" inputmode="numeric" autocomplete="off" placeholder="0"></div>
+                    <div class="chips" id="depChips"></div>
+                    <label class="m-label">FROM</label>
+                    <div class="sources" id="depFrom"></div>
+                    <div class="m-hint" id="depHint"></div>
+                    <button class="btn navy wide" id="btnDepConfirm">CONFIRM DEPOSIT</button>
+                </div>
             </div>
-        </div>
-        
-        <!-- التذييل السفلي العسكري -->
-        <div class="footer-bar">
-            <div class="system-status">
-                <span class="status-dot"></span>
-                <span>SYSTEM STATUS: <strong style="color: #34d399;">ENCRYPTED & SECURE</strong></span>
-            </div>
-            <div class="footer-shortcut">
-                <span>PRESS <kbd>ESC</kbd> TO TERMINATE SESSION</span>
-            </div>
+
+            <div id="toast"></div>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- ========== pickup (display vehicle / supplies NPC) ========== -->
+    <div id="pickup" class="hidden">
+        <div class="p-card">
+            <div class="p-head">
+                <img src="img/logo.webp" alt="">
+                <div><small>DEPOT · <span id="pShop">—</span></small><b id="pTitle">TAKE OUT</b></div>
+                <button class="hbtn x" data-close="pickup">✕</button>
+            </div>
+            <div id="pList"></div>
+            <div class="p-note" id="pNote"></div>
+            <button class="btn navy wide" id="btnPickup">CONFIRM</button>
+            <div class="p-foot"><span>COOKED BY</span> <b>JINXEDTOWN</b></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>
