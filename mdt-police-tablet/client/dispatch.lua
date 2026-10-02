@@ -116,6 +116,8 @@ end)
 
 RegisterNUICallback('toastState', function(data, cb)
     hudToast = (data and data.callId) and { callId = data.callId, coords = data.coords } or nil
+    -- يقول لسكربت الموتر (qb-customscripts-byrko) إن زر G مستخدم للرد، عشان ما يطفي الموتر
+    LocalPlayer.state:set('gKeyBusy', hudToast ~= nil and (DCfg.RespondKey or 'G'):upper() == 'G', false)
     cb('ok')
 end)
 
