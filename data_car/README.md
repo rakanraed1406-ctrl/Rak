@@ -33,22 +33,15 @@
 | b218charger | b218charger (باك ناقص) | POLICE2 — HEMI V8 |
 | b218tau | aq46forgtebv6 (باك ناقص) | POLICE3 — Taurus V6 |
 | b219tahoe | BALLER | GRANGER — Tahoe V8 |
-| b2chal | POLICE | GAUNTLET — Challenger V8 |
+| b2chal | POLICE | **dodgehemihellcat** — صوت الهيلكات الحقيقي |
 
-### صوت الهيلكات الحقيقي (اختياري)
-الباك موجود بـ `b2chal/audioconfig` و `b2chal/sfx`. عشان يشتغل:
-1. ضيف هذا بالـ `fxmanifest.lua` حق المورد (عدّل المسار لو `data_car` داخل مجلد ثاني):
-```lua
-files {
-    'data_car/b2chal/audioconfig/*.dat151.rel',
-    'data_car/b2chal/audioconfig/*.dat54.rel',
-    'data_car/b2chal/sfx/**/*.awc',
-}
-data_file 'AUDIO_GAMEDATA'  'data_car/b2chal/audioconfig/dodgehemihellcat_game.dat'
-data_file 'AUDIO_SOUNDDATA' 'data_car/b2chal/audioconfig/dodgehemihellcat_sounds.dat'
-data_file 'AUDIO_WAVEPACK'  'data_car/b2chal/sfx/dlc_dodgehemihellcat'
+### صوت الهيلكات
+الصوت صار بمورد مستقل اسمه `hellcat-sound` (فيه الـ manifest حقه).
+حطه بمجلد الريسورسز وضيف بالـ `server.cfg` **قبل** مورد السيارات:
 ```
-2. بـ `b2chal/vehicles.meta` غيّر `<audioNameHash>GAUNTLET</audioNameHash>` إلى `<audioNameHash>dodgehemihellcat</audioNameHash>`.
+ensure hellcat-sound
+```
+لو تبي ترجع لصوت أصلي: بـ `b2chal/vehicles.meta` حط `<audioNameHash>GAUNTLET</audioNameHash>`.
 
 ## إصلاحات
 - Crown Vic: الفرامل كانت 50 (مفروض حول 1).
