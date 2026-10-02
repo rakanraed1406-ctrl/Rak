@@ -10,6 +10,10 @@ function post(name, body) {
 }
 
 function money(n) { return '$' + Number(n || 0).toLocaleString('en-US'); }
+// anything that ends up in innerHTML goes through this (names come from players)
+function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 function show(id) { $(id).classList.remove('hidden'); }
 function hide(id) { $(id).classList.add('hidden'); }
 function mmss(ms) {
@@ -68,7 +72,7 @@ function answerInvite(accept) {
 let adminCfg = {};
 function openAdmin(msg) {
     adminCfg = msg;
-    $('ad-loc').innerHTML = (msg.locations || []).map(l => `<option value="${Number(l.index)}">${String(l.label).replace(/[<>&"]/g, '')}</option>`).join('');
+    $('ad-loc').innerHTML = (msg.locations || []).map(l => `<option value="${Number(l.index) || 0}">${esc(l.label)}</option>`).join('');
     $('ad-start').min = msg.minStart || 5000;
     if (Number($('ad-start').value) < (msg.minStart || 5000)) $('ad-start').value = msg.minStart || 5000;
     $('ad-inc').min = msg.minIncrement || 100;
@@ -116,7 +120,7 @@ function renderHud() {
     $('hud-running').classList.toggle('hidden', !running);
 
     if (!running) {
-        const needed = a.needed || 3, got = Math.min(a.accepted || 0, needed);
+        const needed = Math.min(Number(a.needed) || 3, 50), got = Math.min(Number(a.accepted) || 0, needed);
         $('hud-slots').innerHTML = Array.from({ length: needed }, (_, i) => `<span class="${i < got ? 'on' : ''}"></span>`).join('');
         if (a.state === 'countdown' && a.startsIn != null) {
             $('hud-status').textContent = `يبدأ بعد ${Math.max(0, Math.ceil((a.startsIn - elapsed) / 1000))} ثواني`;
@@ -164,18 +168,28 @@ function renderHud() {
         foot.textContent = 'أنت برا النطاق — ارجع عشان تقدر تزيد';
     } else if (hud.participant) {
         foot.className = 'hud-foot';
-        foot.innerHTML = running ? `استخدم الأيتم <b>${String(hud.itemName || '').replace(/[<>&"]/g, '')}</b> عشان تزيد` : 'أنت مشارك — انتظر البداية';
+        foot.innerHTML = running ? `استخدم الأيتم <b>${esc(hud.itemName)}</b> عشان تزيد` : 'أنت مشارك — انتظر البداية';
     } else {
         foot.className = 'hud-foot';
         foot.textContent = running ? `${a.participantCount} مشاركين` : 'اقبل الدعوة عشان تشارك';
     }
 }
-setInterval(renderHud, 200);
+// the HUD timer only ticks while an auction is shown
+let hudTimer = null;
+function setHud(m) {
+    hud = m;
+    hudReceivedAt = Date.now();
+    if (!m.auction || !m.auction.active) lastPrice = null;
+    const on = !!(m.show && m.auction && m.auction.active);
+    if (on && !hudTimer) hudTimer = setInterval(renderHud, 250);
+    if (!on && hudTimer) { clearInterval(hudTimer); hudTimer = null; }
+    renderHud();
+}
 
 let toastTimer = null;
 function bidToast(bid, me) {
     const el = $('bid-toast');
-    el.innerHTML = `${bid.id === me ? 'أنت' : String(bid.name || '').replace(/[<>&"]/g, '')} زايد <b>${money(bid.amount)}</b>`;
+    el.innerHTML = `${bid.id === me ? 'أنت' : esc(bid.name)} زايد <b>${money(bid.amount)}</b>`;
     el.classList.add('hidden'); void el.offsetWidth; el.classList.remove('hidden');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.add('hidden'), 2500);
@@ -187,8 +201,7 @@ function showResult(r, me) {
     const won = r.winnerId === me;
     box.classList.toggle('win', won);
     $('res-title').textContent = won ? 'مبروك! فزت بالمزاد' : `${r.winner || ''} فاز`;
-    const safe = (v) => String(v || '').replace(/[<>&"]/g, '');
-    $('res-sub').innerHTML = `${safe(r.label)} بـ <bdi>${money(r.amount)}</bdi>`;
+    $('res-sub').innerHTML = `${esc(r.label)} بـ <bdi>${money(r.amount)}</bdi>`;
     show('result');
     clearTimeout(resultTimer);
     resultTimer = setTimeout(() => hide('result'), 7000);
@@ -327,11 +340,7 @@ window.addEventListener('message', (e) => {
         case 'auctionInvite': openInvite(m.data || {}); break;
         case 'auctionInviteClose': clearTimeout(inviteTimer); hide('invite'); break;
         case 'auctionAdmin': openAdmin(m); break;
-        case 'auctionHud':
-            hud = m; hudReceivedAt = Date.now();
-            if (!m.auction || !m.auction.active) lastPrice = null;
-            renderHud();
-            break;
+        case 'auctionHud': setHud(m); break;
         case 'auctionBid': bidToast(m.bid || {}, m.me); break;
         case 'auctionResult': showResult(m.result || {}, m.me); break;
         case 'closeAll': hide('buy'); hide('invite'); hide('admin'); break;

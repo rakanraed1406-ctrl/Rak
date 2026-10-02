@@ -3,25 +3,21 @@ game 'gta5'
 lua54 'yes'
 author '! TMX'
 description 'QB Vehicle Shop — random-stock showroom + admin vehicle auctions'
-version '2.1.0'
+version '2.2.0'
 
 ui_page 'html/index.html'
 
-shared_script {
+shared_scripts {
     'config.lua',
     'stock/config.lua',
     'auction/config.lua',
+    'shared.lua',
     '@qb-core/shared/locale.lua',
-    'locales/en.lua',
-    'locales/*.lua'
+    'locales/en.lua', -- only one language is used (Lang = Lang or ...), so only one is loaded
 }
 
 client_scripts {
-    '@PolyZone/client.lua',
-    '@PolyZone/BoxZone.lua',
-    '@PolyZone/EntityZone.lua',
-    '@PolyZone/CircleZone.lua',
-    '@PolyZone/ComboZone.lua',
+    'common/client.lua',
     'client.lua',
     'stock/client.lua',
     'auction/client.lua'
@@ -29,6 +25,7 @@ client_scripts {
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
+    'common/server.lua',
     'server.lua',
     'stock/server.lua',
     'auction/server.lua'
@@ -38,4 +35,9 @@ files {
     'html/index.html',
     'html/style.css',
     'html/app.js'
+}
+
+dependencies {
+    'qb-core',
+    'oxmysql',
 }

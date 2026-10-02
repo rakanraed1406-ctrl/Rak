@@ -57,6 +57,8 @@
 
 ### Dependencies:
 
+**PolyZone is no longer needed** (shop zones are checked in `shared.lua`). The old notes below are kept for reference.
+
 **[PolyZone](https://github.com/qbcore-framework/PolyZone)**
 
 * You need to create new PolyZones if you want to create a new dealership or move default locations to another area. After you create the new PolyZones, add them to the Config.Shops > [Shape]
