@@ -6,7 +6,7 @@
    Nothing runs while closed: one 1-second ticker only while open.
    ============================================================================ */
 
-const RES = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'qb-militaryhelipad-byrko';
+const RES = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'JT-MilitaryArmory';
 const $ = (id) => document.getElementById(id);
 
 function post(name, body) {

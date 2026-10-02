@@ -1,11 +1,11 @@
 --[[ ==========================================================================
-     JINXED TOWN — MILITARY LOGISTICS  (qb-militaryhelipad-byrko 3.2)
+     JINXED TOWN — MILITARY LOGISTICS  (JT-MilitaryArmory 3.2)
 
      الإيفنتات (كلاينت) — اسم الإيفنت لحاله يكفي (يفتح أقرب متجر):
          jt-logistics:open        فتح المتجر
          jt-logistics:supplies    استلام الأغراض (عند الضابط)
          jt-logistics:store       تخزين المركبات (عند الضابط)
-     متجر معين: TriggerEvent('jt-logistics:open', 'cia') أو exports['qb-militaryhelipad-byrko']:Open('cia')
+     متجر معين: TriggerEvent('jt-logistics:open', 'cia') أو exports['JT-MilitaryArmory']:Open('cia')
      السيرفر يتحقق من الصلاحية بنفسه، فما يهم من وين ينفتح.
 
      الإحداثيات تحت أمثلة (Fort Zancudo) — عدلها بـ /logisticscoords (أدمن).
@@ -105,7 +105,7 @@ Config.Shops = {
         openPed = { model = 's_m_y_pilot_01', coords = vector4(-2035.03, 3116.78, 32.81, 120.52), label = 'Military Logistics' },
 
         -- ضابط الإمداد (qb-target): تستلم منه الأسلحة والأغراض، و تخزن عنده المركبات
-        itemPed = { model = 's_m_y_marine_01', coords = vector4(-2031.20, 3121.90, 32.81, 150.0), label = 'Receive supplies', storeLabel = 'Store the vehicle' },
+        itemPed = { model = 's_m_y_marine_01', coords = vector4(-2136.72, 3230.18, 32.81, 103.45), label = 'Receive supplies', storeLabel = 'Store the vehicle' },
         storeRadius = 30.0, -- المركبة لازم تكون ضمن هالمسافة من الضابط عشان تتخزن
 
         -- وين تطلع المركبات لما تستخرجها (تقدر تحط أكثر من مكان لكل مجموعة)
@@ -125,7 +125,7 @@ Config.Shops = {
 
         products = {
             -- ARMORED
-            { id = 'rhino', type = 'vehicle', vtype = 'automobile', model = 'rhino', label = 'Rhino Tank', desc = 'Main Battle Tank', category = 'armored', price = 4000000, stock = 4, spawn = 'ground', display = vector4(-2041.80, 3042.60, 32.81, 60.0) },
+            { id = 'rhino', type = 'vehicle', vtype = 'automobile', model = 'rhino', label = 'Rhino Tank', desc = 'Main Battle Tank', category = 'armored', price = 4000000, stock = 4, spawn = 'ground', display = vector4(-2102.77, 3264.4, 32.77, 111.29) },
             { id = 'halftrack', type = 'vehicle', vtype = 'automobile', model = 'halftrack', label = 'Half-track', desc = 'Armored Half-track', category = 'armored', price = 500000, stock = 5, spawn = 'ground', display = vector4(-2027.80, 3066.85, 32.81, 60.0) },
             { id = 'apc', type = 'vehicle', vtype = 'automobile', model = 'apc', label = 'APC', desc = 'Amphibious Personnel Carrier', category = 'armored', price = 1000000, stock = 5, spawn = 'ground', display = vector4(-2013.80, 3091.10, 32.81, 60.0) },
             { id = 'insurgent', type = 'vehicle', vtype = 'automobile', model = 'insurgent', label = 'Insurgent', desc = 'Armored SUV', category = 'armored', price = 850000, stock = 5, spawn = 'ground', display = vector4(-1999.80, 3115.35, 32.81, 60.0) },
@@ -142,10 +142,10 @@ Config.Shops = {
             { id = 'csk131', type = 'vehicle', vtype = 'heli', model = 'csk131', label = 'CSK-131', desc = 'Special Operations', category = 'helicopters', price = 500000, stock = 3, spawn = 'air', display = vector4(-1931.80, 3173.10, 32.81, 60.0) },
 
             -- JETS
-            { id = 'lazer', type = 'vehicle', model = 'lazer', vtype = 'plane', label = 'P-996 LAZER', desc = 'Military Fighter Jet', category = 'jets', price = 3000000, stock = 3, spawn = 'air', display = vector4(-1989.80, 3012.60, 32.81, 60.0) },
+            { id = 'lazer', type = 'vehicle', model = 'lazer', vtype = 'plane', label = 'P-996 LAZER', desc = 'Military Fighter Jet', category = 'jets', price = 3000000, stock = 3, spawn = 'air', display = vector4(-2131.65, 3261.77, 33.82, 149.6) },
             { id = 'hydra', type = 'vehicle', model = 'hydra', vtype = 'plane', label = 'Hydra', desc = 'VTOL Fighter Jet', category = 'jets', price = 3000000, stock = 3, spawn = 'air', display = vector4(-1975.80, 3036.85, 32.81, 60.0) },
             { id = 'strikeforce', type = 'vehicle', model = 'strikeforce', vtype = 'plane', label = 'B-11 Strikeforce', desc = 'Ground Attack Aircraft', category = 'jets', price = 1500000, stock = 3, spawn = 'air', display = vector4(-1961.80, 3061.10, 32.81, 60.0) },
-            { id = 'raiju', type = 'vehicle', model = 'raiju', vtype = 'plane', label = 'F-160 Raiju', desc = 'Stealth VTOL', category = 'jets', price = 2500000, stock = 2, spawn = 'air', display = vector4(-1947.80, 3085.35, 32.81, 60.0) },
+            { id = 'raiju', type = 'vehicle', model = 'raiju', vtype = 'plane', label = 'F-160 Raiju', desc = 'Stealth VTOL', category = 'jets', price = 2500000, stock = 2, spawn = 'air', display = vector4(-2117.03, 3286.66, 33.82, 150.37) },
 
             -- WEAPONS (من qb-inventory)
             { id = 'carbine', type = 'item', item = 'weapon_carbinerifle', label = 'Carbine Rifle', desc = 'Service Rifle', category = 'weapons', price = 25000, stock = 30 },
@@ -154,8 +154,8 @@ Config.Shops = {
 
             -- ITEMS
             { id = 'heavyarmor', type = 'item', item = 'heavyarmor', label = 'Heavy Armor', desc = 'Ballistic Vest', category = 'items', price = 2500, stock = 100 },
-            { id = 'rifle_ammo', type = 'item', item = 'rifle_ammo', label = 'Rifle Ammo', desc = 'Ammunition Box', category = 'items', price = 500, stock = 200 },
-            { id = 'radio', type = 'item', item = 'radio', label = 'Radio', desc = 'Secure Comms', category = 'items', price = 1000, stock = 50 },
+            { id = 'mg_ammo', type = 'item', item = 'mg_ammo', label = 'MG Ammo', desc = 'Ammunition Box', category = 'items', price = 500, stock = 200 },
+            { id = 'weapon_combatmg', type = 'item', item = 'radio', label = 'Radio', desc = 'Secure Comms', category = 'items', price = 55000, stock = 50 },
         },
     },
 

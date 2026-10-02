@@ -1,4 +1,4 @@
-# Jinxed Town — Military Logistics (qb-militaryhelipad-byrko 3.2)
+# Jinxed Town — Military Logistics (JT-MilitaryArmory 3.2)
 
 متجر للقطاعات (CIA، LSPD، …): ميزانية لكل قطاع، سلة، طلب بتوصيل، **كراج أسطول** للمركبات، واستلام الأغراض بـ qb-target.
 
@@ -22,9 +22,9 @@ options = { { label = 'Military Logistics', event = 'jt-logistics:open', args = 
 TriggerEvent('jt-logistics:open')                    -- أقرب متجر
 TriggerEvent('jt-logistics:open', 'cia')             -- متجر معين
 TriggerClientEvent('jt-logistics:open', src, 'cia')  -- من السيرفر
-exports['qb-militaryhelipad-byrko']:Open('cia')
-exports['qb-militaryhelipad-byrko']:OpenSupplies('cia')
-exports['qb-militaryhelipad-byrko']:OpenStore('cia')
+exports['JT-MilitaryArmory']:Open('cia')
+exports['JT-MilitaryArmory']:OpenSupplies('cia')
+exports['JT-MilitaryArmory']:OpenStore('cia')
 ```
 مثال interact كامل:
 ```lua
@@ -114,9 +114,9 @@ storeRadius = 30.0, -- المسافة من الضابط اللي تنقبل في
 - **أنتي تشيت ثاني يحذف المركبات؟** حط له استثناء:
   ```lua
   -- سيرفر (ما ينغش: القائمة بذاكرة السيرفر)
-  if exports['qb-militaryhelipad-byrko']:IsFleetVehicle(entity) then return end
+  if exports['JT-MilitaryArmory']:IsFleetVehicle(entity) then return end
   -- كلاينت (مركبات العرض + الأسطول من GlobalState اللي بس السيرفر يكتب فيه)
-  if exports['qb-militaryhelipad-byrko']:IsLogisticsVehicle(vehicle) then return end
+  if exports['JT-MilitaryArmory']:IsLogisticsVehicle(vehicle) then return end
   ```
 
 ## الاستهلاك

@@ -10,6 +10,13 @@
      spot for good; take units out from it (spawned on free pads) and store
      them again by bringing them to the supply officer. Items: the officer. ]]
 
+-- config.lua failed to load (a typo stops the whole file): say so once, clearly, instead of
+-- erroring all over the place. Common one: vector4 needs exactly 4 numbers → vector4(x, y, z, heading)
+if type(Config) ~= 'table' or type(Config.Shops) ~= 'table' or type(Config.Lang) ~= 'table' then
+    print(('^1[%s] config.lua did not load — fix the error printed above it (check the commas in vector3 / vector4) and restart.^0'):format(GetCurrentResourceName()))
+    return
+end
+
 local QBCore = exports['qb-core']:GetCoreObject()
 local L = Config.Lang
 local RES = GetCurrentResourceName()
@@ -1085,7 +1092,7 @@ end)
 
 --- For anti-cheats / entity blacklists: true for vehicles this script spawned
 --- (tracked on the server, can't be faked by a client). Example (entityCreated):
----     if exports['qb-militaryhelipad-byrko']:IsFleetVehicle(handle) then return end
+---     if exports['JT-MilitaryArmory']:IsFleetVehicle(handle) then return end
 exports('IsFleetVehicle', function(entity)
     entity = math.tointeger(entity)
     if not entity or entity == 0 then return false end

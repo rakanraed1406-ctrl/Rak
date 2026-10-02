@@ -3,7 +3,7 @@
      Open from anywhere (interact, qb-target, ox_target, a key…):
          event = 'jt-logistics:open'                    -- the event name alone: the nearest shop you can open
          TriggerEvent('jt-logistics:open', 'cia')       -- or a specific shop
-         exports['qb-militaryhelipad-byrko']:Open('cia')
+         exports['JT-MilitaryArmory']:Open('cia')
      Supply officer (the player has to be next to him; the server checks):
          event = 'jt-logistics:supplies'                -- receive weapons / items
          event = 'jt-logistics:store'                   -- store fleet vehicles parked nearby
@@ -15,6 +15,13 @@
 
      Idle cost: one distance check every 2 s. The display vehicles and NPCs
      only exist while you are near a shop; the NUI does nothing while closed. ]]
+
+-- config.lua failed to load (a typo stops the whole file): say so once, clearly, instead of
+-- erroring all over the place. Common one: vector4 needs exactly 4 numbers → vector4(x, y, z, heading)
+if type(Config) ~= 'table' or type(Config.Shops) ~= 'table' or type(Config.Lang) ~= 'table' then
+    print(('^1[%s] config.lua did not load — fix the error printed above it (check the commas in vector3 / vector4) and restart.^0'):format(GetCurrentResourceName()))
+    return
+end
 
 local QBCore = exports['qb-core']:GetCoreObject()
 local L = Config.Lang
@@ -256,7 +263,7 @@ end)
 
 -- For client-side anti-cheats / blacklists: the local display vehicles and the
 -- fleet vehicles (that list is GlobalState: only the server can write it).
---     if exports['qb-militaryhelipad-byrko']:IsLogisticsVehicle(veh) then return end
+--     if exports['JT-MilitaryArmory']:IsLogisticsVehicle(veh) then return end
 local displayOf -- set below
 exports('IsLogisticsVehicle', function(entity)
     if type(entity) ~= 'number' or entity == 0 then return false end
