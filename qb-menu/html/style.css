@@ -1,0 +1,281 @@
+/* ============================================================================
+   qb-menu — same look as the radial menu / qb-input (the --cm-* tokens).
+   Light on purpose: solid colors, no blur, no looping animations, no sounds.
+   Hidden = display:none, so nothing is drawn while the menu is closed.
+   ============================================================================ */
+
+:root {
+    /* same identity as qb-radialmenu (RadialMenu.css --rm-*): deep navy + royal blue */
+    --cm-panel: linear-gradient(180deg, rgba(9, 21, 52, 0.96) 0%, rgba(5, 12, 32, 0.96) 100%);
+    --cm-head: transparent;
+    --cm-row: rgba(11, 26, 61, 0.55);          /* navy #0b1a3d */
+    --cm-row-hover: rgba(14, 33, 78, 0.8);
+    --cm-row-hot: linear-gradient(90deg, rgba(26, 75, 214, 0.42) 0%, rgba(10, 31, 92, 0.55) 100%); /* like a selected sector */
+    --cm-well: rgba(4, 10, 27, 0.9);           /* core dark #040a1b */
+    --cm-key: #0b1a3d;
+    --cm-line: rgba(92, 130, 255, 0.12);       /* --rm-line-dim */
+    --cm-line-mid: rgba(92, 130, 255, 0.28);   /* --rm-line */
+    --cm-blue: #1c1d6e;                        /* --rm-blue: filled buttons */
+    --cm-edge: #233b85;                        /* --rm-blue-hi: focus, selection edge */
+    --cm-edge-dim: rgba(58, 108, 255, 0.5);
+    --cm-edge-soft: rgba(58, 108, 255, 0.16);
+    --cm-glow: rgba(58, 108, 255, 0.2);        /* the soft light at the top of the box */
+    --cm-text: #e8eeff;
+    --cm-text-dim: #8d9bc4;
+    --cm-text-mute: #5d6a92;
+    --cm-bad: #ef5a5a;
+    --cm-dim: rgba(3, 8, 19, 0.35);  /* light darkening behind the menu (void #030813) */
+
+    --qm-width: 350px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    font-family: 'Oxanium', 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+    color: var(--cm-text);
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- backdrop + open/close ---------- */
+
+#dim {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--cm-dim);
+    display: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+#menu {
+    position: fixed;
+    top: 18%;
+    right: 6%;
+    display: none;
+    align-items: flex-start;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.qm-visible #menu { display: flex; }
+.qm-visible:not(.qm-nofocus) #dim { display: block; }
+.qm-open #menu { opacity: 1; transform: none; }
+.qm-open #dim { opacity: 1; }
+
+/* header-only mode (no focus): the game stays usable, so no dim */
+.qm-nofocus #menu { pointer-events: none; }
+.qm-nofocus #foot, .qm-nofocus #search { display: none; }
+
+/* ---------- panel ---------- */
+
+#panel {
+    width: var(--qm-width);
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--cm-panel);
+    border: 1px solid var(--cm-line-mid);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(0, 4, 20, 0.45);
+}
+
+#head {
+    padding: 12px 14px;
+    background: var(--cm-head);
+    border-bottom: 1px solid var(--cm-line);
+}
+
+#head:empty, #titleWrap:empty { display: none; }
+#titleWrap { display: flex; align-items: center; }
+#titleWrap .qm-icon { margin-right: 10px; }
+
+.qm-title { font-size: 16px; font-weight: 800; line-height: 1.3; letter-spacing: 0.01em; }
+.qm-sub { font-size: 12.5px; color: var(--cm-text-dim); margin-top: 2px; line-height: 1.35; }
+
+/* soft blue light across the top of the box (very light detail) */
+#panel { position: relative; }
+#panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 110px;
+    background: radial-gradient(ellipse 70% 100% at 50% 0%, var(--cm-glow) 0%, transparent 72%);
+    pointer-events: none;
+}
+#panel::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 12%; right: 12%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cm-edge), transparent);
+    opacity: 0.7;
+    pointer-events: none;
+}
+#panel > * { position: relative; }
+
+/* ---------- search ---------- */
+
+#search { display: none; padding: 8px 10px 0; }
+#search.on { display: block; }
+
+#searchInput {
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 7px;
+    border: 1px solid var(--cm-line-mid);
+    background: var(--cm-row);
+    color: var(--cm-text);
+    font: inherit;
+    font-size: 13px;
+    outline: none;
+}
+
+#searchInput:focus { border-color: var(--cm-edge); }
+
+/* ---------- list ---------- */
+
+#list {
+    padding: 8px;
+    overflow-y: auto;
+    flex: 1 1 auto;
+}
+
+#list::-webkit-scrollbar { width: 5px; }
+#list::-webkit-scrollbar-thumb { background: var(--cm-line-mid); border-radius: 3px; }
+
+.qm-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 46px;
+    padding: 7px 10px;
+    margin-bottom: 5px;
+    border-radius: 7px;
+    background: var(--cm-row);
+    border: 1px solid var(--cm-line);
+    border-left: 3px solid transparent;
+    cursor: pointer;
+    transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+.qm-item.selected {
+    background: var(--cm-row-hot);
+    border-color: var(--cm-edge-dim);
+    border-left-color: var(--cm-edge);
+}
+
+.qm-item.selected .qm-header { color: #fff; }
+
+.qm-item.hide { display: none; }
+
+.qm-item.disabled { opacity: 0.45; cursor: default; }
+
+.qm-item.qm-title-row {
+    min-height: 0;
+    padding: 8px 4px 4px;
+    background: none;
+    border: none;
+    cursor: default;
+}
+
+.qm-title-row .qm-header { font-size: 11.5px; color: var(--cm-edge); letter-spacing: 0.06em; }
+
+.qm-num {
+    flex: 0 0 22px;
+    height: 22px;
+    margin-right: 10px;
+    border-radius: 5px;
+    background: var(--cm-key);
+    border: 1px solid var(--cm-line-mid);
+    border-bottom-width: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--cm-text-dim);
+}
+
+.qm-item.selected .qm-num { color: var(--cm-edge); border-color: var(--cm-edge-dim); }
+.qm-num:empty { visibility: hidden; }
+
+.qm-icon {
+    flex: 0 0 28px;
+    height: 28px;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: var(--cm-edge);
+}
+
+.qm-icon img { max-width: 28px; max-height: 28px; object-fit: contain; }
+
+.qm-body { flex: 1 1 auto; min-width: 0; }
+.qm-header { font-size: 14px; font-weight: 700; line-height: 1.3; word-wrap: break-word; }
+.qm-text { font-size: 12px; color: var(--cm-text-dim); line-height: 1.35; margin-top: 1px; word-wrap: break-word; }
+
+.qm-arrow {
+    flex: 0 0 auto;
+    margin-left: 8px;
+    font-size: 18px;
+    color: var(--cm-text-mute);
+}
+
+.qm-item.selected .qm-arrow { color: var(--cm-edge); }
+
+.qm-empty { padding: 14px; text-align: center; font-size: 13px; color: var(--cm-text-mute); }
+
+/* progress bars */
+.qm-progress { display: flex; align-items: center; margin-top: 5px; }
+.qm-bar { flex: 1 1 auto; height: 5px; border-radius: 3px; background: var(--cm-key); overflow: hidden; }
+.qm-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--cm-blue), var(--cm-edge)); }
+.qm-bar-info { margin-left: 8px; font-size: 11px; color: var(--cm-text-dim); }
+
+/* ---------- footer hints ---------- */
+
+#foot {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-top: 1px solid var(--cm-line);
+    background: var(--cm-head);
+    font-size: 10.5px;
+    color: var(--cm-text-mute);
+    letter-spacing: 0.04em;
+}
+
+#foot b {
+    display: inline-block;
+    padding: 0 5px;
+    margin-right: 3px;
+    border-radius: 4px;
+    background: var(--cm-key);
+    border: 1px solid var(--cm-line-mid);
+    color: var(--cm-text-dim);
+    font-weight: 700;
+}
+
+/* ---------- item image preview ---------- */
+
+#preview {
+    display: none;
+    margin-right: 10px;
+    padding: 6px;
+    border-radius: 10px;
+    background: var(--cm-panel);
+    border: 1px solid var(--cm-line-mid);
+}
+
+#preview.on { display: block; }
+#preview img { display: block; max-width: 220px; max-height: 220px; border-radius: 6px; }

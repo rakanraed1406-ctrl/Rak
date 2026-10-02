@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Advanced Helipad System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app" class="container">
+        <!-- طبقة الإضاءة الخلفية الهولوجرامية -->
+        <div class="hologram-grid"></div>
+
+        <!-- الهيدر العلوي الفاخر -->
+        <div class="header">
+            <div class="header-title">
+                <div class="header-icon-box">
+                    <span>🚁</span>
+                    <div class="pulse-ring"></div>
+                </div>
+                <div>
+                    <h2>TACTICAL AVIATION COMMAND</h2>
+                    <p class="header-subtitle">SECURE HELIPAD & HANGAR DEFENSE SYSTEM</p>
+                </div>
+            </div>
+            <button id="close-btn" class="close-btn" title="Close Menu">&times;</button>
+        </div>
+        
+        <!-- شريط التنقل والبحث المدمج -->
+        <div class="nav-bar-container">
+            <div class="nav-tabs">
+                <button class="tab-btn active" onclick="switchTab('shop')">
+                    <span class="tab-icon">⚡</span> STORE
+                </button>
+                <button class="tab-btn" onclick="switchTab('garage')">
+                    <span class="tab-icon">🛡️</span> HANGAR & RADAR
+                </button>
+            </div>
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-input" placeholder="SEARCH AIRCRAFT..." onkeyup="filterHelicopters()">
+                <div class="search-border-glow"></div>
+            </div>
+        </div>
+
+        <!-- محتوى القوائم -->
+        <div class="content-body">
+            <div id="shop-content" class="tab-content active">
+                <div id="shop-list" class="grid-list"></div>
+            </div>
+
+            <div id="garage-content" class="tab-content">
+                <div class="section-header">
+                    <h3><span>📡</span> ACTIVE RADAR (NEARBY SECTOR)</h3>
+                </div>
+                <div id="nearby-list" class="grid-list" style="margin-bottom: 20px;"></div>
+                
+                <div class="section-header">
+                    <h3><span>🛡️</span> HANGAR INVENTORY (STORED ASSETS)</h3>
+                </div>
+                <div id="garage-list" class="grid-list"></div>
+            </div>
+        </div>
+        
+        <!-- التذييل السفلي العسكري -->
+        <div class="footer-bar">
+            <div class="system-status">
+                <span class="status-dot"></span>
+                <span>SYSTEM STATUS: <strong style="color: #34d399;">ENCRYPTED & SECURE</strong></span>
+            </div>
+            <div class="footer-shortcut">
+                <span>PRESS <kbd>ESC</kbd> TO TERMINATE SESSION</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,356 @@
+/* ============================================================================
+   qb-input — one centered card over a light dim, same look as the radial menu
+   and qb-menu (the --cm-* tokens). Light on purpose: solid colors, no blur,
+   no looping animations, no sounds. Hidden = display:none.
+   ============================================================================ */
+
+:root {
+    /* same identity as qb-radialmenu (RadialMenu.css --rm-*): deep navy + royal blue */
+    --cm-panel: linear-gradient(180deg, rgba(9, 21, 52, 0.96) 0%, rgba(5, 12, 32, 0.96) 100%);
+    --cm-head: transparent;
+    --cm-row: rgba(11, 26, 61, 0.55);          /* navy #0b1a3d */
+    --cm-row-hover: rgba(14, 33, 78, 0.8);
+    --cm-row-hot: linear-gradient(90deg, rgba(26, 75, 214, 0.42) 0%, rgba(10, 31, 92, 0.55) 100%); /* like a selected sector */
+    --cm-well: rgba(4, 10, 27, 0.9);           /* core dark #040a1b */
+    --cm-key: #0b1a3d;
+    --cm-line: rgba(92, 130, 255, 0.12);       /* --rm-line-dim */
+    --cm-line-mid: rgba(92, 130, 255, 0.28);   /* --rm-line */
+    --cm-blue: #1a4bd6;                        /* --rm-blue: filled buttons */
+    --cm-edge: #3a6cff;                        /* --rm-blue-hi: focus, selection edge */
+    --cm-edge-dim: rgba(58, 108, 255, 0.5);
+    --cm-edge-soft: rgba(58, 108, 255, 0.16);
+    --cm-glow: rgba(58, 108, 255, 0.2);        /* the soft light at the top of the box */
+    --cm-text: #e8eeff;
+    --cm-text-dim: #8d9bc4;
+    --cm-text-mute: #5d6a92;
+    --cm-bad: #ef5a5a;
+    --cm-dim: rgba(3, 8, 19, 0.45);  /* darkening behind the card (void #030813) */
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    font-family: 'Oxanium', 'Cairo', 'Segoe UI', Tahoma, sans-serif;
+    color: var(--cm-text);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- backdrop + open/close ---------- */
+
+#dim {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: var(--cm-dim);
+    display: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+#panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 440px;
+    max-width: 92vw;
+    max-height: 86vh;
+    display: none;
+    flex-direction: column;
+    background: var(--cm-panel);
+    border: 1px solid var(--cm-line-mid);
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(0, 4, 20, 0.5);
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.97);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.qi-visible #dim { display: block; }
+.qi-visible #panel { display: flex; }
+.qi-open #dim { opacity: 1; }
+.qi-open #panel { opacity: 1; transform: translate(-50%, -50%); }
+
+/* soft blue light across the top of the box (very light detail) */
+#panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 110px;
+    background: radial-gradient(ellipse 70% 100% at 50% 0%, var(--cm-glow) 0%, transparent 72%);
+    pointer-events: none;
+}
+#panel::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 12%; right: 12%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cm-edge), transparent);
+    opacity: 0.7;
+    pointer-events: none;
+}
+#panel > * { position: relative; }
+
+/* ---------- head ---------- */
+
+#head {
+    display: flex;
+    align-items: center;
+    padding: 16px 18px 8px;
+}
+
+#title {
+    flex: 1 1 auto;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.3;
+    letter-spacing: 0.01em;
+}
+
+#close {
+    flex: 0 0 30px;
+    height: 30px;
+    margin-left: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--cm-line-mid);
+    background: var(--cm-key);
+    color: var(--cm-text-dim);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.1s ease, border-color 0.1s ease;
+}
+
+#close:hover { color: var(--cm-text); border-color: var(--cm-edge-dim); }
+
+/* ---------- fields ---------- */
+
+#form { display: flex; flex-direction: column; min-height: 0; }
+
+#fields {
+    padding: 6px 18px 4px;
+    overflow-y: auto;
+}
+
+#fields::-webkit-scrollbar { width: 5px; }
+#fields::-webkit-scrollbar-thumb { background: var(--cm-line-mid); border-radius: 3px; }
+
+.qi-field { display: block; margin-bottom: 12px; }
+
+.qi-label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--cm-text-dim);
+}
+
+.qi-label em { font-style: normal; color: var(--cm-bad); }
+
+.qi-note { margin-bottom: 12px; font-size: 13px; color: var(--cm-text-dim); }
+
+.qi-wrap { position: relative; display: block; }
+
+.qi-input,
+.qi-select select {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--cm-line-mid);
+    background: var(--cm-well);
+    color: var(--cm-text);
+    font: inherit;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.1s ease;
+}
+
+.qi-input::placeholder { color: var(--cm-text-mute); }
+.qi-input:focus, .qi-select select:focus { border-color: var(--cm-edge); }
+
+.qi-area { height: auto; min-height: 76px; padding: 9px 12px; resize: none; line-height: 1.45; }
+
+.qi-has-btn { padding-right: 40px; }
+
+.qi-count {
+    position: absolute;
+    right: 10px;
+    bottom: 7px;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--cm-text-mute);
+    pointer-events: none;
+}
+
+.qi-invalid .qi-input { border-color: var(--cm-bad); }
+.qi-invalid .qi-label { color: var(--cm-bad); }
+
+/* number stepper */
+.qi-stepper { display: flex; }
+.qi-stepper .qi-input { border-radius: 0; text-align: center; }
+.qi-stepper .qi-input::-webkit-inner-spin-button,
+.qi-stepper .qi-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.qi-stepper button {
+    flex: 0 0 40px;
+    height: 40px;
+    border: 1px solid var(--cm-line-mid);
+    background: var(--cm-key);
+    color: var(--cm-text-dim);
+    font-size: 17px;
+    cursor: pointer;
+}
+.qi-stepper button:first-child { border-radius: 8px 0 0 8px; border-right: none; }
+.qi-stepper button:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+.qi-stepper button:hover { color: var(--cm-edge); }
+
+/* password eye */
+.qi-eye {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+}
+.qi-eye i {
+    display: block;
+    width: 16px;
+    height: 10px;
+    margin: 0 auto;
+    border: 2px solid var(--cm-text-mute);
+    border-radius: 50% / 60%;
+    position: relative;
+}
+.qi-eye i::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 4px; height: 4px;
+    margin: -2px 0 0 -2px;
+    border-radius: 50%;
+    background: var(--cm-text-mute);
+}
+.qi-eye.on i, .qi-eye.on i::after { border-color: var(--cm-edge); background-color: transparent; }
+.qi-eye.on i::after { background: var(--cm-edge); }
+
+/* select with a simple arrow */
+.qi-select { position: relative; display: block; }
+.qi-select select { -webkit-appearance: none; appearance: none; padding-right: 34px; cursor: pointer; }
+.qi-select::after {
+    content: '';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    margin-top: -6px;
+    border-right: 2px solid var(--cm-text-dim);
+    border-bottom: 2px solid var(--cm-text-dim);
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+.qi-select option { background: var(--cm-row); color: var(--cm-text); }
+
+/* radio = choice buttons */
+.qi-chips { display: flex; flex-wrap: wrap; }
+.qi-chip { margin: 0 6px 6px 0; cursor: pointer; }
+.qi-chip input { display: none; }
+.qi-chip span {
+    display: block;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--cm-line-mid);
+    background: var(--cm-well);
+    font-size: 13px;
+    color: var(--cm-text-dim);
+    transition: border-color 0.1s ease, color 0.1s ease;
+}
+.qi-chip input:checked + span { border-color: var(--cm-edge); color: var(--cm-text); background: var(--cm-edge-soft); }
+
+/* checkbox = switches */
+.qi-check {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    margin-bottom: 6px;
+    border-radius: 8px;
+    border: 1px solid var(--cm-line-mid);
+    background: var(--cm-well);
+    font-size: 13px;
+    cursor: pointer;
+}
+.qi-check input { display: none; }
+.qi-switch {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    border-radius: 9px;
+    background: var(--cm-key);
+    border: 1px solid var(--cm-line-mid);
+    transition: background 0.12s ease;
+}
+.qi-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--cm-text-mute);
+    transition: transform 0.12s ease, background 0.12s ease;
+}
+.qi-check input:checked + .qi-switch { background: var(--cm-edge-soft); border-color: var(--cm-edge-dim); }
+.qi-check input:checked + .qi-switch::after { transform: translateX(14px); background: var(--cm-edge); }
+
+/* color */
+.qi-color {
+    display: flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 6px;
+    border-radius: 8px;
+    border: 1px solid var(--cm-line-mid);
+    background: var(--cm-well);
+}
+.qi-color input { width: 30px; height: 28px; border: none; background: none; cursor: pointer; padding: 0; }
+.qi-color b { margin-left: 10px; font-size: 13px; color: var(--cm-text-dim); font-weight: 600; }
+
+/* ---------- foot ---------- */
+
+#foot {
+    display: flex;
+    justify-content: flex-end;
+    padding: 10px 18px 16px;
+}
+
+.qi-btn {
+    height: 38px;
+    padding: 0 20px;
+    margin-left: 8px;
+    border-radius: 9px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+}
+
+.qi-btn-ghost {
+    border: none;
+    background: transparent;
+    color: var(--cm-edge);
+}
+.qi-btn-ghost:hover { color: var(--cm-text); }
+
+.qi-btn-main {
+    border: 1px solid var(--cm-edge);
+    background: var(--cm-blue);
+    color: #fff;
+}
+.qi-btn-main:hover { background: #2a5cf0; }
