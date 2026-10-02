@@ -2,27 +2,45 @@
 
 متجر للقطاعات (CIA، LSPD، …): ميزانية لكل قطاع، سلة، طلب بتوصيل، **كراج أسطول** للمركبات، واستلام الأغراض بـ qb-target.
 
-## فتح المتجر (اربطه بأي سكربت — interact مثلاً)
-```lua
-TriggerEvent('jt-logistics:open', 'cia')            -- من الكلاينت
-exports['qb-militaryhelipad-byrko']:Open('cia')       -- أو export
-```
-مثال interact:
-```lua
-exports.interact:AddInteraction({
-    coords = vec3(-2035.03, 3116.78, 32.81), distance = 4.0, interactDst = 2.0, id = 'logistics_cia',
-    options = { { label = 'Military Logistics', action = function() TriggerEvent('jt-logistics:open', 'cia') end } },
-})
-```
-السيرفر يتحقق من الصلاحية كل مرة، فما يهم من وين ينفتح. (فيه بعد بوت `openPed` بـ qb-target لو تبيه.)
+## الإيفنتات (اربطها بأي سكربت — interact / qb-target / ox_target)
+| الوظيفة | الإيفنت (كلاينت) |
+|---|---|
+| فتح المتجر | `jt-logistics:open` |
+| استلام الأسلحة والأغراض (عند الضابط) | `jt-logistics:supplies` |
+| تخزين المركبات (عند الضابط) | `jt-logistics:store` |
 
-ضابط الإمداد بعد تقدر تربطه بـ interact (لازم اللاعب يكون جنب الضابط، السيرفر يتحقق):
+**اسم الإيفنت لحاله يكفي**: يفتح أقرب متجر عندك صلاحية له. ولو عندك أكثر من متجر وتبي واحد معين، أرسل اسمه.
 ```lua
-TriggerEvent('jt-logistics:supplies', 'cia')   -- استلام الأسلحة والأغراض
-TriggerEvent('jt-logistics:store', 'cia')      -- تخزين المركبات
+-- interact
+options = { { label = 'Military Logistics', event = 'jt-logistics:open' } }
+options = { { label = 'Military Logistics', event = 'jt-logistics:open', args = 'cia' } } -- متجر معين
+
+-- qb-target / ox_target
+{ type = 'client', event = 'jt-logistics:open', label = 'Military Logistics', shop = 'cia' } -- shop اختياري
+
+-- من أي كود
+TriggerEvent('jt-logistics:open')                    -- أقرب متجر
+TriggerEvent('jt-logistics:open', 'cia')             -- متجر معين
+TriggerClientEvent('jt-logistics:open', src, 'cia')  -- من السيرفر
+exports['qb-militaryhelipad-byrko']:Open('cia')
 exports['qb-militaryhelipad-byrko']:OpenSupplies('cia')
 exports['qb-militaryhelipad-byrko']:OpenStore('cia')
 ```
+مثال interact كامل:
+```lua
+exports.interact:AddInteraction({
+    coords = vec3(-2035.03, 3116.78, 32.81), distance = 4.0, interactDst = 2.0, id = 'logistics_cia',
+    options = { { label = 'Military Logistics', event = 'jt-logistics:open' } },
+})
+exports.interact:AddInteraction({
+    coords = vec3(-2031.20, 3121.90, 32.81), distance = 4.0, interactDst = 2.0, id = 'logistics_cia_officer',
+    options = {
+        { label = 'Receive supplies', event = 'jt-logistics:supplies' },
+        { label = 'Store the vehicle', event = 'jt-logistics:store' },
+    },
+})
+```
+السيرفر يتحقق من الصلاحية والمسافة كل مرة، فما يهم من وين ينفتح. (فيه بعد بوت `openPed` بـ qb-target لو تبيه.)
 
 ## التركيب
 1. يحتاج: `qb-core`، `oxmysql`، `qb-target`، `qb-inventory`. (اختياري: `screenshot-basic` لتصوير المركبات.)

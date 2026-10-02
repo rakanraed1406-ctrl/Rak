@@ -1,9 +1,11 @@
 --[[ ==========================================================================
      JINXED TOWN — MILITARY LOGISTICS  (qb-militaryhelipad-byrko 3.1)
 
-     فتح المتجر من أي سكربت (interact / qb-target / زر…):
-         TriggerEvent('jt-logistics:open', 'cia')          -- كلاينت
-         exports['qb-militaryhelipad-byrko']:Open('cia')    -- أو export
+     الإيفنتات (كلاينت) — اسم الإيفنت لحاله يكفي (يفتح أقرب متجر):
+         jt-logistics:open        فتح المتجر
+         jt-logistics:supplies    استلام الأغراض (عند الضابط)
+         jt-logistics:store       تخزين المركبات (عند الضابط)
+     متجر معين: TriggerEvent('jt-logistics:open', 'cia') أو exports['qb-militaryhelipad-byrko']:Open('cia')
      السيرفر يتحقق من الصلاحية بنفسه، فما يهم من وين ينفتح.
 
      الإحداثيات تحت أمثلة (Fort Zancudo) — عدلها بـ /logisticscoords (أدمن).

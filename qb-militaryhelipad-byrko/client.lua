@@ -1,11 +1,13 @@
 --[[ client.lua — Jinxed Town Military Logistics
 
-     Open from anywhere (interact, qb-target, a key…):
-         TriggerEvent('jt-logistics:open', 'cia')
+     Open from anywhere (interact, qb-target, ox_target, a key…):
+         event = 'jt-logistics:open'                    -- the event name alone: the nearest shop you can open
+         TriggerEvent('jt-logistics:open', 'cia')       -- or a specific shop
          exports['qb-militaryhelipad-byrko']:Open('cia')
      Supply officer (the player has to be next to him; the server checks):
-         TriggerEvent('jt-logistics:supplies', 'cia')   -- receive weapons / items
-         TriggerEvent('jt-logistics:store', 'cia')      -- store fleet vehicles parked nearby
+         event = 'jt-logistics:supplies'                -- receive weapons / items
+         event = 'jt-logistics:store'                   -- store fleet vehicles parked nearby
+     The shop can also come as { shop = 'cia' } / { args = 'cia' } (target option data).
 
      Fleet = garage: a delivered vehicle stays parked on its display spot for
      good (locked, frozen). Take units out from it with qb-target; bring them
@@ -61,11 +63,53 @@ local function can(shopId, action)
     return rule == nil or matches(rule)
 end
 
+-- Which shop an event / export means: 'cia', { shop = 'cia' } (qb-target / ox_target
+-- option), { args = 'cia' } or { args = { shop = 'cia' } } (interact). nil = none given,
+-- false = one was given but it isn't a shop.
+local function shopArg(...)
+    for i = 1, select('#', ...) do
+        local v = select(i, ...)
+        if type(v) == 'table' then
+            v = v.shop or v.shopId or (type(v.args) == 'table' and (v.args.shop or v.args.shopId)) or v.args
+        end
+        if type(v) == 'string' then
+            local shop = Config.Shops[v]
+            return shop and shop.enabled ~= false and v or false
+        end
+    end
+    return nil
+end
+
+-- no shop given: the nearest one the player can open (officer = by the supply officer)
+local function nearestShop(officer)
+    local pos = GetEntityCoords(PlayerPedId())
+    local best, bestDist = nil, math.huge
+    for id, shop in pairs(Config.Shops) do
+        if shop.enabled ~= false and can(id) then
+            local pts = officer and { shop.itemPed and shop.itemPed.coords }
+                or { shop.openPed and shop.openPed.coords, shop.terminal and shop.terminal.coords, shop.itemPed and shop.itemPed.coords,
+                     areas[id] and areas[id].center }
+            local d = 1e9 -- a shop with no position still counts when it is the only one
+            for _, c in pairs(pts) do d = math.min(d, #(pos - vector3(c.x, c.y, c.z))) end
+            if not (officer and next(pts) == nil) and d < bestDist then best, bestDist = id, d end
+        end
+    end
+    return best
+end
+
+local function resolveShop(officer, ...)
+    local id = shopArg(...)
+    if id == nil then id = nearestShop(officer) end
+    return id or nil
+end
+
 -- ---------------------------------------------------------------------------
 -- NUI
 -- ---------------------------------------------------------------------------
-local function open(shopId)
-    if isOpen or type(shopId) ~= 'string' or not Config.Shops[shopId] then return end
+local function open(...)
+    if isOpen then return end
+    local shopId = resolveShop(false, ...)
+    if not shopId then return end
     QBCore.Functions.TriggerCallback('jt-logistics:server:open', function(data)
         if not data or isOpen then return end
         isOpen, openShop = true, shopId
@@ -136,8 +180,10 @@ local function openPickup(shopId, kind, pid)
 end
 
 -- the supply officer: which fleet vehicles are parked around him
-local function openStore(shopId)
-    if isOpen or type(shopId) ~= 'string' or not Config.Shops[shopId] then return end
+local function openStore(...)
+    if isOpen then return end
+    local shopId = resolveShop(true, ...)
+    if not shopId then return end
     QBCore.Functions.TriggerCallback('jt-logistics:server:storeInfo', function(data)
         if not data or isOpen then return end
         isOpen, openShop, pickup = true, shopId, { shop = shopId, kind = 'store' }
@@ -146,8 +192,9 @@ local function openStore(shopId)
     end, shopId)
 end
 
-local function openSupplies(shopId)
-    if type(shopId) == 'string' and Config.Shops[shopId] then openPickup(shopId, 'items') end
+local function openSupplies(...)
+    local shopId = resolveShop(true, ...)
+    if shopId then openPickup(shopId, 'items') end
 end
 
 RegisterNetEvent('jt-logistics:supplies', openSupplies)
