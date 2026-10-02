@@ -9,9 +9,10 @@
          event = 'jt-logistics:store'                   -- store fleet vehicles parked nearby
      The shop can also come as { shop = 'cia' } / { args = 'cia' } (target option data).
 
-     Fleet = garage: a delivered vehicle stays parked on its display spot for
-     good (locked, frozen). Take units out from it with qb-target; bring them
-     back by parking near the supply officer → "Store the vehicle".
+     Fleet = garage: the display vehicle (locked, frozen) stands on its spot
+     only while at least one unit is in the garage. Take units out from it
+     with qb-target (the last one out → the display goes); bring them back by
+     parking near the supply officer → "Store the vehicle" → it shows again.
 
      Idle cost: one distance check every 2 s. The display vehicles and NPCs
      only exist while you are near a shop; the NUI does nothing while closed. ]]
@@ -278,9 +279,9 @@ end)
 -- ---------------------------------------------------------------------------
 local function hasTarget() return GetResourceState('qb-target') == 'started' end
 
-local function fleetSize(f)
-    if type(f) ~= 'table' then return 0 end
-    return (tonumber(f.g) or 0) + (tonumber(f.o) or 0)
+-- units in the garage (the display stands only while there is one)
+local function inGarage(f)
+    return type(f) == 'table' and tonumber(f.g) or 0
 end
 
 local function fleetOut(shopId)
@@ -435,8 +436,8 @@ CreateThread(function()
                 for _, p in ipairs(shop.products or {}) do
                     if p.type == 'vehicle' and p.display then
                         local key = id .. '|' .. p.id
-                        -- stays parked as long as the shop owns at least one (garage or out)
-                        local want = fleetSize(fleet[p.id]) > 0 and #(pos - vector3(p.display.x, p.display.y, p.display.z)) <= range
+                        -- only while there is one in the garage to take out
+                        local want = inGarage(fleet[p.id]) > 0 and #(pos - vector3(p.display.x, p.display.y, p.display.z)) <= range
                         if want and not displays[key] then spawnDisplay(id, p)
                         elseif not want and displays[key] then removeDisplay(key) end
                     end
@@ -453,7 +454,7 @@ RegisterNetEvent('jt-logistics:client:displays', function(shopId, fleet)
     if type(shopId) ~= 'string' or type(fleet) ~= 'table' then return end
     depot[shopId] = fleet
     for pid, f in pairs(fleet) do
-        if fleetSize(f) < 1 then removeDisplay(shopId .. '|' .. pid) end -- the whole fleet is gone (lost / admin)
+        if inGarage(f) < 1 then removeDisplay(shopId .. '|' .. pid) end -- every unit is out (or lost)
     end
 end)
 

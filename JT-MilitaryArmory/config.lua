@@ -1,5 +1,5 @@
 --[[ ==========================================================================
-     JINXED TOWN — MILITARY LOGISTICS  (JT-MilitaryArmory 3.2)
+     JINXED TOWN — MILITARY LOGISTICS  (JT-MilitaryArmory 3.3)
 
      الإيفنتات (كلاينت) — اسم الإيفنت لحاله يكفي (يفتح أقرب متجر):
          jt-logistics:open        فتح المتجر
@@ -14,7 +14,7 @@
 Config = {}
 
 -- ---- عام -------------------------------------------------------------------
-Config.DeliveryMinutes = 30          -- مدة التوصيل الافتراضية (كل متجر يقدر يغيرها)
+Config.DeliveryMinutes = 1          -- مدة التوصيل الافتراضية (كل متجر يقدر يغيرها)
 Config.ResetHours = 24               -- كل كم ساعة يترست الستوك وتنضاف الميزانية اليومية
 Config.IntroSeconds = 3              -- شريط التحميل لما ينفتح المتجر
 Config.IntroEveryOpen = true         -- false = الانترو أول مرة بس كل جلسة
@@ -28,8 +28,9 @@ Config.ItemImages = 'nui://qb-inventory/html/images/'
 -- بعدين صور FiveM الرسمية للمركبات الأصلية (نفس الزاوية للكل). false = بدونها
 Config.VehicleImageFallback = 'https://docs.fivem.net/vehicles/%s.webp'
 
--- الأسطول (الكراج): المركبة اللي توصل تثبت بمكان العرض وما تختفي أبد.
--- تطلعها بـ qb-target عليها، وترجعها: تقرّبها من بوت الأغراض (itemPed) → "Store the vehicle".
+-- الأسطول (الكراج): مركبة العرض تطلع بمكانها بس لما يكون فيه وحدة بالكراج.
+-- تطلعها بـ qb-target عليها (لو طلعت آخر وحدة يختفي العرض)، وترجعها: تقرّبها من بوت الأغراض
+-- (itemPed) → "Store the vehicle" → ترجع للكراج ويرجع العرض.
 Config.Fleet = {
     DestroyedAreLost = true,   -- true = المركبة اللي تنفجر تروح من الأسطول، false = ترجع للكراج
     KeepInWorld = false,       -- true = المركبة الطالعة تبقى مكانها حتى لو ما أحد قريب منها
@@ -93,16 +94,16 @@ Config.Shops = {
             pickup = nil,
         },
 
-        budget = { start = 0, daily = 500000, max = 50000000 },
-        deposit = { min = 1000, max = 10000000, from = { 'cash', 'bank' } },
-        deliveryMinutes = 30,
+        budget = { start = 0, daily = 500000, max = 500000000000 },
+        deposit = { min = 1000, max = 100000000000, from = { 'cash', 'bank' } },
+        deliveryMinutes = 1,
         platePrefix = 'CIA',
 
         -- اختياري: لازم يكون قريب من هالنقطة عشان يطلب / يودع (nil = من أي مكان)
         terminal = nil, -- { coords = vector3(-2035.03, 3116.78, 32.81), distance = 15.0 },
 
         -- اختياري: بوت يفتح المتجر بـ qb-target (nil = بس بالـ event)
-        openPed = { model = 's_m_y_pilot_01', coords = vector4(-2035.03, 3116.78, 32.81, 120.52), label = 'Military Logistics' },
+        openPed = { model = 's_m_y_pilot_01', coords = vector4(-2035.03, 3116.78, 1.81, 120.52), label = 'Military Logistics' },
 
         -- ضابط الإمداد (qb-target): تستلم منه الأسلحة والأغراض، و تخزن عنده المركبات
         itemPed = { model = 's_m_y_marine_01', coords = vector4(-2136.72, 3230.18, 32.81, 103.45), label = 'Receive supplies', storeLabel = 'Store the vehicle' },
@@ -116,8 +117,8 @@ Config.Shops = {
                 vector4(-2076.45, 3062.62, 32.81, 327.02),
             },
             ground = { -- غرب المهابط، بعيد عن صفوف العرض
-                vector4(-2102.40, 3077.60, 32.81, 330.0),
-                vector4(-2088.40, 3101.90, 32.81, 330.0),
+                vector4(-2125.12, 3212.91, 32.77, 58.49),
+                vector4(-2178.88, 3244.38, 32.76, 240.69),
                 vector4(-2074.40, 3126.10, 32.81, 330.0),
                 vector4(-2060.40, 3150.40, 32.81, 330.0),
             },

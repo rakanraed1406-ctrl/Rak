@@ -6,9 +6,10 @@
 
      Flow: open (permission) → cart → checkout (budget + stock) → order in
      transit (DeliveryMinutes) → depot.
-     Vehicles work like a garage: once delivered the display car stays at its
-     spot for good; take units out from it (spawned on free pads) and store
-     them again by bringing them to the supply officer. Items: the officer. ]]
+     Vehicles work like a garage: the display car stands at its spot while
+     at least one unit is in the garage; take units out from it (spawned on
+     free pads) and store them again by bringing them to the supply officer.
+     Items: the officer. ]]
 
 -- config.lua failed to load (a typo stops the whole file): say so once, clearly, instead of
 -- erroring all over the place. Common one: vector4 needs exactly 4 numbers → vector4(x, y, z, heading)
@@ -750,7 +751,7 @@ QBCore.Functions.CreateCallback('jt-logistics:server:pickupInfo', function(sourc
         if not p or p.type ~= 'vehicle' then return cb(false) end
         if distanceTo(src, p.display) > 10.0 then notify(src, L.too_far, 'error') return cb(false) end
         local n, o = shop.state.depot[p.id] or 0, shop.state.out[p.id] or 0
-        if n + o < 1 then notify(src, L.nothing_here, 'error') return cb(false) end
+        if n < 1 then notify(src, L.nothing_here, 'error') return cb(false) end -- all out: no display, nothing to take
         return cb({ kind = 'vehicle', shop = shop.cfg.badge or shop.id, list = { { id = p.id, label = p.label, desc = p.desc, image = p.image,
             fallback = Config.VehicleImageFallback and Config.VehicleImageFallback:format(p.model) or nil, category = p.category,
             amount = n, out = o, max = math.min(n, #freePoints(shop, p.spawn)) } } })
