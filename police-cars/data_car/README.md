@@ -36,11 +36,7 @@
 | b2chal | POLICE | **dodgehemihellcat** — صوت الهيلكات الحقيقي |
 
 ### صوت الهيلكات
-الصوت صار بمورد مستقل اسمه `hellcat-sound` (فيه الـ manifest حقه).
-حطه بمجلد الريسورسز وضيف بالـ `server.cfg` **قبل** مورد السيارات:
-```
-ensure hellcat-sound
-```
+الصوت داخل `b2chal/audioconfig` و `b2chal/sfx`، والـ `fxmanifest.lua` (جنب مجلد `data_car`) صار يحمّله.
 لو تبي ترجع لصوت أصلي: بـ `b2chal/vehicles.meta` حط `<audioNameHash>GAUNTLET</audioNameHash>`.
 
 ## إصلاحات
