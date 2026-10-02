@@ -21,6 +21,35 @@
 - `/cartest` : يقيس 0-100 ومسافة الفرامل من 100.
 - `/cartest top` : يقيس السرعة القصوى.
 
+## الأصوات
+كل السيارات صارت على أصوات GTA الأصلية (ما تحتاج باك صوت خارجي) ومطابقة للمحرك الحقيقي:
+
+| الموديل | قبل | بعد |
+|---|---|---|
+| b211vic | WINDSOR (V12) | POLICE — Crown Vic V8 |
+| b212caprice | kc37plycuda70 (باك ناقص) | FUGITIVE — Caprice V8 |
+| b214charger | ratloader2 (شاحنة) | BUFFALO2 — HEMI V8 |
+| b216explorer | SENTINEL | POLICE3 — Ford V6 |
+| b218charger | b218charger (باك ناقص) | POLICE2 — HEMI V8 |
+| b218tau | aq46forgtebv6 (باك ناقص) | POLICE3 — Taurus V6 |
+| b219tahoe | BALLER | GRANGER — Tahoe V8 |
+| b2chal | POLICE | GAUNTLET — Challenger V8 |
+
+### صوت الهيلكات الحقيقي (اختياري)
+الباك موجود بـ `b2chal/audioconfig` و `b2chal/sfx`. عشان يشتغل:
+1. ضيف هذا بالـ `fxmanifest.lua` حق المورد (عدّل المسار لو `data_car` داخل مجلد ثاني):
+```lua
+files {
+    'data_car/b2chal/audioconfig/*.dat151.rel',
+    'data_car/b2chal/audioconfig/*.dat54.rel',
+    'data_car/b2chal/sfx/**/*.awc',
+}
+data_file 'AUDIO_GAMEDATA'  'data_car/b2chal/audioconfig/dodgehemihellcat_game.dat'
+data_file 'AUDIO_SOUNDDATA' 'data_car/b2chal/audioconfig/dodgehemihellcat_sounds.dat'
+data_file 'AUDIO_WAVEPACK'  'data_car/b2chal/sfx/dlc_dodgehemihellcat'
+```
+2. بـ `b2chal/vehicles.meta` غيّر `<audioNameHash>GAUNTLET</audioNameHash>` إلى `<audioNameHash>dodgehemihellcat</audioNameHash>`.
+
 ## إصلاحات
 - Crown Vic: الفرامل كانت 50 (مفروض حول 1).
 - Caprice: الوزن كان 5000 كغ والفرامل 0.5.
