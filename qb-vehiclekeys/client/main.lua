@@ -115,6 +115,7 @@ local function waitGaveUp(ped, veh, ms)
 end
 
 local npcBusy = {}
+local gunpointVehicles = {}   -- [vehicle] = true  (رفعت السلاح على سواقها)
 
 -- سيارة بوت بالشارع: 50% مفتوحة (تنزله وتاخذ المفتاح) / 50% مقفلة (تحاول تفتح الباب → Locked → يشرد)
 -- القرعة من السيرفر (الكلاينت ما يقدر يغش ويخليها مفتوحة دايم)
@@ -150,7 +151,7 @@ local function handleNpcVehicle(ped, veh, driver, seat)
 
         Wait(Config.NpcCarjack.FleeDelay)
         if DoesEntityExist(veh) and DoesEntityExist(driver) and not IsEntityDead(driver)
-            and GetPedInVehicleSeat(veh, -1) == driver then
+            and GetPedInVehicleSeat(veh, -1) == driver and not gunpointVehicles[veh] then
             npcFlee(driver, veh)
         end
     elseif state == 'unlocked' then
@@ -325,28 +326,116 @@ CreateThread(function()
     if IsPedInAnyVehicle(PlayerPedId(), false) then startVehicleSession() end
 end)
 
--- سرقة بالسلاح (Config.CarJackEnable) — اللوب يشتغل بس إذا مفعّلة
-if Config.CarJackEnable then
-    CreateThread(function()
-        while true do
-            local sleep = 1000
-            local playerid = PlayerId()
-            if LocalPlayer.state.isLoggedIn and canCarjack and IsPlayerFreeAiming(playerid) then
-                sleep = 100
-                local ped = PlayerPedId()
-                local aiming, target = GetEntityPlayerIsFreeAimingAt(playerid)
-                if aiming and target and target ~= 0 and DoesEntityExist(target) and IsPedInAnyVehicle(target, false)
-                    and not IsEntityDead(target) and not IsPedAPlayer(target) then
-                    local targetveh = GetVehiclePedIsIn(target)
-                    if GetPedInVehicleSeat(targetveh, -1) == target and not IsBlacklistedWeapon() and not isImmune(targetveh)
-                        and #(GetEntityCoords(ped, true) - GetEntityCoords(target, true)) < 5.0 then
-                        CarjackVehicle(target)
-                    end
-                end
+-----------------------
+----   Gunpoint    ----
+-----------------------
+-- ترفع السلاح على بوت سايق: ما يشرد — يوقف، ينزل رافع يدينه، والسيارة تنفتح (حتى لو مقفلة)
+-- واركب وخذ المفتاح. يشتغل بس وأنت ماسك كلك يمين (استهلاك صفر غير كذا)
+
+local aimHeld = false
+
+local function requestControl(entity)
+    if NetworkHasControlOfEntity(entity) then return true end
+    NetworkRequestControlOfEntity(entity)
+    local deadline = GetGameTimer() + 1000
+    while not NetworkHasControlOfEntity(entity) and GetGameTimer() < deadline do Wait(0) end
+    return NetworkHasControlOfEntity(entity)
+end
+
+local function npcOccupants(veh)
+    local list = {}
+    for seat = -1, GetVehicleMaxNumberOfPassengers(veh) - 1 do
+        local p = GetPedInVehicleSeat(veh, seat)
+        if p ~= 0 and not IsPedAPlayer(p) and not IsEntityDead(p) then list[#list + 1] = p end
+    end
+    return list
+end
+
+local function gunpoint(veh, driver)
+    if gunpointVehicles[veh] then return end
+    gunpointVehicles[veh] = true
+    local me = PlayerPedId()
+
+    -- يتجمّد من الخوف بدل ما يشرد (ردة فعل قراند الأصلية)
+    for _, occ in ipairs(npcOccupants(veh)) do
+        requestControl(occ)
+        SetBlockingOfNonTemporaryEvents(occ, true)
+    end
+    TaskVehicleTempAction(driver, veh, 27, 3000)  -- فرامل
+
+    local approved, done = false, false
+    QBCore.Functions.TriggerCallback('qb-vehiclekeys:server:Gunpoint', function(ok)
+        approved, done = ok, true
+    end, NetworkGetNetworkIdFromEntity(veh))
+    local deadline = GetGameTimer() + 3000
+    while not done and GetGameTimer() < deadline do Wait(0) end
+
+    if not approved then
+        for _, occ in ipairs(npcOccupants(veh)) do SetBlockingOfNonTemporaryEvents(occ, false) end
+        gunpointVehicles[veh] = nil
+        return
+    end
+
+    deadline = GetGameTimer() + 3000
+    while GetEntitySpeed(veh) > 1.0 and GetGameTimer() < deadline do Wait(100) end
+
+    SetVehicleDoorsLocked(veh, 1)
+    npcPending[veh] = true
+
+    for _, occ in ipairs(npcOccupants(veh)) do
+        CreateThread(function()
+            ClearPedTasks(occ)
+            TaskLeaveVehicle(occ, veh, 256)   -- ينزل ويخلي الباب مفتوح
+            local t = GetGameTimer() + 4000
+            while IsPedInAnyVehicle(occ, false) and GetGameTimer() < t do Wait(100) end
+            TaskHandsUp(occ, Config.Gunpoint.HandsUpTime, me, -1, true)
+            SetPedKeepTask(occ, true)
+            Wait(Config.Gunpoint.HandsUpTime)
+            if DoesEntityExist(occ) and not IsEntityDead(occ) then
+                SetBlockingOfNonTemporaryEvents(occ, false)
+                if Config.Gunpoint.FleeOnFoot then TaskReactAndFleePed(occ, PlayerPedId()) end
+                SetPedAsNoLongerNeeded(occ)
             end
-            Wait(sleep)
-        end
-    end)
+        end)
+    end
+end
+
+local function aimTarget()
+    local aiming, target = GetEntityPlayerIsFreeAimingAt(PlayerId())
+    if not aiming or not target or target == 0 or not DoesEntityExist(target) then return nil end
+
+    local veh, driver
+    if IsEntityAVehicle(target) then
+        veh, driver = target, GetPedInVehicleSeat(target, -1)
+    elseif IsEntityAPed(target) and IsPedInAnyVehicle(target, false) then
+        veh = GetVehiclePedIsIn(target, false)
+        driver = GetPedInVehicleSeat(veh, -1)
+    end
+    if not veh or not driver or driver == 0 or IsPedAPlayer(driver) or IsEntityDead(driver) then return nil end
+    if IsEntityAMissionEntity(veh) or isImmune(veh) or isBlacklistedVehicle(veh) then return nil end
+    if gunpointVehicles[veh] or HasKeys(QBCore.Functions.GetPlate(veh)) then return nil end
+    if #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(veh)) > Config.Gunpoint.Distance then return nil end
+    if GetEntitySpeed(veh) * 3.6 > Config.Gunpoint.MaxSpeed then return nil end
+    return veh, driver
+end
+
+if Config.Gunpoint.Enabled then
+    RegisterCommand('+vehkeys_aim', function()
+        aimHeld = true
+        local ped = PlayerPedId()
+        if not LocalPlayer.state.isLoggedIn or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) then return end
+        if GetSelectedPedWeapon(ped) == `WEAPON_UNARMED` or IsBlacklistedWeapon() then return end
+
+        CreateThread(function()
+            while aimHeld do
+                local veh, driver = aimTarget()
+                if veh then gunpoint(veh, driver) end
+                Wait(100)
+            end
+        end)
+    end, false)
+    RegisterCommand('-vehkeys_aim', function() aimHeld = false end, false)
+    RegisterKeyMapping('+vehkeys_aim', 'Vehicle: gunpoint NPC driver (aim)', 'MOUSE_BUTTON', 'MOUSE_RIGHT')
 end
 
 function isBlacklistedVehicle(vehicle)

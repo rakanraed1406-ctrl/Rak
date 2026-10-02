@@ -12,7 +12,7 @@ Config.LockPickDoorEvent = function() -- This function is called when a player a
 end
 
 -- Carjack Settings
-Config.CarJackEnable = false -- True allows for the ability to car jack peds.
+Config.CarJackEnable = false -- (قديم، ما يستخدم) — شوف Config.Gunpoint تحت
 Config.CarjackingTime = 7500 -- How long it takes to carjack
 Config.DelayBetweenCarjackings = 10000 -- Time before you can carjack again
 Config.CarjackChance = {
@@ -133,4 +133,13 @@ Config.PullOut = {
 Config.Security = {
     KickOnAbuse = false,    -- true = يطرد اللي يكرر محاولات الغش
     MaxStrikes  = 5,        -- كم محاولة بالدقيقة قبل الطرد
+}
+
+-- ترفع السلاح على بوت سايق: ما يشرد — يوقف وينزل رافع يدينه، والسيارة تنفتح (حتى لو مقفلة) وتاخذ المفتاح
+Config.Gunpoint = {
+    Enabled = true,
+    Distance = 12.0,      -- أبعد مسافة (متر)
+    MaxSpeed = 40.0,      -- السيارة أسرع من كذا (كم/س) ما يوقف لك
+    HandsUpTime = 6000,   -- كم يرفع يدينه بعد ما ينزل (ملّي ثانية)
+    FleeOnFoot = true,    -- بعدها يهرب ركض (مو بالسيارة)
 }

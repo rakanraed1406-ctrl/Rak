@@ -280,6 +280,33 @@ QBCore.Functions.CreateCallback('qb-vehiclekeys:server:NpcLockRoll', function(so
     cb(state)
 end)
 
+-- رفع السلاح على بوت سايق → السيارة تنفتح وتقدر تاخذ مفتاحها
+local blockedGunpoint = {}
+for _, name in ipairs(Config.NoCarjackWeapons) do blockedGunpoint[joaat(name) & 0xFFFFFFFF] = true end
+
+QBCore.Functions.CreateCallback('qb-vehiclekeys:server:Gunpoint', function(source, cb, netId)
+    local src = source
+    if not Config.Gunpoint.Enabled or rateLimited(src, 'gunpoint', 500) then return cb(false) end
+
+    local veh = vehicleFromNet(netId)
+    if not veh or distanceTo(src, veh) > Config.Gunpoint.Distance + 5.0 then return cb(false) end
+
+    local ped = GetPlayerPed(src)
+    if GetEntityHealth(ped) <= 0 or GetVehiclePedIsIn(ped, false) ~= 0 then return cb(false) end
+    local weapon = GetSelectedPedWeapon(ped) & 0xFFFFFFFF
+    if weapon == (joaat('WEAPON_UNARMED') & 0xFFFFFFFF) or blockedGunpoint[weapon] then
+        abuse(src, 'gunpoint بدون سلاح')
+        return cb(false)
+    end
+
+    local driver = GetPedInVehicleSeat(veh, -1)
+    if driver == 0 or IsPedAPlayer(driver) then return cb(false) end
+
+    Entity(veh).state:set('npcLock', 'unlocked', true)
+    SetVehicleDoorsLocked(veh, 1)
+    cb(true)
+end)
+
 -- تعلّق على F عند باب لاعب سايق → ينزل (لو الباب مفتوح)
 local pullCooldown = {}
 RegisterNetEvent('qb-vehiclekeys:server:PullOutDriver', function(netId)
