@@ -41,21 +41,68 @@ function qiEsc(s) {
     return String(s === undefined || s === null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// header / labels keep their HTML formatting (other resources send <br>, <b>, colours...)
+// but anything that can run code or load from outside is removed first: forms
+// often show player-made text (names, plates, notes) and a <img onerror> there
+// could call any resource's NUI callbacks on the viewer's screen.
+var QI_TAGS = { B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, BR: 1, HR: 1, SMALL: 1, BIG: 1, SPAN: 1, P: 1, DIV: 1,
+    SUB: 1, SUP: 1, MARK: 1, CODE: 1, PRE: 1, UL: 1, OL: 1, LI: 1, FONT: 1, CENTER: 1, H1: 1, H2: 1, H3: 1, H4: 1, IMG: 1 };
+var QI_DROP = /^(SCRIPT|STYLE|IFRAME|FRAME|OBJECT|EMBED|TEMPLATE|NOSCRIPT|SVG|MATH|VIDEO|AUDIO|SOURCE|LINK|META|BASE|FORM|INPUT|TEXTAREA|BUTTON|SELECT|TITLE)$/;
+var QI_LOCAL_IMG = /^(nui:\/\/|https:\/\/cfx-nui-|\.{0,2}\/|[\w\-\/]+\.(png|jpe?g|webp|gif)$)/i;
+
+function qiCleanNode(node) {
+    var kids = Array.prototype.slice.call(node.childNodes);
+    for (var i = 0; i < kids.length; i++) {
+        var n = kids[i];
+        if (n.nodeType === 3) continue;
+        if (n.nodeType !== 1) { n.parentNode.removeChild(n); continue; }
+        var tag = n.tagName.toUpperCase();
+        if (QI_DROP.test(tag)) { n.parentNode.removeChild(n); continue; }
+        if (!QI_TAGS[tag]) { // unknown tag: keep its text, drop the tag
+            qiCleanNode(n);
+            while (n.firstChild) n.parentNode.insertBefore(n.firstChild, n);
+            n.parentNode.removeChild(n);
+            continue;
+        }
+        for (var a = n.attributes.length - 1; a >= 0; a--) {
+            var name = n.attributes[a].name.toLowerCase();
+            var val = n.attributes[a].value;
+            var keep = (name === 'style' && !/url\s*\(|expression|@import|javascript:|behavior|binding/i.test(val)) ||
+                name === 'class' || (name === 'color' && tag === 'FONT') ||
+                (tag === 'IMG' && (name === 'width' || name === 'height' || (name === 'src' && QI_LOCAL_IMG.test(val))));
+            if (!keep) n.removeAttribute(n.attributes[a].name);
+        }
+        if (tag === 'IMG' && !n.getAttribute('src')) { n.parentNode.removeChild(n); continue; }
+        qiCleanNode(n);
+    }
+}
+
+function qiSafe(html) {
+    if (html === undefined || html === null || html === false) return '';
+    var s = String(html);
+    if (s.indexOf('<') === -1) return s; // plain text: nothing to clean
+    var tpl = document.createElement('template');
+    tpl.innerHTML = s; // inert: nothing runs or loads while we clean it
+    qiCleanNode(tpl.content);
+    return tpl.innerHTML;
+}
+
 function qiRequired(item) {
     return item.isRequired === true || item.isRequired === 'true';
 }
 
-// labels / header are rendered as HTML on purpose (same as the original)
+// labels / header are rendered as cleaned HTML (formatting yes, scripts no)
 function qiField(item, i) {
     var name = qiAttr(item.name);
-    var text = item.text || '';
+    var raw = item.text == null ? '' : String(item.text);
+    var text = qiSafe(raw);
     var req = qiRequired(item);
     var def = item.default !== undefined && item.default !== null ? item.default : '';
     var delay = '';
 
     var id = 'qi_' + i;
-    var ph = qiAttr(text.replace(/<[^>]*>/g, ''));
-    var max = Number(item.maxLength || item.maxlength) || 0;           // optional: character limit + counter
+    var ph = qiAttr(raw.replace(/<[^>]*>/g, ''));
+    var max = Math.max(0, Math.floor(Number(item.maxLength || item.maxlength) || 0));           // optional: character limit + counter
     var common = ' id="' + id + '" name="' + name + '" placeholder="' + ph + '" dir="auto"' +
         (req ? ' data-required="1"' : '') + (max ? ' maxlength="' + max + '"' : '');
     var label = '<label class="qi-label" for="' + id + '">' + text + (req ? ' <em>*</em>' : '') + '</label>';
@@ -102,7 +149,7 @@ function qiField(item, i) {
             var html = '<div class="qi-field" ' + delay + '><span class="qi-label">' + text + '</span><div class="qi-chips">';
             opts.forEach(function (o, oi) {
                 var checked = item.default !== undefined ? item.default == o.value : oi === 0;
-                html += '<label class="qi-chip"><input type="radio" name="' + name + '" value="' + qiAttr(o.value) + '"' + (checked ? ' checked' : '') + '><span>' + o.text + '</span></label>';
+                html += '<label class="qi-chip"><input type="radio" name="' + name + '" value="' + qiAttr(o.value) + '"' + (checked ? ' checked' : '') + '><span>' + qiSafe(o.text) + '</span></label>';
             });
             return html + '</div></div>';
         }
@@ -110,7 +157,7 @@ function qiField(item, i) {
         case 'checkbox': {
             var html2 = '<div class="qi-field" ' + delay + '><span class="qi-label">' + text + '</span><div class="qi-checks">';
             (item.options || []).forEach(function (o) {
-                html2 += '<label class="qi-check"><span>' + o.text + '</span>' +
+                html2 += '<label class="qi-check"><span>' + qiSafe(o.text) + '</span>' +
                     '<input type="checkbox" data-key="' + qiAttr(o.value) + '"' + (o.checked ? ' checked' : '') + '><i class="qi-switch"></i></label>';
             });
             return html2 + '</div></div>';
@@ -190,7 +237,7 @@ function qiOpen(data) {
     if (QI.closeTimer) { clearTimeout(QI.closeTimer); QI.closeTimer = null; }
 
     QI.inputs = Array.isArray(data.inputs) ? data.inputs : [];
-    el.title.innerHTML = data.header != null ? data.header : 'Form Title';
+    el.title.innerHTML = data.header != null ? qiSafe(data.header) : 'Form Title';
     el.submit.textContent = data.submitText ? data.submitText : 'Confirm';
     el.fields.innerHTML = QI.inputs.map(qiField).join('');
 

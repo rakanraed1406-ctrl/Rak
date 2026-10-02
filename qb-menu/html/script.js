@@ -60,6 +60,52 @@ function qmAttr(s) {
     return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// header / txt keep their HTML formatting (other resources send <br>, <b>, colours...)
+// but anything that can run code or load from outside is removed first: menus
+// often show player-made text (names, plates, notes) and a <img onerror> there
+// could call any resource's NUI callbacks on the viewer's screen.
+var QM_TAGS = { B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, BR: 1, HR: 1, SMALL: 1, BIG: 1, SPAN: 1, P: 1, DIV: 1,
+    SUB: 1, SUP: 1, MARK: 1, CODE: 1, PRE: 1, UL: 1, OL: 1, LI: 1, FONT: 1, CENTER: 1, H1: 1, H2: 1, H3: 1, H4: 1, IMG: 1 };
+var QM_DROP = /^(SCRIPT|STYLE|IFRAME|FRAME|OBJECT|EMBED|TEMPLATE|NOSCRIPT|SVG|MATH|VIDEO|AUDIO|SOURCE|LINK|META|BASE|FORM|INPUT|TEXTAREA|BUTTON|SELECT|TITLE)$/;
+var QM_LOCAL_IMG = /^(nui:\/\/|https:\/\/cfx-nui-|\.{0,2}\/|[\w\-\/]+\.(png|jpe?g|webp|gif)$)/i;
+
+function qmCleanNode(node) {
+    var kids = Array.prototype.slice.call(node.childNodes);
+    for (var i = 0; i < kids.length; i++) {
+        var n = kids[i];
+        if (n.nodeType === 3) continue;
+        if (n.nodeType !== 1) { n.parentNode.removeChild(n); continue; }
+        var tag = n.tagName.toUpperCase();
+        if (QM_DROP.test(tag)) { n.parentNode.removeChild(n); continue; }
+        if (!QM_TAGS[tag]) { // unknown tag: keep its text, drop the tag
+            qmCleanNode(n);
+            while (n.firstChild) n.parentNode.insertBefore(n.firstChild, n);
+            n.parentNode.removeChild(n);
+            continue;
+        }
+        for (var a = n.attributes.length - 1; a >= 0; a--) {
+            var name = n.attributes[a].name.toLowerCase();
+            var val = n.attributes[a].value;
+            var keep = (name === 'style' && !/url\s*\(|expression|@import|javascript:|behavior|binding/i.test(val)) ||
+                name === 'class' || (name === 'color' && tag === 'FONT') ||
+                (tag === 'IMG' && (name === 'width' || name === 'height' || (name === 'src' && QM_LOCAL_IMG.test(val))));
+            if (!keep) n.removeAttribute(n.attributes[a].name);
+        }
+        if (tag === 'IMG' && !n.getAttribute('src')) { n.parentNode.removeChild(n); continue; }
+        qmCleanNode(n);
+    }
+}
+
+function qmSafe(html) {
+    if (html === undefined || html === null || html === false) return '';
+    var s = String(html);
+    if (s.indexOf('<') === -1) return s; // plain text: nothing to clean
+    var tpl = document.createElement('template');
+    tpl.innerHTML = s; // inert: nothing runs or loads while we clean it
+    qmCleanNode(tpl.content);
+    return tpl.innerHTML;
+}
+
 function qmIsImage(icon) {
     return /^(https?:|nui:|data:|\.{0,2}\/)/i.test(icon) || /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(icon);
 }
@@ -77,12 +123,14 @@ function qmIcon(icon) {
 
 function qmProgress(pb) {
     if (!pb || !pb.MaxValue) return '';
-    var pct = Math.max(0, Math.min(100, (pb.Value / pb.MaxValue) * 100));
+    var value = Number(pb.Value) || 0, max = Number(pb.MaxValue) || 0;
+    if (!max) return '';
+    var pct = Math.max(0, Math.min(100, (value / max) * 100));
     return '<div class="qm-progress"><div class="qm-bar"><i style="width:' + pct + '%"></i></div>' +
-        '<div class="qm-bar-info">' + pb.Value + '/' + pb.MaxValue + '</div></div>';
+        '<div class="qm-bar-info">' + value + '/' + max + '</div></div>';
 }
 
-// header / txt are rendered as HTML on purpose: other resources send <br>, <b>, etc.
+// header / txt are rendered as (cleaned) HTML: other resources send <br>, <b>, etc.
 function qmRow(item, index, num) {
     var message = item.txt || item.text;
     var isTitle = !!item.isMenuHeader;
@@ -92,8 +140,8 @@ function qmRow(item, index, num) {
         (isTitle ? '' : '<div class="qm-num">' + (num > 0 && num < 10 ? num : '') + '</div>') +
         qmIcon(item.icon) +
         '<div class="qm-body">' +
-            '<div class="qm-header">' + (item.header || '') + '</div>' +
-            (message ? '<div class="qm-text">' + message + '</div>' : '') +
+            '<div class="qm-header">' + qmSafe(item.header) + '</div>' +
+            (message ? '<div class="qm-text">' + qmSafe(message) + '</div>' : '') +
             qmProgress(item.ProgressBar) +
         '</div>' +
         (isTitle ? '' : '<div class="qm-arrow">›</div>') +
@@ -114,8 +162,8 @@ function qmRender(data) {
     if (head) {
         var sub = head.txt || head.text;
         el.titleWrap.innerHTML = qmIcon(head.icon) +
-            '<div><div class="qm-title">' + (head.header || '') + '</div>' +
-            (sub ? '<div class="qm-sub">' + sub + '</div>' : '') +
+            '<div><div class="qm-title">' + qmSafe(head.header) + '</div>' +
+            (sub ? '<div class="qm-sub">' + qmSafe(sub) + '</div>' : '') +
             qmProgress(head.ProgressBar) + '</div>';
     } else {
         el.titleWrap.innerHTML = '';
@@ -168,7 +216,7 @@ function qmSelect(index, noScroll) {
     if (!noScroll) row.scrollIntoView({ block: 'nearest' });
 
     var item = QM.data[index];
-    if (item && item.image) {
+    if (item && item.image && typeof item.image === 'string' && !/^\s*javascript:/i.test(item.image)) {
         QM.el.previewImg.src = item.image;
         QM.el.preview.classList.add('on');
     } else {

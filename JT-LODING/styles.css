@@ -1,6 +1,6 @@
 /* ============================================================================
    JT loading screen — black, clear blue edges, moving background.
-   Animations only use transform / opacity / background-position so they stay
+   Animations only use transform / opacity (GPU, no repaints) so they stay
    light while the game is loading.
    ============================================================================ */
 :root {
@@ -49,8 +49,7 @@ html, body {
     position: absolute;
     width: 60vw; height: 60vw;
     border-radius: 50%;
-    filter: blur(60px);
-    opacity: 0.55;
+    opacity: 0.55; /* (no blur filter: the radial gradient is already soft, blur was redrawn every frame) */
 }
 .orb-a {
     left: -18vw; top: -22vw;
@@ -67,17 +66,24 @@ html, body {
 
 .bg-grid {
     position: absolute; left: -50%; right: -50%; bottom: -10%; height: 60%;
-    background-image:
-        linear-gradient(rgba(59, 157, 251, 0.12) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(59, 157, 251, 0.12) 1px, transparent 1px);
-    background-size: 64px 64px;
+    overflow: hidden;
     transform: perspective(600px) rotateX(62deg);
     transform-origin: 50% 100%;
     mask-image: linear-gradient(to top, rgba(0,0,0,0.9), transparent 85%);
     -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,0.9), transparent 85%);
-    animation: grid-move 4s linear infinite;
 }
-@keyframes grid-move { to { background-position: 0 64px, 0 0; } }
+/* the lines move with transform (GPU only) instead of animating background-position,
+   which repainted this huge layer every frame while the game was loading */
+.bg-grid::before {
+    content: ""; position: absolute; left: 0; right: 0; top: -64px; bottom: 0;
+    background-image:
+        linear-gradient(rgba(59, 157, 251, 0.12) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59, 157, 251, 0.12) 1px, transparent 1px);
+    background-size: 64px 64px;
+    animation: grid-move 4s linear infinite;
+    will-change: transform;
+}
+@keyframes grid-move { to { transform: translateY(64px); } }
 
 #particles { position: absolute; inset: 0; width: 100%; height: 100%; }
 
@@ -188,8 +194,7 @@ html, body {
 .title .gap { width: 1.6vw; }
 @keyframes ch-in { to { opacity: 1; transform: none; } }
 .title.glow .ch { opacity: 1; transform: none; animation: none; }   /* entrance done: keep letters visible */
-.title.glow .blue { animation: blue-glow 4s ease-in-out infinite; }
-@keyframes blue-glow { 50% { text-shadow: 0 0 52px rgba(59, 157, 251, 0.75); } }
+.title.glow .blue { text-shadow: 0 0 44px rgba(59, 157, 251, 0.6); } /* static: an animated text-shadow repaints every frame */
 
 .tagline {
     margin-top: 1vw;

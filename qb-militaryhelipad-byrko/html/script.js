@@ -1,142 +1,115 @@
-const resourceName = GetParentResourceName ? GetParentResourceName() : 'qb-militaryhelipad-byrko';
+// Helipad NUI — plain JS (no jQuery download from the internet).
+// Everything shown comes from data (plates / models can be player-made), so it
+// is written with textContent and data-attributes, never pasted into onclick.
+const resourceName = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'qb-militaryhelipad-byrko';
 let isOpened = false;
+const $ = (id) => document.getElementById(id);
 
-window.addEventListener('message', function(event) {
-    let data = event.data;
+function post(name, data) {
+    return fetch(`https://${resourceName}/${name}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify(data || {})
+    }).catch(() => {});
+}
 
-    if (data.action === "open") {
-        isOpened = true;
-        let $app = $('#app');
-        $app.css('display', 'block');
-        setTimeout(() => { $app.addClass('active'); }, 10);
-        
-        // Shop Render
-        let shopHtml = '';
-        if (data.shopHelis && data.shopHelis.length > 0) {
-            data.shopHelis.forEach(heli => {
-                shopHtml += `
-                    <div class="card">
-                        <div class="card-info">
-                            <h4>${heli.label}</h4>
-                            <p>Price: $${heli.price.toLocaleString()}</p>
-                        </div>
-                        <button class="action-btn" onclick="buyHeli('${heli.model}', ${heli.price})">Purchase</button>
-                    </div>
-                `;
-            });
-        }
-        $('#shop-list').html(shopHtml);
+function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+}
 
-        // Nearby Helicopters Render
-        let nearbyHtml = '';
-        if (data.nearbyHelis && data.nearbyHelis.length > 0) {
-            data.nearbyHelis.forEach(heli => {
-                nearbyHtml += `
-                    <div class="card" style="border-color: #3b82f6;">
-                        <div class="card-info">
-                            <h4>Model: ${heli.model.toUpperCase()}</h4>
-                            <p>Plate: ${heli.plate}</p>
-                        </div>
-                        <button class="action-btn store-btn" onclick="storeSpecificHeli('${heli.plate}')">Store</button>
-                    </div>
-                `;
-            });
-        } else {
-            nearbyHtml = '<div class="empty-msg">No nearby helicopters found.</div>';
-        }
-        $('#nearby-list').html(nearbyHtml);
+function card(title, line, btnText, act, value, extraCls) {
+    const c = el('div', 'card');
+    if (extraCls === 'nearby') c.style.borderColor = '#3b82f6';
+    const info = el('div', 'card-info');
+    info.appendChild(el('h4', '', title));
+    info.appendChild(el('p', '', line));
+    const btn = el('button', 'action-btn' + (act === 'store' ? ' store-btn' : ''), btnText);
+    btn.dataset.act = act;
+    btn.dataset.value = value;
+    c.appendChild(info);
+    c.appendChild(btn);
+    return c;
+}
 
-        // Garage Render
-        let garageHtml = '';
-        if (data.ownedHelis && data.ownedHelis.length > 0) {
-            data.ownedHelis.forEach(heli => {
-                garageHtml += `
-                    <div class="card">
-                        <div class="card-info">
-                            <h4>Model: ${heli.vehicle.toUpperCase()}</h4>
-                            <p>Plate: ${heli.plate}</p>
-                        </div>
-                        <button class="action-btn" onclick="spawnOwnedHeli('${heli.plate}', '${heli.vehicle}')">Spawn</button>
-                    </div>
-                `;
-            });
-        } else {
-            garageHtml = '<div class="empty-msg">You do not own any stored helicopters.</div>';
-        }
-        $('#garage-list').html(garageHtml);
+function fill(listId, items, empty) {
+    const list = $(listId);
+    list.textContent = '';
+    if (!items.length) {
+        if (empty) list.appendChild(el('div', 'empty-msg', empty));
+        return;
     }
+    items.forEach((i) => list.appendChild(i));
+}
+
+window.addEventListener('message', (event) => {
+    const data = event.data || {};
+    if (data.action !== 'open') return;
+    isOpened = true;
+    const app = $('app');
+    app.style.display = 'block';
+    setTimeout(() => app.classList.add('active'), 10);
+
+    fill('shop-list', (data.shopHelis || []).map((h) =>
+        card(String(h.label || h.model), 'Price: $' + Number(h.price || 0).toLocaleString(), 'Purchase', 'buy', String(h.model))));
+
+    fill('nearby-list', (data.nearbyHelis || []).map((h) =>
+        card('Model: ' + String(h.model || '').toUpperCase(), 'Plate: ' + String(h.plate || ''), 'Store', 'store', String(h.plate || ''), 'nearby')),
+        'No nearby helicopters found.');
+
+    fill('garage-list', (data.ownedHelis || []).map((h) =>
+        card('Model: ' + String(h.vehicle || '').toUpperCase(), 'Plate: ' + String(h.plate || '') + (h.lost ? ' (lost — can be recovered)' : ''),
+            'Spawn', 'spawn', String(h.plate || ''))),
+        'You do not own any stored helicopters.');
+
+    filterHelicopters();
+});
+
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (btn) {
+        const v = btn.dataset.value;
+        if (btn.dataset.act === 'buy') post('buyHeli', { model: v });
+        else if (btn.dataset.act === 'spawn') post('spawnOwnedHeli', { plate: v });
+        else if (btn.dataset.act === 'store') post('storeSpecificHeli', { plate: v });
+        closeMenu(true);
+        return;
+    }
+    if (e.target.closest('#close-btn')) closeMenu();
 });
 
 function switchTab(tabName) {
-    $('.tab-btn').removeClass('active');
-    $('.tab-content').removeClass('active');
-
+    const tabs = document.querySelectorAll('.tab-btn');
+    tabs.forEach((t) => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach((t) => t.classList.remove('active'));
     if (tabName === 'shop') {
-        $('.tab-btn:eq(0)').addClass('active');
-        $('#shop-content').addClass('active');
+        tabs[0].classList.add('active');
+        $('shop-content').classList.add('active');
     } else {
-        $('.tab-btn:eq(1)').addClass('active');
-        $('#garage-content').addClass('active');
+        tabs[1].classList.add('active');
+        $('garage-content').classList.add('active');
     }
 }
 
-function buyHeli(model, price) {
-    $.post(`https://${resourceName}/buyHeli`, JSON.stringify({
-        model: model,
-        price: price
-    }));
-    closeMenu();
-}
-
-function spawnOwnedHeli(plate, vehicle) {
-    $.post(`https://${resourceName}/spawnOwnedHeli`, JSON.stringify({
-        plate: plate,
-        vehicle: vehicle
-    }));
-    closeMenu();
-}
-
-function storeSpecificHeli(plate) {
-    $.post(`https://${resourceName}/storeSpecificHeli`, JSON.stringify({
-        plate: plate
-    }));
-    closeMenu();
-}
-
-function closeMenu() {
+// `silent`: the action callback already released the focus in Lua
+function closeMenu(silent) {
     if (!isOpened) return;
     isOpened = false;
-
-    let $app = $('#app');
-    $.post(`https://${resourceName}/close`, JSON.stringify({}));
-    
-    $app.removeClass('active');
-    setTimeout(() => {
-        $app.css('display', 'none');
-    }, 300);
+    if (!silent) post('close');
+    const app = $('app');
+    app.classList.remove('active');
+    setTimeout(() => { if (!isOpened) app.style.display = 'none'; }, 300);
 }
 
-// زر الإغلاق
-$(document).on('click', '#close-btn', function() {
-    closeMenu();
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'Escape') closeMenu();
 });
 
-// إغلاق بـ ESC
-document.onkeyup = function(data) {
-    if (data.key === "Escape") {
-        closeMenu();
-    }
-};
-
-// وظيفة البحث
 function filterHelicopters() {
-    let input = $('#search-input').val().toLowerCase();
-    $('.card').each(function() {
-        let text = $(this).text().toLowerCase();
-        if (text.includes(input)) {
-            $(this).show();
-        } else {
-            $(this).hide();
-        }
+    const input = ($('search-input').value || '').toLowerCase();
+    document.querySelectorAll('.card').forEach((c) => {
+        c.style.display = c.textContent.toLowerCase().includes(input) ? '' : 'none';
     });
 }

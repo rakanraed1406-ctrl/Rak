@@ -221,6 +221,7 @@ var Load = (function () {
     function update() {
         target = Math.max(target, stagePct(), fraction * 100);
         target = Math.min(100, target);
+        wake();
     }
 
     var handlers = {
@@ -235,19 +236,27 @@ var Load = (function () {
     window.addEventListener('message', function (e) {
         var d = e.data || {};
         if (d.eventName && handlers[d.eventName]) handlers[d.eventName](d);
-        else if (typeof d.progress !== 'undefined') { target = Math.max(target, Number(d.progress) || 0); }
+        else if (typeof d.progress !== 'undefined') { target = Math.max(target, Number(d.progress) || 0); wake(); }
     });
 
-    // smooth display (the number and bar glide to the real value)
-    var fill = $('bar-fill'), pct = $('percent');
+    // smooth display (the number and bar glide to the real value); the loop
+    // sleeps once it has caught up and wakes on the next progress event
+    var fill = $('bar-fill'), pct = $('percent'), running = false, lastPct = -1;
     function draw() {
         shown += (target - shown) * 0.08;
         if (target - shown < 0.05) shown = target;
         fill.style.transform = 'scaleX(' + (shown / 100).toFixed(4) + ')';
-        pct.textContent = Math.floor(shown);
+        var p = Math.floor(shown);
+        if (p !== lastPct) { lastPct = p; pct.textContent = p; }
+        if (shown === target) { running = false; return; }
         requestAnimationFrame(draw);
     }
-    requestAnimationFrame(draw);
+    function wake() {
+        if (running) return;
+        running = true;
+        requestAnimationFrame(draw);
+    }
+    wake();
 
     // outside the game (browser preview): fake the stages so the page can be checked
     if (!inGame) {
@@ -404,7 +413,7 @@ var Load = (function () {
         }
     });
 
-    audio.addEventListener('play', function () { body.classList.remove('paused'); });
+    audio.addEventListener('play', function () { body.classList.remove('paused'); if (vizStarted) wakeViz(); });
     audio.addEventListener('pause', function () { body.classList.add('paused'); });
     audio.addEventListener('ended', function () { if (tracks.length > 1) next(); else { audio.currentTime = 0; play(); } });
     audio.addEventListener('error', function () { if (tracks.length > 1) setTimeout(next, 500); });
@@ -429,10 +438,19 @@ var Load = (function () {
             data = new Uint8Array(analyser.frequencyBinCount);
             if (ac.state === 'suspended') ac.resume();
         } catch (e) { analyser = null; }
+        wakeViz();
+    }
+    var vlast = 0, vizRunning = false, pausedFrames = 0;
+    function wakeViz() {
+        if (vizRunning) return;
+        vizRunning = true;
+        pausedFrames = 0;
         requestAnimationFrame(drawViz);
     }
-    var vlast = 0;
     function drawViz(t) {
+        // paused: draw the flat bars a couple of times, then stop until 'play'
+        if (!audio.paused) pausedFrames = 0;
+        else if (++pausedFrames > 8) { vizRunning = false; return; }
         requestAnimationFrame(drawViz);
         if (t - vlast < 40) return;
         vlast = t;

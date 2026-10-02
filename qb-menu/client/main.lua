@@ -17,18 +17,24 @@ local function sortData(data, skipfirst)
     return tempData
 end
 
+-- an item name as icon → that item's inventory image
+local function itemIcons(data)
+    local items = QBCore.Shared.Items or {}
+    for _, v in pairs(data) do
+        if type(v) == 'table' and v.icon then
+            local icon = tostring(v.icon)
+            local item = items[icon]
+            if item and type(item.image) == 'string' and not item.image:find('//', 1, true) and not icon:find('//', 1, true) then
+                v.icon = "nui://qb-inventory/html/images/" .. item.image
+            end
+        end
+    end
+end
+
 local function openMenu(data, sort, skipFirst)
-    if not data or not next(data) then return end
+    if type(data) ~= 'table' or not next(data) then return end
     if sort then data = sortData(data, skipFirst) end
-	for _,v in pairs(data) do
-		if v["icon"] then
-			if QBCore.Shared.Items[tostring(v["icon"])] then
-				if not string.find(QBCore.Shared.Items[tostring(v["icon"])].image, "//") and not string.find(v["icon"], "//") then
-                    v["icon"] = "nui://qb-inventory/html/images/"..QBCore.Shared.Items[tostring(v["icon"])].image
-				end
-			end
-		end
-	end
+    itemIcons(data)
     SetNuiFocus(true, true)
     headerShown = false
     sendData = data
@@ -40,17 +46,9 @@ local function openMenu(data, sort, skipFirst)
 end
 
 local function openMenuPrison(data, sort, skipFirst)
-    if not data or not next(data) then return end
+    if type(data) ~= 'table' or not next(data) then return end
     if sort then data = sortData(data, skipFirst) end
-	for _,v in pairs(data) do
-		if v["icon"] then
-			if QBCore.Shared.Items[tostring(v["icon"])] then
-				if not string.find(QBCore.Shared.Items[tostring(v["icon"])].image, "//") and not string.find(v["icon"], "//") then
-                    v["icon"] = "nui://qb-inventory/html/images/"..QBCore.Shared.Items[tostring(v["icon"])].image
-				end
-			end
-		end
-	end
+    itemIcons(data)
     SetNuiFocus(false, false)
     headerShown = false
     sendData = data
@@ -71,7 +69,7 @@ local function closeMenu()
 end
 
 local function showHeader(data)
-    if not data or not next(data) then return end
+    if type(data) ~= 'table' or not next(data) then return end
     headerShown = true
     sendData = data
     SendNUIMessage({
@@ -100,7 +98,7 @@ RegisterNUICallback('clickedButton', function(option, cb)
     if sendData then
         local data = sendData[tonumber(option)]
         sendData = nil
-        if data then
+        if type(data) == 'table' and type(data.params) == 'table' and not data.disabled and not data.isMenuHeader then
             if data.params.event then
                 if data.params.isServer then
                     TriggerServerEvent(data.params.event, data.params.args)
@@ -109,7 +107,7 @@ RegisterNUICallback('clickedButton', function(option, cb)
                 elseif data.params.isQBCommand then
                     TriggerServerEvent('QBCore:CallCommand', data.params.event, data.params.args)
                 elseif data.params.isAction then
-                    data.params.event(data.params.args)
+                    if type(data.params.event) == 'function' or type(data.params.event) == 'table' then data.params.event(data.params.args) end
                 else
                     TriggerEvent(data.params.event, data.params.args)
                 end

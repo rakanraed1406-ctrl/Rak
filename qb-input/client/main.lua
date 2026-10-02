@@ -28,7 +28,12 @@ end
 
 RegisterNUICallback('buttonSubmit', function(data, cb)
     cb('ok')
-    resolve(data and data.data or nil)
+    resolve(type(data) == 'table' and type(data.data) == 'table' and data.data or nil)
+end)
+
+-- the form's promise must not stay pending forever (the caller would hang)
+AddEventHandler('onResourceStop', function(res)
+    if res == GetCurrentResourceName() then resolve(nil) end
 end)
 
 RegisterNUICallback('closeMenu', function(_, cb)
@@ -38,8 +43,8 @@ end)
 
 local function ShowInput(data)
     Wait(150)
-    if not data then return end
-    if properties then return end
+    if type(data) ~= 'table' then return end
+    if properties then return end -- another form is open
 
     properties = promise.new()
 
