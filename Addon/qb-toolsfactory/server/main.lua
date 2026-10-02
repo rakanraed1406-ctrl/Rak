@@ -26,6 +26,11 @@ function UpdateStore()
     end
 end
 
+-- qb-inventory ياخذ الأسعار من هنا (مو من الكلاينت) عشان محد يشتري بسعر صفر
+exports('GetShopItems', function()
+    return Config.Items
+end)
+
 QBCore.Functions.CreateCallback('qb-toolsfactory:server:getconfig', function(source, cb)
     cb(Config.Items)
 end)

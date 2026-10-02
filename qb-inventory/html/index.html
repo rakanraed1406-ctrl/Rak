@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <!-- ═══════════ Inventory ═══════════ -->
+    <div id="app" hidden>
+        <div class="backdrop"></div>
+
+        <main class="inv" id="inv">
+            <!-- Player -->
+            <section class="block card block-player" id="panel-player">
+                <header class="card-head">
+                    <span class="head-icon"><svg class="ic"><use href="#i-backpack" /></svg></span>
+                    <div class="head-text">
+                        <div class="eyebrow"><span data-t="player">Player</span></div>
+                        <div class="card-title" data-t="inventory">Inventory</div>
+                    </div>
+                    <div class="weight">
+                        <div class="weight-num"><b id="player-weight">0.00</b><span id="player-maxweight">/ 0.00 kg</span></div>
+                        <div class="weight-bar"><i id="player-weight-bar"></i></div>
+                    </div>
+                </header>
+                <div class="tools">
+                    <label class="search">
+                        <svg class="ic"><use href="#i-search" /></svg>
+                        <input type="text" id="search" maxlength="40" data-t-ph="search" placeholder="Search items...">
+                    </label>
+                    <div class="filters" id="filters">
+                        <button class="chip" data-filter="weapons" data-t-title="weapons"><svg class="ic"><use href="#i-gun" /></svg></button>
+                        <button class="chip" data-filter="food" data-t-title="food"><svg class="ic"><use href="#i-food" /></svg></button>
+                        <button class="chip" data-filter="tools" data-t-title="tools"><svg class="ic"><use href="#i-wrench" /></svg></button>
+                        <button class="chip" data-filter="general" data-t-title="general"><svg class="ic"><use href="#i-cube" /></svg></button>
+                    </div>
+                </div>
+                <div class="grid scroll" id="grid-player" data-inv="player"></div>
+                <footer class="block-foot">
+                    <span class="foot-label" data-t="amount">Amount</span>
+                    <div class="amount">
+                        <button class="amount-btn" data-step="-1"><svg class="ic"><use href="#i-minus" /></svg></button>
+                        <input type="number" id="amount" min="0" max="100000" placeholder="All" data-t-ph="all">
+                        <button class="amount-btn" data-step="1"><svg class="ic"><use href="#i-plus" /></svg></button>
+                    </div>
+                    <button class="rob-btn" id="rob-btn" hidden><svg class="ic"><use href="#i-cash" /></svg><span data-t="take_money">Take money</span></button>
+                </footer>
+            </section>
+
+            <div class="divider"><i></i><span id="brand-tag">JT</span><i></i></div>
+
+            <!-- Other inventory -->
+            <section class="block card block-other" id="panel-other">
+                <header class="card-head">
+                    <span class="head-icon" id="other-icon"><svg class="ic"><use href="#i-ground" /></svg></span>
+                    <div class="head-text">
+                        <div class="eyebrow"><span id="other-eyebrow"></span></div>
+                        <div class="card-title" id="other-title">Ground</div>
+                    </div>
+                    <div class="weight" id="other-weight-wrap">
+                        <div class="weight-num"><b id="other-weight">0.00</b><span id="other-maxweight">/ 0.00 kg</span></div>
+                        <div class="weight-bar" id="other-weight-bar-wrap"><i id="other-weight-bar"></i></div>
+                    </div>
+                </header>
+                <div class="grid scroll" id="grid-other" data-inv="other"></div>
+                <div class="other-empty" id="other-empty" hidden>
+                    <svg class="ic"><use href="#i-lock" /></svg>
+                    <span data-t="in_use">In use by someone else</span>
+                </div>
+            </section>
+
+            <!-- Character -->
+            <aside class="info card" id="mid">
+                <header class="card-head">
+                    <div class="avatar" id="avatar">?</div>
+                    <div class="head-text">
+                        <div class="eyebrow"><span data-t="character">Character</span></div>
+                        <div class="card-title" id="id-name"></div>
+                    </div>
+                </header>
+                <div class="stat-grid">
+                    <div class="stat"><div class="stat-label"><svg class="ic"><use href="#i-id" /></svg><span data-t="state_id">State ID</span></div><b class="ltr">#<i id="id-sid"></i></b></div>
+                    <div class="stat" id="id-cid-wrap"><div class="stat-label"><svg class="ic"><use href="#i-hash" /></svg><span data-t="citizen_id">Citizen ID</span></div><b class="ltr" id="id-cid"></b></div>
+                    <div class="stat"><div class="stat-label"><svg class="ic"><use href="#i-cash" /></svg><span data-t="cash">Cash</span></div><b class="money is-cash" id="id-cash">$0</b></div>
+                    <div class="stat"><div class="stat-label"><svg class="ic"><use href="#i-bank" /></svg><span data-t="bank">Bank</span></div><b class="money is-bank" id="id-bank">$0</b></div>
+                    <div class="stat stat-wide" id="id-job-wrap"><div class="stat-label"><svg class="ic"><use href="#i-briefcase" /></svg><span data-t="job">Job</span></div><b id="id-job"></b></div>
+                </div>
+            </aside>
+        </main>
+
+        <footer class="hint-bar">
+            <span class="hint"><kbd>ESC</kbd><span data-t="close_hint">Close</span></span>
+            <span class="hint"><kbd><svg class="ic"><use href="#i-mouse" /></svg></kbd><span data-t="hint_move">Drag to move</span></span>
+            <span class="hint"><kbd>R</kbd><span data-t="hint_menu">Right click: options</span></span>
+            <span class="hint"><kbd>2×</kbd><span data-t="hint_use">Double click: use</span></span>
+            <span class="hint"><kbd>⇧</kbd><span data-t="hint_quick">Shift + click: quick move</span></span>
+        </footer>
+
+        <!-- Context menu -->
+        <div class="ctx" id="ctx" hidden></div>
+
+        <!-- Modals -->
+        <div class="modal-layer" id="modal-layer">
+            <div class="modal" id="modal-give" hidden>
+                <div class="modal-head">
+                    <span class="modal-icon"><svg class="ic"><use href="#i-hand" /></svg></span>
+                    <div>
+                        <div class="modal-title" data-t="give_to">Give to</div>
+                        <div class="modal-sub" id="give-item"></div>
+                    </div>
+                </div>
+                <div class="give-amount">
+                    <span data-t="amount">Amount</span>
+                    <div class="amount">
+                        <button class="amount-btn" data-give-step="-1"><svg class="ic"><use href="#i-minus" /></svg></button>
+                        <input type="number" id="give-amount" min="1" max="100000">
+                        <button class="amount-btn" data-give-step="1"><svg class="ic"><use href="#i-plus" /></svg></button>
+                    </div>
+                </div>
+                <div class="player-list" id="give-list"></div>
+                <div class="modal-actions"><button class="btn btn-ghost" data-close-modal data-t="cancel">Cancel</button></div>
+            </div>
+
+            <div class="modal modal-wide" id="modal-weapon" hidden>
+                <div class="modal-head">
+                    <span class="modal-icon"><svg class="ic"><use href="#i-gun" /></svg></span>
+                    <div>
+                        <div class="modal-title" id="weapon-title"></div>
+                        <div class="modal-sub" id="weapon-sub"></div>
+                    </div>
+                </div>
+                <div class="weapon-body">
+                    <img class="weapon-img" id="weapon-img" alt="" draggable="false">
+                    <div class="weapon-stats">
+                        <div class="stat-row"><span data-t="serial">Serial</span><b id="weapon-serial"></b></div>
+                        <div class="stat-row"><span data-t="ammo">Ammo</span><b id="weapon-ammo"></b></div>
+                        <div class="stat-row"><span data-t="durability">Durability</span><b id="weapon-durability"></b></div>
+                        <div class="quality-bar big"><i id="weapon-durability-bar"></i></div>
+                    </div>
+                </div>
+                <div class="card-label" data-t="attachments">Attachments</div>
+                <div class="attachments" id="weapon-attachments"></div>
+                <div class="modal-actions"><button class="btn btn-ghost" data-close-modal data-t="close">Close</button></div>
+            </div>
+
+            <div class="modal" id="modal-combine" hidden>
+                <div class="modal-head">
+                    <span class="modal-icon"><svg class="ic"><use href="#i-link" /></svg></span>
+                    <div>
+                        <div class="modal-title" data-t="combine">Combine</div>
+                        <div class="modal-sub" id="combine-text"></div>
+                    </div>
+                </div>
+                <div class="combine-preview" id="combine-preview"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" data-close-modal data-t="cancel">Cancel</button>
+                    <button class="btn btn-ghost" id="combine-swap" data-t="swap">Swap</button>
+                    <button class="btn btn-primary" id="combine-go" data-t="combine">Combine</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tooltip" id="tooltip" hidden></div>
+    </div>
+
+    <!-- Always available (also while the inventory is closed) -->
+    <div class="itembox-stack" id="itembox-stack"></div>
+    <div class="required" id="required" hidden></div>
+    <div class="hotbar" id="hotbar" hidden></div>
+    <div class="ghost" id="ghost" hidden></div>
+
+    <!-- ═══════════ Icons ═══════════ -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <symbol id="i-backpack" viewBox="0 0 24 24"><path d="M8 6V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1" /><rect x="4.5" y="6" width="15" height="15" rx="4" /><path d="M8.5 13h7v4h-7z" /><path d="M8.5 10h7" /></symbol>
+        <symbol id="i-ground" viewBox="0 0 24 24"><path d="M12 3v10" /><path d="M8 9.5l4 4 4-4" /><path d="M3 17.5c2.5 0 2.5 1.5 5 1.5s2.5-1.5 4-1.5 2.5 1.5 4 1.5 2.5-1.5 5-1.5" /></symbol>
+        <symbol id="i-car" viewBox="0 0 24 24"><path d="M3.5 13l1.8-5.2A2 2 0 0 1 7.2 6.5h9.6a2 2 0 0 1 1.9 1.3l1.8 5.2v4.5h-17z" /><path d="M3.5 13h17" /><path d="M7 15.3h1M16 15.3h1" /><path d="M5.5 17.5v2M18.5 17.5v2" /></symbol>
+        <symbol id="i-glove" viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="11" rx="2" /><path d="M3.5 11h17" /><path d="M10 14h4" /></symbol>
+        <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5" /><path d="M5 9v9.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V9" /><path d="M10 13h4" /></symbol>
+        <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2.5l2.2 10.5h10.5L20.5 7H6.5" /><circle cx="9" cy="19" r="1.4" /><circle cx="17" cy="19" r="1.4" /></symbol>
+        <symbol id="i-hammer" viewBox="0 0 24 24"><path d="M14 6l4 4" /><path d="M9.5 3.5l6 6-2 2-6-6z" /><path d="M11.5 9.5l-7 7a1.4 1.4 0 0 0 2 2l7-7" /><path d="M15.5 9.5l3-3" /></symbol>
+        <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.8" /><path d="M4.5 20a7.5 7.5 0 0 1 15 0" /></symbol>
+        <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.6" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.6" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.6" /></symbol>
+        <symbol id="i-gun" viewBox="0 0 24 24"><path d="M3 8h17.5v4h-6.5l-1.2 2.5H10L9 19H5l1.2-7H3z" /><path d="M10.2 12h3" /></symbol>
+        <symbol id="i-food" viewBox="0 0 24 24"><path d="M4 11a8 5.5 0 0 1 16 0z" /><path d="M3.5 14h17" /><path d="M5 17h14a1.5 1.5 0 0 1-1.5 2h-11A1.5 1.5 0 0 1 5 17z" /></symbol>
+        <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.5 5.5a4 4 0 0 0 4.9 5L12 18a2.1 2.1 0 0 1-3-3l7.5-7.4a4 4 0 0 0-2-2.1z" /></symbol>
+        <symbol id="i-cube" viewBox="0 0 24 24"><path d="M3.5 7.5L12 3.5l8.5 4v9L12 20.5l-8.5-4z" /><path d="M3.5 7.5L12 11.5l8.5-4M12 11.5v9" /></symbol>
+        <symbol id="i-cash" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2" /><circle cx="12" cy="12" r="2.6" /><path d="M6 9.5v5M18 9.5v5" /></symbol>
+        <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="12.5" rx="2" /><path d="M8.5 7V5.5a1.5 1.5 0 0 1 1.5-1.5h4a1.5 1.5 0 0 1 1.5 1.5V7" /><path d="M3 12.5h18" /></symbol>
+        <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+        <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 13.5h6L10.5 21 19 10.5h-6z" /></symbol>
+        <symbol id="i-hand" viewBox="0 0 24 24"><path d="M3 13.5h3l4.5 2h3.5a1.5 1.5 0 0 1 0 3H10" /><path d="M14 18.5l5.4-2.3a1.6 1.6 0 0 1 1.3 2.9L14 22H8l-5-2" /><path d="M12 3.5v7M9 7.5l3 3 3-3" /></symbol>
+        <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6.5" cy="6.5" r="2.5" /><circle cx="6.5" cy="17.5" r="2.5" /><path d="M8.6 8l11 9.5M8.6 16L19.6 6.5" /></symbol>
+        <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></symbol>
+        <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" /></symbol>
+        <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></symbol>
+        <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></symbol>
+        <symbol id="i-weight" viewBox="0 0 24 24"><circle cx="12" cy="6" r="2.5" /><path d="M7.5 9h9l3 11.5h-15z" /></symbol>
+        <symbol id="i-mouse" viewBox="0 0 24 24"><rect x="6.5" y="3" width="11" height="18" rx="5.5" /><path d="M12 7v3" /></symbol>
+        <symbol id="i-id" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.2" /><circle cx="9" cy="11" r="2.3" /><path d="M5.8 16.5a3.3 3.3 0 0 1 6.4 0" /><path d="M15 10h3.5M15 13.5h3.5" /></symbol>
+        <symbol id="i-hash" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10 4L8 20M16 4l-2 16" /></symbol>
+        <symbol id="i-bank" viewBox="0 0 24 24"><path d="M3.5 9L12 4.5 20.5 9" /><path d="M4.5 9.5h15" /><path d="M6.5 10v7M10 10v7M14 10v7M17.5 10v7" /><path d="M3.5 20h17M4.5 17.5h15" /></symbol>
+        <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v14M6 12l6 6 6-6" /></symbol>
+    </svg>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>
