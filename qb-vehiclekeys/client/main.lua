@@ -61,7 +61,7 @@ end
 
 -- مقفلة؟ (حالة القفل من السيرفر + حالة اللعبة)
 local function isLocked(veh)
-    return Entity(veh).state.vehLocked == true or GetVehicleDoorLockStatus(veh) >= 2
+    return GetVehicleDoorLockStatus(veh) >= 2
 end
 
 local pulledVehicles = {}   -- [vehicle] = true  (نزّلت سواقها بالتعليق على F)
@@ -104,34 +104,67 @@ local function npcFlee(driver, veh)
     StartVehicleHorn(veh, 1500, `HELDDOWN`, false)
 end
 
--- سيارة بوت بالشارع: 50% مفتوحة (تنزله وتاخذ المفتاح) / 50% مقفلة (يشرد)
+-- ينتظر لين شخصيتك تحاول تفتح الباب وتستسلم (أنيميشن الباب المقفل حق قراند)
+local function waitGaveUp(ped, veh, ms)
+    local deadline = GetGameTimer() + ms
+    while GetGameTimer() < deadline do
+        if GetVehiclePedIsTryingToEnter(ped) ~= veh then return true end
+        Wait(100)
+    end
+    return false
+end
+
+local npcBusy = {}
+
+-- سيارة بوت بالشارع: 50% مفتوحة (تنزله وتاخذ المفتاح) / 50% مقفلة (تحاول تفتح الباب → Locked → يشرد)
+-- القرعة من السيرفر (الكلاينت ما يقدر يغش ويخليها مفتوحة دايم)
 local function handleNpcVehicle(ped, veh, driver, seat)
     local plate = QBCore.Functions.GetPlate(veh)
     if HasKeys(plate) then return end
 
     if IsEntityDead(driver) then return takeKeysFromBody(veh, plate) end
-    if not Config.NpcCarjack.Enabled or IsEntityAMissionEntity(veh) then return end
+    if not Config.NpcCarjack.Enabled or IsEntityAMissionEntity(veh) or npcBusy[veh] then return end
+    npcBusy[veh] = true
 
-    local state = Entity(veh).state.npcLock
-    if not state then
-        state = (math.random() < Config.NpcCarjack.UnlockedChance) and 'unlocked' or 'locked'
-        TriggerServerEvent('qb-vehiclekeys:server:NpcLockRoll', NetworkGetNetworkIdFromEntity(veh), state)
-    end
+    -- نقفلها عندك لين توصل النتيجة: لو وصلت الباب قبلها تحاول تفتحه مثل قراند
+    if Entity(veh).state.npcLock ~= 'unlocked' then SetVehicleDoorsLocked(veh, 2) end
+
+    local state, done = nil, false
+    QBCore.Functions.TriggerCallback('qb-vehiclekeys:server:NpcLockRoll', function(result)
+        state, done = result, true
+    end, NetworkGetNetworkIdFromEntity(veh))
+    local deadline = GetGameTimer() + 3000
+    while not done and GetGameTimer() < deadline do Wait(0) end
 
     if state == 'locked' then
-        SetVehicleDoorsLocked(veh, 2)
-        ClearPedTasks(ped)
-        npcFlee(driver, veh)
+        -- تحاول تفتح الباب (لو ما بديت تركب نخليك تروح للباب)
+        if GetVehiclePedIsTryingToEnter(ped) ~= veh then TaskEnterVehicle(ped, veh, 4000, -1, 2.0, 1, 0) Wait(300) end
+        waitGaveUp(ped, veh, 6000)
         QBCore.Functions.Notify(Lang:t('notify.npc_locked'), 'error')
-    else
+
+        if Config.NpcCarjack.AlarmOnLocked then
+            SetVehicleAlarm(veh, true)
+            SetVehicleAlarmTimeLeft(veh, 8000)
+            StartVehicleAlarm(veh)
+        end
+
+        Wait(Config.NpcCarjack.FleeDelay)
+        if DoesEntityExist(veh) and DoesEntityExist(driver) and not IsEntityDead(driver)
+            and GetPedInVehicleSeat(veh, -1) == driver then
+            npcFlee(driver, veh)
+        end
+    elseif state == 'unlocked' then
         SetVehicleDoorsLocked(veh, 1)
         npcPending[veh] = true
         -- مفتوحة: تروح لباب السواق وتنزّله (حتى لو ضغطت من جهة الراكب)
-        if Config.NpcCarjack.DriverOnly and seat ~= -1 then
+        if Config.NpcCarjack.DriverOnly and (seat ~= -1 or GetVehiclePedIsTryingToEnter(ped) ~= veh) then
             ClearPedTasks(ped)
             TaskEnterVehicle(ped, veh, 10000, -1, 2.0, 8, 0)
         end
+    else
+        SetVehicleDoorsLocked(veh, 1) -- السيرفر ما رد: نرجعها مثل ما كانت
     end
+    npcBusy[veh] = nil
 end
 
 -- لاعب سايق: تعلّق على F عند باب السواق وينزل (لو الباب مفتوح)
@@ -176,21 +209,25 @@ RegisterCommand('+vehkeys_f', function()
         if veh == 0 and Config.PullOut.Enabled and pullHeld then veh = closestDrivenVehicle(ped, 3.5) end
         if veh == 0 or isBlacklistedVehicle(veh) then return end
 
-        -- قفلها صاحبها: محد يفتح الباب
-        if Entity(veh).state.vehLocked == true then
-            ClearPedTasks(ped)
+        local driver = GetPedInVehicleSeat(veh, -1)
+        if driver == ped then return end
+
+        -- بوت سايق: 50/50 (يتعامل مع القفل بنفسه)
+        if driver ~= 0 and not IsPedAPlayer(driver) then
+            if not isImmune(veh) then handleNpcVehicle(ped, veh, driver, seat) end
+            return
+        end
+
+        -- مقفلة (قفلها صاحبها): تحاول تفتح الباب مثل قراند → Locked
+        if isLocked(veh) then
+            if GetVehiclePedIsTryingToEnter(ped) == veh then waitGaveUp(ped, veh, 6000) end
             return QBCore.Functions.Notify(Lang:t('notify.veh_locked'), 'error')
         end
 
-        local driver = GetPedInVehicleSeat(veh, -1)
-        if driver == 0 or driver == ped then return end
-
+        if driver == 0 then return end
         if IsPedAPlayer(driver) then
             -- لاعب: تعلّق على F عند باب السواق
             if Config.PullOut.Enabled and pullHeld then tryPullOut(ped, veh) end
-        elseif not isImmune(veh) then
-            -- بوت: 50/50
-            handleNpcVehicle(ped, veh, driver, seat)
         end
     end)
 end, false)
@@ -273,7 +310,7 @@ AddEventHandler('gameEventTriggered', function(name, args)
 
     -- ركبت سيارة مقفلة بدون مفتاح (تأخير شبكة/غش) → تنزل
     local veh = args[2]
-    if veh and veh ~= 0 and Entity(veh).state.vehLocked == true
+    if veh and veh ~= 0 and Entity(veh).state.vehLocked == true and GetVehicleDoorLockStatus(veh) >= 2
         and not HasKeys(QBCore.Functions.GetPlate(veh)) and not AreKeysJobShared(veh) then
         TaskLeaveVehicle(PlayerPedId(), veh, 16)
         return QBCore.Functions.Notify(Lang:t('notify.veh_locked'), 'error')
@@ -726,8 +763,11 @@ function LockpickDoor(isAdvanced, slot)
         SetVehicleAlarmTimeLeft(vehicle, 6000)
         TriggerServerEvent('smallresources:server:lockPickHealth', slot)
         -- local success = exports['qb-ui']:StartLockPickCircle(circles, seconds, success)
-        local success = exports["2na_lockpick"]:createGame(3, 1)
-        if success then 
+        local ok, success = pcall(function() return exports["2na_lockpick"]:createGame(3, 1) end)
+        if not ok then
+            return Config.LockPickDoorEvent() -- 2na_lockpick مو موجود → qb-lockpick
+        end
+        if success then
             SetVehicleAlarm(vehicle, false)
             LockpickFinishCallback(success)
         end

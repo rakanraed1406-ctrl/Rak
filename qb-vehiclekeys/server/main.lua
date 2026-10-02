@@ -38,17 +38,87 @@ local function distanceTo(src, entity)
 end
 
 -- فيه سيارة بهاللوحة جنب اللاعب (أو هو راكبها)؟
-local function isNearPlate(src, plate, maxDist)
+local function sameHash(a, b)
+    return (a & 0xFFFFFFFF) == (b & 0xFFFFFFFF)
+end
+
+-- مفاتيح الوظيفة (Config.SharedKeys) — نتحقق منها بالسيرفر مو بالكلاينت
+local function jobSharedKeys(src, veh)
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return false end
+    local job = Player.PlayerData.job
+    local cfg = job and Config.SharedKeys[job.name]
+    if not cfg or (cfg.requireOnduty and not job.onduty) then return false end
+    local model = GetEntityModel(veh)
+    for _, name in ipairs(cfg.vehicles) do
+        if sameHash(joaat(name), model) then return true end
+    end
+    return false
+end
+
+local function isNoLockVehicle(veh)
+    if Entity(veh).state.ignoreLocks then return true end
+    local model = GetEntityModel(veh)
+    for _, name in ipairs(Config.NoLockVehicles) do
+        if sameHash(joaat(name), model) then return true end
+    end
+    return false
+end
+
+local function hasLockpick(src)
+    if GetResourceState('ox_inventory') == 'started' then
+        local ok, count = pcall(function()
+            return exports.ox_inventory:Search(src, 'count', { 'lockpick', 'advancedlockpick' })
+        end)
+        if ok and type(count) == 'table' then return (count.lockpick or 0) + (count.advancedlockpick or 0) > 0 end
+    end
+    local Player = QBCore.Functions.GetPlayer(src)
+    return Player ~= nil and (Player.Functions.GetItemByName('lockpick') ~= nil or Player.Functions.GetItemByName('advancedlockpick') ~= nil)
+end
+
+-- يقدر ياخذ مفتاح هذي اللوحة؟ (راكبها، أو جنب سيارة بوت/جثة، أو سيارة وظيفته)
+local function canAcquireNear(src, plate)
     local ped = GetPlayerPed(src)
     local inVeh = GetVehiclePedIsIn(ped, false)
     if inVeh ~= 0 and vehiclePlate(inVeh) == plate then return true end
 
     local pos = GetEntityCoords(ped)
     for _, veh in ipairs(GetAllVehicles()) do
-        if vehiclePlate(veh) == plate and #(GetEntityCoords(veh) - pos) <= maxDist then
-            return true
+        if vehiclePlate(veh) == plate and #(GetEntityCoords(veh) - pos) <= 8.0 then
+            local driver = GetPedInVehicleSeat(veh, -1)
+            if driver ~= 0 and not IsPedAPlayer(driver) then return true end
+            if jobSharedKeys(src, veh) then return true end
         end
     end
+    return false
+end
+
+-- سجل محاولات الغش (Config.Security)
+local strikes = {}
+local function abuse(src, reason)
+    local now = os.time()
+    local st = strikes[src]
+    if not st or now - st.since > 60 then st = { count = 0, since = now } strikes[src] = st end
+    st.count = st.count + 1
+
+    local ids = {}
+    for _, id in ipairs(GetPlayerIdentifiers(src)) do
+        if id:find('^license:') or id:find('^discord:') then ids[#ids + 1] = id end
+    end
+    print(('^1[qb-vehiclekeys][anti-cheat]^7 %s (%d) %s — %s [%d/%d]'):format(
+        GetPlayerName(src) or '?', src, reason, table.concat(ids, ' '), st.count, Config.Security.MaxStrikes))
+
+    if Config.Security.KickOnAbuse and st.count >= Config.Security.MaxStrikes then
+        DropPlayer(src, 'qb-vehiclekeys: محاولة غش')
+    end
+end
+
+local lastCall = {}
+local function rateLimited(src, key, ms)
+    local k = src .. ':' .. key
+    local now = GetGameTimer()
+    if lastCall[k] and now - lastCall[k] < ms then return true end
+    lastCall[k] = now
     return false
 end
 
@@ -72,6 +142,7 @@ RegisterNetEvent('qb-vehiclekeys:server:GiveVehicleKeys', function(receiver, pla
     if HasKeys(giver, plate) then
         TriggerClientEvent('QBCore:Notify', giver, Lang:t("notify.vgkeys"), 'success')
         local list = type(receiver) == 'table' and receiver or { receiver }
+        if #list > 8 then return abuse(giver, 'أعطى مفاتيح لقائمة كبيرة') end
         for _, r in ipairs(list) do
             r = tonumber(r)
             -- كان: GiveKeys(receiver[r]) → يعطي الشخص الغلط. والحين لازم يكون قريب
@@ -84,25 +155,33 @@ RegisterNetEvent('qb-vehiclekeys:server:GiveVehicleKeys', function(receiver, pla
     end
 end)
 
--- كانت ثغرة: أي واحد يقدر يعطي نفسه مفتاح أي سيارة. الحين لازم تكون السيارة حقه أو جنبه.
+-- كانت ثغرة: أي واحد يقدر يعطي نفسه مفتاح أي سيارة (حتى بس لو واقف جنبها).
+-- الحين: السيارة حقه بالداتابيس، أو راكبها، أو جنب سيارة بوت/جثة بوت، أو سيارة وظيفته.
+local acquirePending = {}
 RegisterNetEvent('qb-vehiclekeys:server:AcquireVehicleKeys', function(plate)
     local src = source
     plate = trimPlate(plate)
-    if not plate or HasKeys(src, plate) then
-        if plate then TriggerClientEvent('qb-vehiclekeys:client:AddKeys', src, plate) end
-        return
-    end
+    if not plate then return end
+    if HasKeys(src, plate) then return TriggerClientEvent('qb-vehiclekeys:client:AddKeys', src, plate) end
+    if acquirePending[src] then return end
+    acquirePending[src] = true
 
-    if ownsVehicle(src, plate) then return GiveKeys(src, plate) end
-
-    -- السيارة يمكن توها انسوت ولسا ما وصلت للسيرفر → نحاول كم مرة
     CreateThread(function()
+        if ownsVehicle(src, plate) then
+            acquirePending[src] = nil
+            return GiveKeys(src, plate)
+        end
+        -- السيارة يمكن توها انسوت ولسا ما وصلت للسيرفر → نحاول كم مرة
         for _ = 1, 10 do
-            if GetPlayerPed(src) == 0 then return end
-            if isNearPlate(src, plate, 8.0) then return GiveKeys(src, plate) end
+            if GetPlayerPed(src) == 0 then break end
+            if canAcquireNear(src, plate) then
+                acquirePending[src] = nil
+                return GiveKeys(src, plate)
+            end
             Wait(500)
         end
-        print(('[qb-vehiclekeys] %s (%d) طلب مفتاح %s وهو مو جنبها'):format(GetPlayerName(src) or '?', src, plate))
+        acquirePending[src] = nil
+        abuse(src, ('طلب مفتاح %s وهو مو راكبها'):format(plate))
     end)
 end)
 
@@ -120,8 +199,24 @@ RegisterNetEvent('qb-vehiclekeys:server:setVehLockState', function(vehNetId, sta
     local src = source
     state = tonumber(state)
     if state ~= 1 and state ~= 2 then return end
+    if rateLimited(src, 'lock', 300) then return end
     local veh = vehicleFromNet(vehNetId)
     if not veh or distanceTo(src, veh) > 10.0 then return end
+
+    local plate = vehiclePlate(veh)
+    local allowed = (plate and HasKeys(src, plate)) or jobSharedKeys(src, veh) or (state == 1 and isNoLockVehicle(veh))
+    if not allowed and state == 1 then
+        local driver = GetPedInVehicleSeat(veh, -1)
+        if driver ~= 0 and not IsPedAPlayer(driver) then
+            allowed = true                                    -- سيارة بوت (جثة السواق)
+        elseif distanceTo(src, veh) <= 4.0 and hasLockpick(src) then
+            allowed = true                                    -- قفال
+        end
+    end
+    if not allowed then
+        return abuse(src, ('حاول %s سيارة مو له (%s)'):format(state == 2 and 'يقفل' or 'يفتح', plate or '?'))
+    end
+
     SetVehicleDoorsLocked(veh, state)
     -- حالة القفل للكل (محد يفتح الباب لو مقفلة حتى لو صار تأخير بالشبكة)
     Entity(veh).state:set('vehLocked', state == 2, true)
@@ -165,23 +260,24 @@ QBCore.Functions.CreateCallback('qb-vehiclekeys:server:ClaimRunningVehicle', fun
     cb(true)
 end)
 
--- سيارة بوت: أول واحد يجرب عليها يحدد هي مفتوحة ولا مقفلة (ما تنعاد القرعة)
-RegisterNetEvent('qb-vehiclekeys:server:NpcLockRoll', function(netId, state)
+-- سيارة بوت: القرعة من السيرفر (الكلاينت ما يختار) — مرة وحدة لكل سيارة
+QBCore.Functions.CreateCallback('qb-vehiclekeys:server:NpcLockRoll', function(source, cb, netId)
     local src = source
-    if not Config.NpcCarjack.Enabled or (state ~= 'locked' and state ~= 'unlocked') then return end
+    if not Config.NpcCarjack.Enabled or rateLimited(src, 'npcroll', 500) then return cb(nil) end
+
     local veh = vehicleFromNet(netId)
-    if not veh or distanceTo(src, veh) > 15.0 then return end
+    if not veh or distanceTo(src, veh) > 15.0 then return cb(nil) end
 
     local driver = GetPedInVehicleSeat(veh, -1)
-    if driver == 0 or IsPedAPlayer(driver) then return end
+    if driver == 0 or IsPedAPlayer(driver) then return cb(nil) end
 
-    local current = Entity(veh).state.npcLock
-    if current then
-        state = current
-    else
+    local state = Entity(veh).state.npcLock
+    if not state then
+        state = (math.random() < Config.NpcCarjack.UnlockedChance) and 'unlocked' or 'locked'
         Entity(veh).state:set('npcLock', state, true)
     end
     SetVehicleDoorsLocked(veh, state == 'locked' and 2 or 1)
+    cb(state)
 end)
 
 -- تعلّق على F عند باب لاعب سايق → ينزل (لو الباب مفتوح)
@@ -196,6 +292,7 @@ RegisterNetEvent('qb-vehiclekeys:server:PullOutDriver', function(netId)
 
     local veh = vehicleFromNet(netId)
     if not veh then return end
+    if GetEntityHealth(GetPlayerPed(src)) <= 0 then return end
     if GetVehiclePedIsIn(GetPlayerPed(src), false) ~= 0 then return end
     if distanceTo(src, veh) > 4.0 then return end
     if GetVehicleDoorLockStatus(veh) >= 2 then return end
@@ -214,7 +311,11 @@ RegisterNetEvent('qb-vehiclekeys:server:PullOutDriver', function(netId)
 end)
 
 AddEventHandler('playerDropped', function()
-    pullCooldown[source] = nil
+    local src = source
+    pullCooldown[src], strikes[src], acquirePending[src] = nil, nil, nil
+    for k in pairs(lastCall) do
+        if k:find('^' .. src .. ':') then lastCall[k] = nil end
+    end
 end)
 
 QBCore.Functions.CreateCallback('qb-vehiclekeys:server:GetVehicleKeys', function(source, cb)
