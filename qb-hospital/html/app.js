@@ -9,8 +9,13 @@ const helpLabel = document.getElementById('help-label');
 const respawnEl = document.getElementById('respawn');
 const respawnLabel = document.getElementById('respawn-label');
 const respawnRing = document.getElementById('respawn-ring');
+const pulseEl = document.getElementById('pulse');
+const flashEl = document.getElementById('flash');
 
 const LINE_COLOR = '#3da2ff';
+const GLOW_COLOR = 'rgba(61, 162, 255, 0.22)'; // wide soft stroke under the line (cheaper than shadowBlur)
+const INTRO_DELAY = 150;    // ms, matches the CSS intro delays
+const INTRO_TIME = 900;     // ms the line takes to open up and the timer to count in
 const HEAD_POS = 0.94;      // where the newest point is drawn (fraction of width)
 const SPEED = 0.2;          // how fast the trace scrolls (fraction of width per second)
 const FRAME_MS = 1000 / 30; // the trace is redrawn at 30 fps, plenty for a slow line
@@ -31,6 +36,8 @@ let visible = false;
 let state = null;
 let maxTime = 1;
 let shownTime = null;
+let introStart = 0;
+let introTimer = null;
 
 let width = 0;
 let height = 0;
@@ -47,6 +54,16 @@ let lastDraw = 0;
 
 function clamp(v, min, max) {
     return Math.max(min, Math.min(max, v));
+}
+
+function easeOut(t) {
+    return 1 - Math.pow(1 - t, 3);
+}
+
+function restartAnimation(el, cls) {
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
 }
 
 // Audio
@@ -131,6 +148,7 @@ function beatValue(t) {
 
 function onBeat() {
     beep(880, 0.14, 1);
+    restartAnimation(pulseEl, 'thump');
 }
 
 function resize() {
@@ -176,32 +194,51 @@ function step(dt) {
     if (samples.length > len) samples.splice(0, samples.length - len);
 }
 
-function draw() {
+function draw(intro) {
     ctx.clearRect(0, 0, width, height);
-    if (!samples.length) return;
+    if (!samples.length || intro <= 0) return;
 
     const mid = height * 0.56;
     const scale = height * 0.48;
     const headX = width * HEAD_POS;
     const start = headX - (samples.length - 1);
 
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = LINE_COLOR;
-    ctx.lineWidth = 2.5;
+    // intro: the line opens up from the middle
+    ctx.save();
+    if (intro < 1) {
+        const half = (width / 2) * intro;
+        ctx.beginPath();
+        ctx.rect(width / 2 - half, 0, half * 2, height);
+        ctx.clip();
+    }
 
     ctx.beginPath();
     for (let i = 0; i < samples.length; i++) {
         const y = mid - samples[i] * scale;
         if (i === 0) ctx.moveTo(start, y); else ctx.lineTo(start + i, y);
     }
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    // glow: the same path stroked wide and faint, then the real line on top
+    ctx.strokeStyle = GLOW_COLOR;
+    ctx.lineWidth = 9;
+    ctx.stroke();
+    ctx.strokeStyle = LINE_COLOR;
+    ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    // head of the trace
+    // bright head of the trace with a small halo
+    const headY = mid - samples[samples.length - 1] * scale;
+    ctx.fillStyle = 'rgba(61, 162, 255, 0.3)';
+    ctx.beginPath();
+    ctx.arc(headX, headY, 8, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = '#e8f4ff';
     ctx.beginPath();
-    ctx.arc(headX, mid - samples[samples.length - 1] * scale, 3, 0, Math.PI * 2);
+    ctx.arc(headX, headY, 3.2, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
 }
 
 // Timer
@@ -212,11 +249,15 @@ function formatTime(sec) {
     return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
 
-function updateTimer() {
-    const value = state ? state.time : 0;
+function updateTimer(intro) {
+    const target = state ? state.time : 0;
+    // intro: count up to the real time, then tick down normally
+    const value = intro < 1 ? Math.round(target * easeOut(intro)) : target;
     if (value === shownTime) return;
+    const ticking = intro >= 1 && shownTime !== null && value < shownTime && !flat;
     shownTime = value;
     timerEl.textContent = formatTime(value);
+    if (ticking) restartAnimation(timerEl, 'tick');
 }
 
 function loop(ts) {
@@ -226,9 +267,10 @@ function loop(ts) {
     lastDraw = ts;
     const dt = prevTs ? Math.min(0.1, (ts - prevTs) / 1000) : 0;
     prevTs = ts;
+    const intro = introStart ? clamp((performance.now() - introStart) / INTRO_TIME, 0, 1) : 1;
     step(dt);
-    draw();
-    updateTimer();
+    draw(easeOut(intro));
+    updateTimer(intro);
 }
 
 // UI
@@ -238,7 +280,10 @@ function setFlat(value, animate) {
     flat = value;
     root.classList.toggle('flat', flat);
     root.classList.toggle('bleeding', !flat);
-    if (flat && animate) flatTone();
+    if (flat && animate) {
+        flatTone();
+        restartAnimation(flashEl, 'go');
+    }
 }
 
 function render(next) {
@@ -253,8 +298,8 @@ function render(next) {
     statusEl.textContent = next.mode === 'dead' ? texts.dead : texts.bleeding;
     subEl.textContent = next.mode === 'dead' && !next.canRespawn && !next.respawning ? texts.respawn_wait : '';
 
-    helpEl.classList.toggle('show', next.canRequestHelp || next.helpRequested);
-    helpEl.classList.toggle('done', next.helpRequested);
+    helpEl.classList.toggle('show', !!(next.canRequestHelp || next.helpRequested));
+    helpEl.classList.toggle('done', !!next.helpRequested);
     helpLabel.textContent = next.helpRequested ? texts.help_requested : texts.request_help;
 
     respawnEl.classList.toggle('show', next.canRespawn || !!next.respawning);
@@ -281,6 +326,12 @@ function show(data) {
     root.classList.add('bleeding');
     root.classList.remove('hidden');
 
+    // short intro (CSS classes + line/timer in the loop)
+    clearTimeout(introTimer);
+    restartAnimation(root, 'intro');
+    introStart = performance.now() + INTRO_DELAY;
+    introTimer = setTimeout(() => root.classList.remove('intro'), 1600);
+
     visible = true;
     resize();
     prevTs = 0;
@@ -291,6 +342,8 @@ function show(data) {
 
 function hide() {
     visible = false;
+    introStart = 0;
+    clearTimeout(introTimer);
     root.classList.add('hidden');
     cancelAnimationFrame(frame);
     ctx.clearRect(0, 0, width, height);
