@@ -18,6 +18,8 @@ local PERIOD = math.floor((Config.ResetHours or 24) * 3600)
 local Shops = {}      -- [id] = { id, cfg, list = {products}, byId = {}, state = {} }
 local viewers = {}    -- [shopId] = { [src] = true }  (players with the NUI open)
 local spawned = {}    -- [entity] = { shop, pid, plate, wrecked }  (fleet vehicles that are out)
+local creating = {}   -- [entity] = true while the server is creating it (anti-cheat exceptions)
+local pendingModels = {} -- [model hash] = n, only during the CreateVehicleServerSetter call
 local cooldowns = {}
 
 -- ---------------------------------------------------------------------------
@@ -157,6 +159,13 @@ local function vehicleImage(model)
     return nil
 end
 
+-- model hashes can come back signed or unsigned: compare / key them as uint32
+local function u32(h) h = math.tointeger(h) return h and (h & 0xFFFFFFFF) end
+
+-- vehicle type for CreateVehicleServerSetter (vehicles.meta type)
+local VTYPES = { automobile = true, bike = true, boat = true, heli = true, plane = true, submarine = true, trailer = true, train = true }
+local VTYPE_BY_CATEGORY = { helicopters = 'heli', jets = 'plane', boats = 'boat' }
+
 local function buildShops()
     for id, cfg in pairs(Config.Shops) do
         if cfg.enabled ~= false then
@@ -173,16 +182,23 @@ local function buildShops()
                 elseif ok and p.type == 'vehicle' then
                     if type(p.model) ~= 'string' or not p.display then ok, why = false, 'model / display missing'
                     elseif not (cfg.spawnPoints and cfg.spawnPoints[p.spawn or 'ground']) then ok, why = false, ('spawn group "%s" missing'):format(tostring(p.spawn))
+                    elseif p.vtype ~= nil and not VTYPES[p.vtype] then ok, why = false, ('vtype "%s" (automobile / heli / plane / boat / bike …)'):format(tostring(p.vtype))
                     else image = vehicleImage(p.model) end
                 elseif ok then
                     ok, why = false, 'type must be vehicle or item'
                 end
                 if ok then
+                    local category = p.category or (p.type == 'vehicle' and 'armored' or 'items')
+                    local vtype = p.vtype
+                    if p.type == 'vehicle' and not vtype then
+                        vtype = VTYPE_BY_CATEGORY[category] or 'automobile'
+                        print(('^3[logistics] %s/%s: no vtype, using "%s" — set it in config.lua^0'):format(id, p.id, vtype))
+                    end
                     local prod = {
                         id = p.id, type = p.type, label = p.label or p.model or p.item, desc = p.desc or '',
-                        category = p.category or (p.type == 'vehicle' and 'armored' or 'items'),
+                        category = category,
                         price = math.tointeger(p.price), stock = math.tointeger(p.stock), image = image,
-                        model = p.model, vtype = p.vtype, item = p.item, display = p.display, spawn = p.spawn or 'ground',
+                        model = p.model, hash = p.model and u32(joaat(p.model)), vtype = vtype, item = p.item, display = p.display, spawn = p.spawn or 'ground',
                         unique = p.type == 'item' and QBCore.Shared.Items[p.item].unique or false,
                     }
                     shop.list[#shop.list + 1] = prod
@@ -416,6 +432,40 @@ local function tickShop(shop, now)
     if changed or delivered then pushViewers(shop) end
 end
 
+local function sameHash(a, b)
+    a, b = u32(a), u32(b)
+    return a ~= nil and a == b
+end
+
+--- Which entities are fleet vehicles, kept in GlobalState: only the server can
+--- write it (an entity state bag can be set by the client that owns the entity)
+--- and it outlives a restart of this resource.
+local function saveFleet()
+    local t = {}
+    for veh, info in pairs(spawned) do
+        if DoesEntityExist(veh) then
+            local shop = Shops[info.shop]
+            local p = shop and shop.byId[info.pid]
+            if p then t[tostring(NetworkGetNetworkIdFromEntity(veh))] = { s = info.shop, p = info.pid, m = p.hash, l = info.plate, c = info.cid } end
+        end
+    end
+    GlobalState.jtLogisticsFleet = t
+end
+
+-- keys through the key script's server side, so it knows they are legit
+local function keys(action, src, plate)
+    local fn = Config.Keys and Config.Keys[action]
+    if not fn or not src or not plate then return end
+    local ok, err = pcall(fn, src, plate)
+    if not ok then print(('^3[logistics] Config.Keys.%s failed: %s^0'):format(action, tostring(err))) end
+end
+
+-- the player who took it out loses the key once it is back in the garage / gone
+local function dropKeys(info)
+    local Player = info.cid and QBCore.Functions.GetPlayerByCitizenId(info.cid)
+    if Player then keys('remove', Player.PlayerData.source, info.plate) end
+end
+
 local function isWrecked(veh)
     return GetEntityHealth(veh) <= 0 or GetVehicleEngineHealth(veh) <= -3000.0
 end
@@ -429,6 +479,7 @@ local function checkFleet()
         local shop = Shops[info.shop]
         if not DoesEntityExist(veh) then
             spawned[veh] = nil
+            dropKeys(info)
             if shop then
                 local st = shop.state
                 st.out[info.pid] = math.max(0, (st.out[info.pid] or 0) - 1)
@@ -449,23 +500,26 @@ local function checkFleet()
         broadcastDisplays(shop)
         pushViewers(shop)
     end
+    if next(touched) then saveFleet() end
 end
 
 --- After a resource restart the fleet vehicles are still in the world: pick
---- them up again by their state bag. Anything "out" that isn't there any more
---- (server restart, cleanup) goes back to the garage.
+--- them up again from GlobalState (network id + model must still match).
+--- Anything "out" that isn't there any more (server restart, cleanup) goes
+--- back to the garage.
 local function retrackFleet()
     local found = {}
-    for _, veh in ipairs(GetAllVehicles()) do
-        local tag = Entity(veh).state.jtLogistics
-        if type(tag) == 'string' then
-            local sid, pid = tag:match('^(.-)|(.+)$')
-            local shop = sid and Shops[sid]
-            if shop and shop.byId[pid] then
-                spawned[veh] = { shop = sid, pid = pid, plate = trim(GetVehicleNumberPlateText(veh)), wrecked = isWrecked(veh) }
-                found[shop] = found[shop] or {}
-                found[shop][pid] = (found[shop][pid] or 0) + 1
-            end
+    local saved = GlobalState.jtLogisticsFleet
+    for net, e in pairs(type(saved) == 'table' and saved or {}) do
+        local netId = int(net, 1)
+        local veh = netId and NetworkGetEntityFromNetworkId(netId)
+        local shop = type(e) == 'table' and Shops[e.s]
+        local p = shop and shop.byId[e.p]
+        if veh and veh ~= 0 and p and p.type == 'vehicle' and not spawned[veh] and DoesEntityExist(veh) and sameHash(GetEntityModel(veh), p.hash) then
+            spawned[veh] = { shop = shop.id, pid = p.id, plate = type(e.l) == 'string' and e.l or trim(GetVehicleNumberPlateText(veh)),
+                cid = type(e.c) == 'string' and e.c or nil, wrecked = isWrecked(veh) }
+            found[shop] = found[shop] or {}
+            found[shop][p.id] = (found[shop][p.id] or 0) + 1
         end
     end
     for _, shop in pairs(Shops) do
@@ -482,6 +536,7 @@ local function retrackFleet()
             end
         end
     end
+    saveFleet()
 end
 
 local function tickAll()
@@ -654,14 +709,21 @@ local function randomPlate(prefix)
     return prefix .. tostring(math.random(10 ^ (digits - 1), 10 ^ digits - 1))
 end
 
+--- Always created by the server itself (CreateVehicleServerSetter): no client
+--- creates it, so blacklists that work on client spawns (entityCreating, e.g.
+--- qb-smallresources BlacklistedVehs) don't remove it, and players still can't
+--- spawn those models themselves. Other anti-cheats: IsFleetVehicle export.
 local function spawnVehicle(p, point, plate)
-    local hash = joaat(p.model)
-    local veh = p.vtype and CreateVehicleServerSetter(hash, p.vtype, point.x, point.y, point.z, point.w)
-        or CreateVehicle(hash, point.x, point.y, point.z, point.w, true, true)
+    local hash = p.hash
+    pendingModels[hash] = (pendingModels[hash] or 0) + 1
+    local ok, veh = pcall(CreateVehicleServerSetter, hash, p.vtype, point.x, point.y, point.z, point.w)
+    pendingModels[hash] = pendingModels[hash] > 1 and pendingModels[hash] - 1 or nil
+    if not ok or not veh or veh == 0 then return nil end
+    creating[veh] = true
     local timeout = GetGameTimer() + 5000
-    while not veh or veh == 0 or not DoesEntityExist(veh) do
+    while not DoesEntityExist(veh) do
         if GetGameTimer() > timeout then
-            if veh and veh ~= 0 and DoesEntityExist(veh) then DeleteEntity(veh) end
+            creating[veh] = nil
             return nil
         end
         Wait(50)
@@ -722,13 +784,15 @@ QBCore.Functions.CreateCallback('jt-logistics:server:takeVehicles', function(sou
             if veh then
                 shop.state.depot[p.id] = shop.state.depot[p.id] - 1
                 shop.state.out[p.id] = (shop.state.out[p.id] or 0) + 1
-                spawned[veh] = { shop = shop.id, pid = p.id, plate = plate }
-                Entity(veh).state:set('jtLogistics', shop.id .. '|' .. p.id, true)
+                spawned[veh] = { shop = shop.id, pid = p.id, plate = plate, cid = Player.PlayerData.citizenid }
+                creating[veh] = nil
+                keys('give', src, plate)
                 out[#out + 1] = { netId = NetworkGetNetworkIdFromEntity(veh), plate = plate }
             end
         end
         if #out == 0 then return { ok = false, msg = L.pads_busy } end
         saveDepot(shop, p.id) -- garage -n, out +n
+        saveFleet()
         TriggerClientEvent('jt-logistics:client:tookVehicles', src, out)
         log('Vehicles taken out', 'orange', ('[%s] %s (%s) took %s× %s'):format(shop.id, GetPlayerName(src) or '?', Player.PlayerData.citizenid, #out, p.model))
         notify(src, L.vehicles_out:format(#out, p.label), 'success')
@@ -805,6 +869,7 @@ QBCore.Functions.CreateCallback('jt-logistics:server:storeVehicles', function(so
                 elseif driver == 0 or driver == myPed then
                     spawned[veh] = nil
                     DeleteEntity(veh)
+                    dropKeys(info)
                     local st = shop.state
                     st.out[info.pid] = math.max(0, (st.out[info.pid] or 0) - 1)
                     st.depot[info.pid] = (st.depot[info.pid] or 0) + 1
@@ -816,6 +881,7 @@ QBCore.Functions.CreateCallback('jt-logistics:server:storeVehicles', function(so
         end
         if stored == 0 then return { ok = false, msg = wrecked and L.wrecked or L.nothing_to_store } end
         for pid in pairs(touched) do saveDepot(shop, pid) end
+        saveFleet()
         log('Vehicles stored', 'blue', ('[%s] %s (%s) stored %s'):format(shop.id, GetPlayerName(src) or '?', Player.PlayerData.citizenid, table.concat(labels, ', ')))
         notify(src, L.stored:format(stored), 'success')
         broadcastDisplays(shop)
@@ -922,6 +988,7 @@ QBCore.Commands.Add('logisticsrecall', 'Bring a shop\'s fleet back to the garage
             if info.shop == shop.id and (not only or info.pid == only) then
                 spawned[veh] = nil
                 if DoesEntityExist(veh) then DeleteEntity(veh) end
+                dropKeys(info)
                 local st = shop.state
                 st.out[info.pid] = math.max(0, (st.out[info.pid] or 0) - 1)
                 st.depot[info.pid] = (st.depot[info.pid] or 0) + 1
@@ -930,6 +997,7 @@ QBCore.Commands.Add('logisticsrecall', 'Bring a shop\'s fleet back to the garage
             end
         end
         for pid in pairs(touched) do saveDepot(shop, pid) end
+        saveFleet()
         if count > 0 then
             log('Fleet recalled', 'red', ('[%s] %s vehicle(s)%s by %s'):format(shop.id, count, only and (' of ' .. only) or '', GetPlayerName(source) or 'console'))
             broadcastDisplays(shop)
@@ -1013,6 +1081,17 @@ AddEventHandler('playerDropped', function()
     for _, v in pairs(viewers) do v[src] = nil end
     cooldowns[src] = nil
     photoSessions[src] = nil
+end)
+
+--- For anti-cheats / entity blacklists: true for vehicles this script spawned
+--- (tracked on the server, can't be faked by a client). Example (entityCreated):
+---     if exports['qb-militaryhelipad-byrko']:IsFleetVehicle(handle) then return end
+exports('IsFleetVehicle', function(entity)
+    entity = math.tointeger(entity)
+    if not entity or entity == 0 then return false end
+    if spawned[entity] or creating[entity] then return true end
+    local n = pendingModels[u32(GetEntityModel(entity))]
+    return n ~= nil and n > 0 -- created by the server right now (the call above hasn't returned yet)
 end)
 
 exports('GetBalance', function(shopId) local s = Shops[shopId] return s and s.state and s.state.balance or nil end)

@@ -249,9 +249,21 @@ RegisterNetEvent('jt-logistics:client:tookVehicles', function(list)
             SetVehicleNumberPlateText(veh, v.plate)
             SetVehicleDirtLevel(veh, 0.0)
             setFuel(veh)
-            Config.GiveKeys(veh, v.plate)
+            if Config.GiveKeys then Config.GiveKeys(veh, v.plate) end -- normally the server gives them (Config.Keys)
         end)
     end
+end)
+
+-- For client-side anti-cheats / blacklists: the local display vehicles and the
+-- fleet vehicles (that list is GlobalState: only the server can write it).
+--     if exports['qb-militaryhelipad-byrko']:IsLogisticsVehicle(veh) then return end
+local displayOf -- set below
+exports('IsLogisticsVehicle', function(entity)
+    if type(entity) ~= 'number' or entity == 0 then return false end
+    if displayOf(entity) then return true end
+    if not NetworkGetEntityIsNetworked(entity) then return false end
+    local fleet = GlobalState.jtLogisticsFleet
+    return type(fleet) == 'table' and fleet[tostring(NetworkGetNetworkIdFromEntity(entity))] ~= nil
 end)
 
 -- ---------------------------------------------------------------------------
@@ -281,6 +293,11 @@ local function loadModel(model)
         Wait(20)
     end
     return hash
+end
+
+function displayOf(entity)
+    for _, d in pairs(displays) do if d.veh == entity then return true end end
+    return false
 end
 
 local function removeDisplay(key)

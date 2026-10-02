@@ -1,5 +1,5 @@
 --[[ ==========================================================================
-     JINXED TOWN — MILITARY LOGISTICS  (qb-militaryhelipad-byrko 3.1)
+     JINXED TOWN — MILITARY LOGISTICS  (qb-militaryhelipad-byrko 3.2)
 
      الإيفنتات (كلاينت) — اسم الإيفنت لحاله يكفي (يفتح أقرب متجر):
          jt-logistics:open        فتح المتجر
@@ -37,9 +37,18 @@ Config.Fleet = {
 }
 
 Config.FuelResource = 'LegacyFuel'   -- فاضي = نيتف
-Config.GiveKeys = function(vehicle, plate)
-    TriggerEvent('qb-vehiclekeys:client:AddKeys', plate)
-end
+-- المفاتيح تنعطى من السيرفر: qb-vehiclekeys يعرف إنها لك → القفل (L) والموتر يشتغلون
+-- وما يحسبها "غش" بالـ anti-cheat حقه. (تتشغل بالسيرفر بس)
+Config.Keys = {
+    give = function(source, plate)
+        exports['qb-vehiclekeys']:GiveKeys(source, plate)
+    end,
+    remove = function(source, plate) -- لما المركبة تنخزن / ترجع للكراج
+        exports['qb-vehiclekeys']:RemoveKeys(source, plate)
+    end,
+}
+-- سكربت مفاتيح يشتغل من الكلاينت بس؟ حطه هنا (يتشغل عند اللي طلّع المركبة)
+Config.GiveKeys = nil -- function(vehicle, plate) TriggerEvent('qb-vehiclekeys:client:AddKeys', plate) end
 
 -- الأقسام (التبويبات) بالترتيب
 Config.Categories = {
@@ -58,7 +67,10 @@ Config.Categories = {
   products     type = 'vehicle' | 'item'
                  vehicle: model, display = vector4 (وين تطلع المركبة المعروضة بعد التوصيل)،
                           spawn = مجموعة من spawnPoints (وين تطلع لما تستخرجها)،
-                          vtype = 'heli' | 'plane' | 'automobile' (اختياري — أسرع وأضمن للرسبنة)
+                          vtype = 'automobile' | 'heli' | 'plane' | 'boat' | 'bike' — نوع المركبة (مهم)
+                            السيرفر نفسه يرسبنها بهالنوع، فتطلع حتى المركبات المحظورة بالبلاك ليست
+                            (rhino / lazer / hydra …) واللاعبين ما يقدرون يرسبنونها بأنفسهم.
+                            لو نسيته: الهليكوبترات heli، الطائرات plane، الباقي automobile.
                  item:    item = اسم الأيتم في qb-core/shared/items.lua
                stock = الحد كل ResetHours، price = السعر من الميزانية
 ------------------------------------------------------------------------------ ]]
@@ -113,21 +125,21 @@ Config.Shops = {
 
         products = {
             -- ARMORED
-            { id = 'rhino', type = 'vehicle', model = 'rhino', label = 'Rhino Tank', desc = 'Main Battle Tank', category = 'armored', price = 4000000, stock = 4, spawn = 'ground', display = vector4(-2041.80, 3042.60, 32.81, 60.0) },
-            { id = 'halftrack', type = 'vehicle', model = 'halftrack', label = 'Half-track', desc = 'Armored Half-track', category = 'armored', price = 500000, stock = 5, spawn = 'ground', display = vector4(-2027.80, 3066.85, 32.81, 60.0) },
-            { id = 'apc', type = 'vehicle', model = 'apc', label = 'APC', desc = 'Amphibious Personnel Carrier', category = 'armored', price = 1000000, stock = 5, spawn = 'ground', display = vector4(-2013.80, 3091.10, 32.81, 60.0) },
-            { id = 'insurgent', type = 'vehicle', model = 'insurgent', label = 'Insurgent', desc = 'Armored SUV', category = 'armored', price = 850000, stock = 5, spawn = 'ground', display = vector4(-1999.80, 3115.35, 32.81, 60.0) },
-            { id = 'insurgent2', type = 'vehicle', model = 'insurgent2', label = 'Insurgent Pick-Up', desc = 'Armed Insurgent Variant', category = 'armored', price = 200000, stock = 10, spawn = 'ground', display = vector4(-1985.80, 3139.60, 32.81, 60.0) },
-            { id = 'minitank', type = 'vehicle', model = 'minitank', label = 'Invade & Persuade', desc = 'RC-style Mini Tank', category = 'armored', price = 500000, stock = 3, spawn = 'ground', display = vector4(-1971.80, 3163.85, 32.81, 60.0) },
+            { id = 'rhino', type = 'vehicle', vtype = 'automobile', model = 'rhino', label = 'Rhino Tank', desc = 'Main Battle Tank', category = 'armored', price = 4000000, stock = 4, spawn = 'ground', display = vector4(-2041.80, 3042.60, 32.81, 60.0) },
+            { id = 'halftrack', type = 'vehicle', vtype = 'automobile', model = 'halftrack', label = 'Half-track', desc = 'Armored Half-track', category = 'armored', price = 500000, stock = 5, spawn = 'ground', display = vector4(-2027.80, 3066.85, 32.81, 60.0) },
+            { id = 'apc', type = 'vehicle', vtype = 'automobile', model = 'apc', label = 'APC', desc = 'Amphibious Personnel Carrier', category = 'armored', price = 1000000, stock = 5, spawn = 'ground', display = vector4(-2013.80, 3091.10, 32.81, 60.0) },
+            { id = 'insurgent', type = 'vehicle', vtype = 'automobile', model = 'insurgent', label = 'Insurgent', desc = 'Armored SUV', category = 'armored', price = 850000, stock = 5, spawn = 'ground', display = vector4(-1999.80, 3115.35, 32.81, 60.0) },
+            { id = 'insurgent2', type = 'vehicle', vtype = 'automobile', model = 'insurgent2', label = 'Insurgent Pick-Up', desc = 'Armed Insurgent Variant', category = 'armored', price = 200000, stock = 10, spawn = 'ground', display = vector4(-1985.80, 3139.60, 32.81, 60.0) },
+            { id = 'minitank', type = 'vehicle', vtype = 'automobile', model = 'minitank', label = 'Invade & Persuade', desc = 'RC-style Mini Tank', category = 'armored', price = 500000, stock = 3, spawn = 'ground', display = vector4(-1971.80, 3163.85, 32.81, 60.0) },
 
             -- HELICOPTERS
             { id = 'hunter', type = 'vehicle', model = 'hunter', vtype = 'heli', label = 'FH-1 Hunter', desc = 'Attack Helicopter', category = 'helicopters', price = 1000000, stock = 5, spawn = 'air', display = vector4(-2015.80, 3027.60, 32.81, 60.0) },
             { id = 'akula', type = 'vehicle', model = 'akula', vtype = 'heli', label = 'Akula', desc = 'Stealth Attack Helicopter', category = 'helicopters', price = 500000, stock = 10, spawn = 'air', display = vector4(-2001.80, 3051.85, 32.81, 60.0) },
             { id = 'valkyrie', type = 'vehicle', model = 'valkyrie', vtype = 'heli', label = 'Valkyrie', desc = 'Armed Transport Helicopter', category = 'helicopters', price = 500000, stock = 5, spawn = 'air', display = vector4(-1987.80, 3076.10, 32.81, 60.0) },
             { id = 'savage', type = 'vehicle', model = 'savage', vtype = 'heli', label = 'Savage', desc = 'Heavy Attack Helicopter', category = 'helicopters', price = 1200000, stock = 5, spawn = 'air', display = vector4(-1973.80, 3100.35, 32.81, 60.0) },
-            { id = 'mh60l', type = 'vehicle', model = 'mh60l', label = 'MH-60L', desc = 'Utility Helicopter', category = 'helicopters', price = 150000, stock = 5, spawn = 'air', display = vector4(-1959.80, 3124.60, 32.81, 60.0) },
-            { id = 'swat_heli', type = 'vehicle', model = 'swat_heli', label = 'SWAT Helicopter', desc = 'Tactical Transport', category = 'helicopters', price = 55000, stock = 5, spawn = 'air', display = vector4(-1945.80, 3148.85, 32.81, 60.0) },
-            { id = 'csk131', type = 'vehicle', model = 'csk131', label = 'CSK-131', desc = 'Special Operations', category = 'helicopters', price = 500000, stock = 3, spawn = 'air', display = vector4(-1931.80, 3173.10, 32.81, 60.0) },
+            { id = 'mh60l', type = 'vehicle', vtype = 'heli', model = 'mh60l', label = 'MH-60L', desc = 'Utility Helicopter', category = 'helicopters', price = 150000, stock = 5, spawn = 'air', display = vector4(-1959.80, 3124.60, 32.81, 60.0) },
+            { id = 'swat_heli', type = 'vehicle', vtype = 'heli', model = 'swat_heli', label = 'SWAT Helicopter', desc = 'Tactical Transport', category = 'helicopters', price = 55000, stock = 5, spawn = 'air', display = vector4(-1945.80, 3148.85, 32.81, 60.0) },
+            { id = 'csk131', type = 'vehicle', vtype = 'heli', model = 'csk131', label = 'CSK-131', desc = 'Special Operations', category = 'helicopters', price = 500000, stock = 3, spawn = 'air', display = vector4(-1931.80, 3173.10, 32.81, 60.0) },
 
             -- JETS
             { id = 'lazer', type = 'vehicle', model = 'lazer', vtype = 'plane', label = 'P-996 LAZER', desc = 'Military Fighter Jet', category = 'jets', price = 3000000, stock = 3, spawn = 'air', display = vector4(-1989.80, 3012.60, 32.81, 60.0) },
@@ -169,7 +181,7 @@ Config.Shops = {
             ground = { vector4(445.40, -1025.60, 28.40, 5.0), vector4(441.70, -1025.90, 28.40, 5.0) },
         },
         products = {
-            { id = 'riot', type = 'vehicle', model = 'riot', label = 'Riot Van', desc = 'Armored Response', category = 'armored', price = 300000, stock = 3, spawn = 'ground', display = vector4(452.10, -1021.70, 28.30, 90.0) },
+            { id = 'riot', type = 'vehicle', vtype = 'automobile', model = 'riot', label = 'Riot Van', desc = 'Armored Response', category = 'armored', price = 300000, stock = 3, spawn = 'ground', display = vector4(452.10, -1021.70, 28.30, 90.0) },
             { id = 'polmav', type = 'vehicle', model = 'polmav', vtype = 'heli', label = 'Police Maverick', desc = 'Air Support', category = 'helicopters', price = 400000, stock = 2, spawn = 'air', display = vector4(463.70, -1014.40, 28.10, 90.0) },
             { id = 'pistol', type = 'item', item = 'weapon_pistol', label = 'Pistol', desc = 'Sidearm', category = 'weapons', price = 5000, stock = 40 },
             { id = 'armor', type = 'item', item = 'armor', label = 'Armor', desc = 'Light Vest', category = 'items', price = 1500, stock = 100 },
