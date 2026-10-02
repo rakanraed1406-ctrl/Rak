@@ -385,7 +385,9 @@ local function spawnPed(shopId, kind, cfg)
                 canInteract = function() return can(shopId, 'pickup') end },
             { icon = 'fas fa-warehouse', label = cfg.storeLabel or 'Store the vehicle',
                 action = function() openStore(shopId) end,
-                canInteract = function() return fleetOut(shopId) and can(shopId, 'pickup') end },
+                canInteract = function()
+                    return (fleetOut(shopId) or (Config.Fleet and Config.Fleet.StoreAnyOfModel)) and can(shopId, 'pickup')
+                end },
         }
     else
         options = { { icon = 'fas fa-helicopter', label = cfg.label or 'Military Logistics',

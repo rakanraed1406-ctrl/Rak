@@ -177,7 +177,7 @@ local VTYPE_BY_CATEGORY = { helicopters = 'heli', jets = 'plane', boats = 'boat'
 local function buildShops()
     for id, cfg in pairs(Config.Shops) do
         if cfg.enabled ~= false then
-            local shop = { id = id, cfg = cfg, list = {}, byId = {} }
+            local shop = { id = id, cfg = cfg, list = {}, byId = {}, byHash = {} }
             for _, p in ipairs(cfg.products or {}) do
                 local ok, why = true, nil
                 if type(p.id) ~= 'string' or shop.byId[p.id] then ok, why = false, 'missing / duplicate id' end
@@ -211,6 +211,7 @@ local function buildShops()
                     }
                     shop.list[#shop.list + 1] = prod
                     shop.byId[prod.id] = prod
+                    if prod.hash and not shop.byHash[prod.hash] then shop.byHash[prod.hash] = prod end
                 else
                     print(('^3[logistics] %s/%s skipped: %s^0'):format(id, tostring(p.id), why))
                 end
@@ -825,6 +826,30 @@ local function condition(veh)
     return math.max(0, math.min(100, math.floor(GetVehicleEngineHealth(veh) / 10 + 0.5)))
 end
 
+local function ownedByPlayer(plate)
+    if not plate or plate == '' then return false end
+    local ok, row = pcall(MySQL.scalar.await, 'SELECT 1 FROM player_vehicles WHERE plate = ? LIMIT 1', { plate })
+    return ok and row ~= nil
+end
+
+--- What can be stored at this shop's officer: its own fleet vehicles, and with
+--- Config.Fleet.StoreAnyOfModel any vehicle of a model the shop sells that no
+--- shop is tracking and no player owns (player_vehicles).
+--- Returns product, fleet info (nil when untracked), plate.
+local function storable(shop, veh)
+    local info = spawned[veh]
+    if info then
+        if info.shop ~= shop.id then return nil end
+        return shop.byId[info.pid], info, info.plate
+    end
+    if creating[veh] or not (Config.Fleet and Config.Fleet.StoreAnyOfModel) then return nil end
+    local p = shop.byHash[u32(GetEntityModel(veh))]
+    if not p then return nil end
+    local plate = trim(GetVehicleNumberPlateText(veh))
+    if ownedByPlayer(plate) then return nil end
+    return p, nil, plate
+end
+
 QBCore.Functions.CreateCallback('jt-logistics:server:storeInfo', function(source, cb, shopId)
     local src = source
     local shop = ready and type(shopId) == 'string' and Shops[shopId]
@@ -833,14 +858,13 @@ QBCore.Functions.CreateCallback('jt-logistics:server:storeInfo', function(source
     local center, radius = officerArea(shop)
     if not center or distanceTo(src, center) > 6.0 then notify(src, L.too_far, 'error') return cb(false) end
     local list = {}
-    for veh, info in pairs(spawned) do
-        if info.shop == shop.id and DoesEntityExist(veh) then
-            local d = #(GetEntityCoords(veh) - center)
-            local p = shop.byId[info.pid]
-            if p and d <= radius then
-                local netId = NetworkGetNetworkIdFromEntity(veh)
+    for _, veh in ipairs(GetAllVehicles()) do
+        local d = DoesEntityExist(veh) and #(GetEntityCoords(veh) - center)
+        if d and d <= radius then
+            local p, _, plate = storable(shop, veh)
+            if p then
                 list[#list + 1] = {
-                    id = tostring(netId), label = p.label, plate = info.plate, image = p.image, category = p.category,
+                    id = tostring(NetworkGetNetworkIdFromEntity(veh)), label = p.label, plate = plate, image = p.image, category = p.category,
                     fallback = Config.VehicleImageFallback and Config.VehicleImageFallback:format(p.model) or nil,
                     condition = condition(veh), wrecked = isWrecked(veh), dist = math.floor(d),
                 }
@@ -863,34 +887,45 @@ QBCore.Functions.CreateCallback('jt-logistics:server:storeVehicles', function(so
         if type(ids) ~= 'table' then return { ok = false } end
 
         local myPed = GetPlayerPed(src)
-        local stored, touched, labels, wrecked = 0, {}, {}, false
+        local st = shop.state
+        local stored, touched, labels, wrecked, extra = 0, {}, {}, false, 0
+        local seen = {}
         for i, id in ipairs(ids) do
             if i > 20 then break end
             local netId = int(id, 1)
             local veh = netId and NetworkGetEntityFromNetworkId(netId)
-            local info = veh and veh ~= 0 and spawned[veh]
-            -- only this shop's fleet, here, intact, and nobody else at the controls
-            if info and info.shop == shop.id and DoesEntityExist(veh) and #(GetEntityCoords(veh) - center) <= radius then
-                local driver = GetPedInVehicleSeat(veh, -1)
-                if isWrecked(veh) then
+            -- here, a model this shop sells (its fleet / any unowned one), intact, nobody else at the controls
+            if veh and veh ~= 0 and not seen[veh] and DoesEntityExist(veh) and #(GetEntityCoords(veh) - center) <= radius then
+                seen[veh] = true
+                local p, info = storable(shop, veh)
+                local driver = p and GetPedInVehicleSeat(veh, -1)
+                if p and isWrecked(veh) then
                     wrecked = true
-                elseif driver == 0 or driver == myPed then
+                elseif p and (driver == 0 or driver == myPed) then
                     spawned[veh] = nil
                     DeleteEntity(veh)
-                    dropKeys(info)
-                    local st = shop.state
-                    st.out[info.pid] = math.max(0, (st.out[info.pid] or 0) - 1)
-                    st.depot[info.pid] = (st.depot[info.pid] or 0) + 1
-                    touched[info.pid] = true
+                    if info then
+                        dropKeys(info)
+                        st.out[p.id] = math.max(0, (st.out[p.id] or 0) - 1)
+                    else
+                        -- not from the garage: if more units are counted out than are tracked, it's one of those
+                        local tracked = 0
+                        for _, other in pairs(spawned) do if other.shop == shop.id and other.pid == p.id then tracked = tracked + 1 end end
+                        if (st.out[p.id] or 0) > tracked then st.out[p.id] = st.out[p.id] - 1 end
+                        extra = extra + 1
+                    end
+                    st.depot[p.id] = (st.depot[p.id] or 0) + 1
+                    touched[p.id] = true
                     stored = stored + 1
-                    labels[#labels + 1] = shop.byId[info.pid].label
+                    labels[#labels + 1] = p.label
                 end
             end
         end
         if stored == 0 then return { ok = false, msg = wrecked and L.wrecked or L.nothing_to_store } end
         for pid in pairs(touched) do saveDepot(shop, pid) end
         saveFleet()
-        log('Vehicles stored', 'blue', ('[%s] %s (%s) stored %s'):format(shop.id, GetPlayerName(src) or '?', Player.PlayerData.citizenid, table.concat(labels, ', ')))
+        log('Vehicles stored', 'blue', ('[%s] %s (%s) stored %s%s'):format(shop.id, GetPlayerName(src) or '?', Player.PlayerData.citizenid,
+            table.concat(labels, ', '), extra > 0 and (' — %s not from the garage'):format(extra) or ''))
         notify(src, L.stored:format(stored), 'success')
         broadcastDisplays(shop)
         pushViewers(shop)

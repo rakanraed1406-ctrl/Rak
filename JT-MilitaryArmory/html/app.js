@@ -633,7 +633,7 @@ function renderStore() {
         }
         list.appendChild(line);
     });
-    if (!data.list.length) list.appendChild(el('div', 'd-empty', `NO FLEET VEHICLES WITHIN ${data.radius || 0}M OF THE OFFICER`));
+    if (!data.list.length) list.appendChild(el('div', 'd-empty', `NO VEHICLES TO STORE WITHIN ${data.radius || 0}M OF THE OFFICER`));
     let note = '';
     if (!data.list.length) note = 'PARK THE VEHICLE NEXT TO THE SUPPLY OFFICER, THEN TRY AGAIN';
     else if (!picked.size) note = data.list.every((x) => x.wrecked) ? 'WRECKED VEHICLES CANNOT BE STORED' : 'SELECT THE VEHICLES TO STORE';

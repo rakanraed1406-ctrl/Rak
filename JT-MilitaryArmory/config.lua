@@ -1,5 +1,5 @@
 --[[ ==========================================================================
-     JINXED TOWN — MILITARY LOGISTICS  (JT-MilitaryArmory 3.3)
+     JINXED TOWN — MILITARY LOGISTICS  (JT-MilitaryArmory 3.4)
 
      الإيفنتات (كلاينت) — اسم الإيفنت لحاله يكفي (يفتح أقرب متجر):
          jt-logistics:open        فتح المتجر
@@ -33,6 +33,9 @@ Config.VehicleImageFallback = 'https://docs.fivem.net/vehicles/%s.webp'
 -- (itemPed) → "Store the vehicle" → ترجع للكراج ويرجع العرض.
 Config.Fleet = {
     DestroyedAreLost = true,   -- true = المركبة اللي تنفجر تروح من الأسطول، false = ترجع للكراج
+    StoreAnyOfModel = true,    -- true = أي مركبة من موديلات المتجر (اللي تنشرى) قريبة من الضابط تنخزن وتنضاف للكراج،
+                               --        حتى لو ما طلعت من الكراج (السيارات الشخصية المملوكة ما تنخزن)
+                               -- false = بس المركبات اللي طلعت من الكراج
     KeepInWorld = false,       -- true = المركبة الطالعة تبقى مكانها حتى لو ما أحد قريب منها
                                -- false = لو السيرفر شالها (ما أحد قريب / ريستارت) ترجع للكراج تلقائي
 }

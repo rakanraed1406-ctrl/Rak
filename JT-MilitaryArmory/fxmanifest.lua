@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'byrko · Jinxed Town'
 description 'Jinxed Town — Military Logistics (department shops, budget, stock, delivery, fleet garage)'
-version '3.3.0'
+version '3.4.0'
 
 shared_script 'config.lua'
 client_script 'client.lua'
