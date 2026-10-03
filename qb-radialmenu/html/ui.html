@@ -244,8 +244,15 @@
                         menuItems: eventData.data || [],
                         onClick: function (item) {
                             if (item.functionName !== 'undefined') {
-                                post('triggerAction', { action: item.functionName, type: item.functiontype, parameters: item.functionParameters });
-                                if (item.close) post('closemenu', {});
+                                var action = { action: item.functionName, type: item.functiontype, parameters: item.functionParameters };
+                                if (!item.close) { post('triggerAction', action); return; }
+                                // Options that open another menu (emotes...): hide the wheel right away,
+                                // close it (focus goes back), THEN open the other menu. Both used to be sent
+                                // at once, and a heavy menu loading froze the wheel half-closed on screen.
+                                if (menu) { menu.collapse(); menu.holder.style.display = 'none'; }
+                                post('closemenu', {}).then(function () {
+                                    setTimeout(function () { post('triggerAction', action); }, 50);
+                                });
                             }
                         }
                     });
