@@ -297,7 +297,7 @@ Config.Menu[#Config.Menu + 1] = {
             return true
         end
     end,
-    subMenus = {"ambulance:heal", "ambulance:revive", "ambulance:depot"}
+    subMenus = {"ambulance:examine", "ambulance:treat", "ambulance:heal", "ambulance:revive", "ambulance:cpr", "ambulance:depot"}
 }
 Config.Menu[#Config.Menu + 1] = {
     id = "police",
@@ -445,6 +445,27 @@ Config.SubMenus = {
         close = true,
         functiontype = "client",
         functionName = "hospital:client:RevivePlayer",
+    },
+    ["ambulance:examine"] = {
+        title = "Vitals Monitor",
+        icon = "#ems-monitor",
+        close = true,
+        functiontype = "client",
+        functionName = "ems-tools:client:ExamineClosest",
+    },
+    ["ambulance:treat"] = {
+        title = "Treat Patient",
+        icon = "#ems-treat",
+        close = true,
+        functiontype = "client",
+        functionName = "ems-tools:client:TreatClosest",
+    },
+    ["ambulance:cpr"] = {
+        title = "CPR",
+        icon = "#ems-cpr",
+        close = true,
+        functiontype = "client",
+        functionName = "ems-tools:client:CPRClosest",
     },
     ["ambulance:depot"] = {
         title = "Depot Vehicle",
