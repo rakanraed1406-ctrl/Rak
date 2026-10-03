@@ -134,6 +134,7 @@ local Translations = {
         respawn_hold = 'HOLD TO RESPAWN ($%{cost})',
         respawn_hold_insured = 'HOLD TO RESPAWN ($%{cost} · INSURED)',
         respawning = 'TAKING YOU TO THE HOSPITAL…',
+        treated = 'BEING TREATED',
     },
     logs = {
         death_log_title = "%{playername} (%{playerid}) is dead",

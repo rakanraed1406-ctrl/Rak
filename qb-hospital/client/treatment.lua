@@ -92,6 +92,60 @@ RegisterNetEvent('hospital:client:ApplyTreatment', function(kind, data)
     if data.notify then QBCore.Functions.Notify(data.notify, 'success', 4000) end
 end)
 
+-- Timer pause while someone treats you (Config.TreatmentPause).
+-- BeingTreated is read by the bleed-out timer (laststand.lua) and the death timer (dead.lua).
+BeingTreated = false
+local treatedUntil = 0
+
+-- other resources (CPR / first aid scripts) can say "this patient is being treated"
+RegisterNetEvent('hospital:client:SetBeingTreated', function(seconds)
+    seconds = math.max(0, math.min(60, tonumber(seconds) or 0))
+    treatedUntil = GetGameTimer() + seconds * 1000
+end)
+
+local pauseCfg = Config.TreatmentPause or {}
+local treatAnims = {}
+for _, a in pairs(Config.HealAnims or {}) do treatAnims[#treatAnims + 1] = { a.dict, a.anim } end
+for _, a in ipairs(pauseCfg.Anims or {}) do treatAnims[#treatAnims + 1] = a end
+
+local function SomeoneTreatingMe()
+    local myCoords = GetEntityCoords(PlayerPedId())
+    local maxDist = pauseCfg.Distance or 2.5
+    local me = PlayerId()
+    for _, player in ipairs(GetActivePlayers()) do
+        if player ~= me then
+            local ped = GetPlayerPed(player)
+            if ped ~= 0 and #(GetEntityCoords(ped) - myCoords) <= maxDist then
+                for _, a in ipairs(treatAnims) do
+                    if IsEntityPlayingAnim(ped, a[1], a[2], 3) then return true end
+                end
+                for _, scenario in ipairs(pauseCfg.Scenarios or {}) do
+                    if IsPedUsingScenario(ped, scenario) then return true end
+                end
+            end
+        end
+    end
+    return false
+end
+
+CreateThread(function()
+    local pausedMs, last = 0, GetGameTimer()
+    while true do
+        local now = GetGameTimer()
+        if pauseCfg.Enabled ~= false and (isDead or InLaststand) and not isInHospitalBed then
+            local treated = now < treatedUntil or SomeoneTreatingMe()
+            if treated then pausedMs = pausedMs + (now - last) end
+            -- capped per down, so a friend can't keep you alive forever by standing over you
+            BeingTreated = treated and pausedMs < (pauseCfg.MaxPause or 180) * 1000
+        else
+            BeingTreated = false
+            if not (isDead or InLaststand) then pausedMs, treatedUntil = 0, 0 end
+        end
+        last = now
+        Wait((isDead or InLaststand) and 500 or 1000)
+    end
+end)
+
 -- Local state for other resources on this client.
 exports('GetLocalState', function()
     return {
@@ -101,5 +155,6 @@ exports('GetLocalState', function()
         bleeding = tonumber(isBleeding) or 0,
         painkillers = onPainKillers == true,
         inBed = isInHospitalBed == true,
+        beingTreated = BeingTreated == true,
     }
 end)

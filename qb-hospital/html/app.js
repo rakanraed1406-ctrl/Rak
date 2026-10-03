@@ -295,7 +295,7 @@ function render(next) {
 
     setFlat(next.mode === 'dead' || next.time <= 0, prev !== null);
 
-    statusEl.textContent = next.mode === 'dead' ? texts.dead : texts.bleeding;
+    statusEl.textContent = next.treated && texts.treated ? texts.treated : (next.mode === 'dead' ? texts.dead : texts.bleeding);
     subEl.textContent = next.mode === 'dead' && !next.canRespawn && !next.respawning ? texts.respawn_wait : '';
 
     helpEl.classList.toggle('show', !!(next.canRequestHelp || next.helpRequested));

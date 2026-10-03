@@ -22,6 +22,29 @@ Config.DeathScreen = {
     Sound = true,                         -- صوت جهاز دقات القلب
     Volume = 0.05,                        -- مستوى الصوت من 0.0 إلى 1.0 (هادي)
 }
+
+-- الوقت (وقت النزيف / وقت الرسبن) يوقف لما أحد يعالجك، مسعف أو لاعب
+-- يعرف إنك تتعالج إذا فيه لاعب جنبك يسوي أنميشن إنعاش أو علاج (CPR / صعق / ضماد)
+Config.TreatmentPause = {
+    Enabled = true,
+    Distance = 2.5,                       -- لازم يكون اللي يعالجك قريب منك بهالمسافة
+    MaxPause = 180,                       -- أقصى وقت (ثواني) يقدر يوقف فيه العداد كل مرة تطيح (عشان ما ينستغل)
+    -- أنميشنات العلاج (أنميشنات Config.HealAnims تنحسب تلقائي)
+    Anims = {
+        { 'mini@cpr@char_a@cpr_def', 'cpr_intro' },
+        { 'mini@cpr@char_a@cpr_def', 'cpr_pumpchest_idle' },
+        { 'mini@cpr@char_a@cpr_str', 'cpr_pumpchest' },
+        { 'missheistfbi3b_ig8_2', 'cpr_loop_paramedic' },
+        { 'amb@medic@standing@kneel@base', 'base' },
+        { 'amb@medic@standing@kneel@idle_a', 'idle_a' },
+        { 'amb@medic@standing@tendtodead@base', 'base' },
+        { 'amb@medic@standing@tendtodead@idle_a', 'idle_a' },
+    },
+    Scenarios = { 'CODE_HUMAN_MEDIC_TEND_TO_DEAD', 'CODE_HUMAN_MEDIC_KNEEL' },
+    -- سكربت ثاني يقدر يوقف الوقت بنفسه (من السيرفر):
+    -- TriggerClientEvent('hospital:client:SetBeingTreated', patientId, seconds)
+}
+
 Config.CheckTime = 10
 
 Config.CheckInBlockDoctors = 2      -- الاستقبال الذاتي (Check-in) يتقفل لو فيه هالعدد من المسعفين على الدوام

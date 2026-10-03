@@ -85,11 +85,12 @@ function DeathTimer()
         local now = GetGameTimer()
         if now >= nextSecond then
             nextSecond = nextSecond + 1000
-            if deathTime > 0 then deathTime = deathTime - 1 end
+            -- paused while a medic / player is reviving you
+            if deathTime > 0 and not BeingTreated then deathTime = deathTime - 1 end
         end
 
         local pressed = IsControlPressed(0, 38) or IsDisabledControlPressed(0, 38)
-        if deathTime <= 0 and not isInHospitalBed and not RespawnPending() and pressed then
+        if deathTime <= 0 and not isInHospitalBed and not BeingTreated and not RespawnPending() and pressed then
             holdStart = holdStart or now
             holdingRespawn = true
             hold = math.max(0.0, respawnHold - (now - holdStart) / 1000)
@@ -142,6 +143,7 @@ local function SendShowMessage()
                 and Lang:t('death_screen.respawn_hold_insured', {cost = respawnCost})
                 or Lang:t('death_screen.respawn_hold', {cost = respawnCost}),
             respawning = Lang:t('death_screen.respawning'),
+            treated = Lang:t('death_screen.treated'),
         }
     })
 end
@@ -186,10 +188,11 @@ end
 
 local function UpdateDeathScreen()
     local time = math.max(0, math.ceil(isDead and deathTime or LaststandTime))
-    local canRespawn = isDead and deathTime <= 0 and not RespawnPending()
+    local treated = BeingTreated == true
+    local canRespawn = isDead and deathTime <= 0 and not treated and not RespawnPending()
     local canRequestHelp = not emsNotified and (isDead or LaststandTime <= Config.MinimumRevive)
     local holdShown = math.floor(hold * 10 + 0.5) / 10
-    local key = ('%s|%d|%s|%.1f|%s|%s'):format(isDead and 'dead' or 'bleeding', time, tostring(canRespawn), holdShown, tostring(emsNotified), tostring(canRequestHelp))
+    local key = ('%s|%d|%s|%.1f|%s|%s|%s'):format(isDead and 'dead' or 'bleeding', time, tostring(canRespawn), holdShown, tostring(emsNotified), tostring(canRequestHelp), tostring(treated))
     if key == deathScreenState then return end
     deathScreenState = key
     SendNUIMessage({
@@ -202,6 +205,7 @@ local function UpdateDeathScreen()
         respawning = isDead and deathTime <= 0 and RespawnPending(),
         helpRequested = emsNotified,
         canRequestHelp = canRequestHelp,
+        treated = treated,
     })
 end
 
