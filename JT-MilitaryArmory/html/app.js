@@ -712,19 +712,25 @@ function loadImage(src) {
     });
 }
 
-// per-channel gain from the left / right bands (the vehicle never reaches them):
-// how much brighter shot `a` came out than shot `b` (auto exposure)
-function bandGain(a, b, w, h) {
-    const band = Math.max(4, Math.round(w * 0.08));
-    const sa = [0, 0, 0], sb = [0, 0, 0];
-    for (let y = 0; y < h; y += 2) {
-        for (let x = 0; x < w; x += 2) {
-            if (x >= band && x < w - band) { x = w - band - 1; continue; }
+// per-channel gain: how much brighter shot `a` came out than shot `b` (auto exposure),
+// from the outer ring of the frame. Median of the ratios, so a vehicle reaching the
+// edge doesn't skew it.
+function ringGain(a, b, w, h) {
+    const ring = Math.max(4, Math.round(Math.min(w, h) * 0.03));
+    const r = [[], [], []];
+    for (let y = 0; y < h; y += 3) {
+        const edgeRow = y < ring || y >= h - ring;
+        for (let x = 0; x < w; x += 3) {
+            if (!edgeRow && x >= ring && x < w - ring) { x = w - ring - 1; continue; }
             const i = (y * w + x) * 4;
-            for (let c = 0; c < 3; c++) { sa[c] += a[i + c]; sb[c] += b[i + c]; }
+            for (let c = 0; c < 3; c++) if (b[i + c] > 12) r[c].push(a[i + c] / b[i + c]);
         }
     }
-    return sa.map((v, c) => (sb[c] > 2000 ? Math.min(1.4, Math.max(0.7, v / sb[c])) : 1));
+    return r.map((v) => {
+        if (v.length < 50) return 1;
+        v.sort((x, y) => x - y);
+        return Math.min(1.4, Math.max(0.7, v[v.length >> 1]));
+    });
 }
 
 function matte(a1, a2, b1, b2, n, k1, k2, g) {
@@ -778,7 +784,7 @@ async function processPhoto(msg) {
         const n = w * h;
 
         // exposure: each "with" shot vs. its empty backdrop (from the edges of the frame)
-        const k1 = bandGain(a1, b1, w, h), k2 = bandGain(a2, b2, w, h);
+        const k1 = ringGain(a1, b1, w, h), k2 = ringGain(a2, b2, w, h);
         // and shot 2 vs. shot 1 on the vehicle itself (solid pixels from a first pass)
         let g = [1, 1, 1];
         let m = matte(a1, a2, b1, b2, n, k1, k2, g);
@@ -806,6 +812,28 @@ async function processPhoto(msg) {
         x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad);
         x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
 
+        // brightness: lift the vehicle's mid-tones to the same level for every vehicle
+        // (a dark helicopter in shade and a sand-coloured tank end up equally readable);
+        // a gamma curve, so highlights don't blow out
+        const opts = msg.opts || {};
+        const lut = new Uint8ClampedArray(256);
+        for (let v = 0; v < 256; v++) lut[v] = v;
+        if (opts.brightness > 0) {
+            const hist = new Uint32Array(256);
+            let total = 0;
+            for (let p = 0; p < n; p++) {
+                if (alpha[p] < 0.9) continue;
+                const j = p * 3;
+                hist[Math.round(0.2126 * color[j] + 0.7152 * color[j + 1] + 0.0722 * color[j + 2]) | 0]++;
+                total++;
+            }
+            let acc = 0, med = 128;
+            for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total / 2) { med = v; break; } }
+            const m = Math.min(0.95, Math.max(0.03, med / 255));
+            const e = Math.min(1.1, Math.max(0.5, Math.log(opts.brightness) / Math.log(m))); // lift dark ones, barely touch bright ones
+            for (let v = 0; v < 256; v++) lut[v] = Math.round(255 * Math.pow(v / 255, e));
+        }
+
         const out = ctx.createImageData(w, h);
         const o = out.data;
         for (let y = y0; y <= y1; y++) {
@@ -821,21 +849,58 @@ async function processPhoto(msg) {
                     if (gr > mx) gr = mx;
                     else if (mn > gr) { r -= mn - gr; b -= mn - gr; }
                 }
-                o[i] = r; o[i + 1] = gr; o[i + 2] = b;
+                o[i] = lut[r | 0]; o[i + 1] = lut[gr | 0]; o[i + 2] = lut[b | 0];
                 o[i + 3] = Math.round(al * 255);
             }
         }
         ctx.putImageData(out, 0, 0);
 
-        const W = 640, H = 360, M = 0.07;
+        // framing: the vehicle's box fills the picture (same margins for every vehicle)
+        const W = Math.min(1600, Math.max(320, opts.width | 0 || 1024)), H = Math.round(W * 9 / 16), M = 0.035;
         const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
         const sc = Math.min(W * (1 - 2 * M) / bw, H * (1 - 2 * M) / bh);
+        // shrink in halves first: a clean, anti-aliased downscale
+        let src = c, sx = x0, sy = y0, sw = bw, sh = bh;
+        const targetW = bw * sc;
+        while (targetW < sw / 2) {
+            const t = document.createElement('canvas');
+            t.width = Math.round(sw / 2); t.height = Math.round(sh / 2);
+            const tc = t.getContext('2d');
+            tc.imageSmoothingQuality = 'high';
+            tc.drawImage(src, sx, sy, sw, sh, 0, 0, t.width, t.height);
+            src = t; sx = 0; sy = 0; sw = t.width; sh = t.height;
+        }
+        const fit = Math.min(W * (1 - 2 * M) / sw, H * (1 - 2 * M) / sh);
         const oc = document.createElement('canvas');
         oc.width = W; oc.height = H;
-        const octx = oc.getContext('2d');
+        const octx = oc.getContext('2d', { willReadFrequently: true });
         octx.imageSmoothingQuality = 'high';
-        octx.drawImage(c, x0, y0, bw, bh, (W - bw * sc) / 2, (H - bh * sc) / 2, bw * sc, bh * sc);
-        post('photoResult', { id: msg.id, image: oc.toDataURL('image/webp', 0.92) });
+        octx.drawImage(src, sx, sy, sw, sh, (W - sw * fit) / 2, (H - sh * fit) / 2, sw * fit, sh * fit);
+
+        // light unsharp mask (inside the vehicle only, so the edges don't get halos)
+        const amt = Math.min(1, Math.max(0, Number(opts.sharpen) || 0));
+        if (amt > 0) {
+            const im = octx.getImageData(0, 0, W, H);
+            const d = im.data, src2 = new Uint8ClampedArray(d);
+            for (let y = 1; y < H - 1; y++) {
+                for (let x = 1; x < W - 1; x++) {
+                    const i = (y * W + x) * 4;
+                    if (src2[i + 3] < 250) continue;
+                    for (let ch = 0; ch < 3; ch++) {
+                        let sum = 0, cnt = 0;
+                        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                            const j = ((y + dy) * W + x + dx) * 4;
+                            if (src2[j + 3] < 250) continue;
+                            sum += src2[j + ch]; cnt++;
+                        }
+                        const v = src2[i + ch];
+                        d[i + ch] = v + amt * (v - sum / cnt);
+                    }
+                }
+            }
+            octx.putImageData(im, 0, 0);
+        }
+        post('photoResult', { id: msg.id, image: oc.toDataURL('image/webp', 0.95) });
     } catch (e) {
         post('photoResult', { id: msg.id, image: null });
     }
