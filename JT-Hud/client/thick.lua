@@ -1,10 +1,16 @@
 
-local lastHeading   = nil
 local pauseMenuActive = false
+local lastHudPayload  = {}
+local lastVehPayload  = {}
+local lastNavPayload  = {}
+local hudLoaded       = false   -- cached playerLoaded(), refreshed by the slow loop below
+local hudStarting     = false
+local mainRunning     = false
+local atan2           = math.atan2 or math.atan
 
 
--- Sx-HUD copied waypoint helpers for street/map name block
-local function Sx_GetWaypointCoords()
+-- Waypoint helpers for the street block
+local function GetWaypointCoords()
     local waypointBlip = GetFirstBlipInfoId(8)
     if DoesBlipExist(waypointBlip) then
         return GetBlipInfoIdCoord(waypointBlip)
@@ -12,55 +18,67 @@ local function Sx_GetWaypointCoords()
     return nil
 end
 
-local function Sx_GetDirectionToWaypoint()
-    local playerPed = PlayerPedId()
-    local playerCoords = GetEntityCoords(playerPed)
-    local playerHeading = GetEntityHeading(playerPed)
-    local waypointCoords = Sx_GetWaypointCoords()
+-- 0 = straight ahead, +90 = right, -90 = left, ±180 = behind
+local function GetWaypointBearing(pedCoords, heading, wp)
+    local angle = math.deg(atan2(wp.y - pedCoords.y, wp.x - pedCoords.x))   -- 0 = east, counter-clockwise
+    return ((90 - (angle - heading)) + 180) % 360 - 180
+end
 
-    if waypointCoords then
-        local dx = waypointCoords.x - playerCoords.x
-        local dy = waypointCoords.y - playerCoords.y
-        local angleToWaypoint = math.deg(math.atan2(dy, dx))
-        local relativeAngle = angleToWaypoint - playerHeading
+local function BearingToDirection(b)
+    local a = math.abs(b)
+    if a < 22.5 then return "Front" end
+    if a > 135  then return "Back" end
+    if a < 67.5 then return b > 0 and "Halfright" or "Halfleft" end
+    return b > 0 and "Right" or "Left"
+end
 
-        relativeAngle = (relativeAngle + 180) % 360 - 180
+local CARDINALS = { "N", "NW", "W", "SW", "S", "SE", "E", "NE" }   -- GTA heading turns counter-clockwise
+local function HeadingToCardinal(h)
+    return CARDINALS[(math.floor((h + 22.5) / 45) % 8) + 1]
+end
 
-        if relativeAngle >= -45 and relativeAngle < 45 then
-            return "Right"
-        elseif relativeAngle >= 22.5 and relativeAngle < 67.5 then
-            return "Halfright"
-        elseif relativeAngle >= 45 and relativeAngle < 135 then
-            return "Front"
-        elseif relativeAngle >= 112.5 and relativeAngle < 157.5 then
-            return "Halfleft"
-        elseif relativeAngle >= -135 and relativeAngle < -45 then
-            return "Back"
-        else
-            return "Left"
-        end
-    else
-        return "None"
+-- config.lua values the NUI needs (also returned by the "hudReady" NUI callback)
+function Koci.Client.HUD:GetNuiConfig()
+    local bars = {}
+    for name, opt in pairs(Config.Settings.StatusBars or {}) do
+        bars[name] = (type(opt) == "table" and opt.active) and true or false
     end
+    local ui = Config.Interface or {}
+    return {
+        action        = "config",
+        bars          = bars,
+        kmH           = Config.Settings.VehicleHUD.kmH ~= false,
+        smooth        = ui.smoothAnimations ~= false,
+        watermark     = ui.watermark ~= false,
+        watermarkText = ui.watermarkText,
+    }
 end
 
 
-function Koci.Client.HUD:Start(xPlayer)
+function Koci.Client.HUD:Start()
+    -- onResourceStart and OnPlayerLoaded can both call this; only one start may run
+    if hudStarting then return end
+    hudStarting = true
     CreateThread(function()
         while not playerLoaded() do Wait(500) end
         Wait(500)
+        hudStarting = false
+        hudLoaded   = true
 
-        self:MainThick()
+        if not mainRunning then self:MainThick() end
         self.data.vehicle.kmH = Config.Settings.VehicleHUD.kmH
+        SendNUIMessage(self:GetNuiConfig())
 
         local ped = PlayerPedId()
         local veh = GetVehiclePedIsIn(ped, false)
         if veh ~= 0 and not IsThisModelABicycle(GetEntityModel(veh)) then
-            self.data.vehicle.inVehicle  = true
-            self.data.vehicle.entity     = veh
-            self.data.vehicle.fuel.type  = self:CheckVehicleFuelType(GetEntityModel(veh))
+            if not self.data.vehicle.inVehicle then
+                self.data.vehicle.inVehicle  = true
+                self.data.vehicle.entity     = veh
+                self.data.vehicle.fuel.type  = self:CheckVehicleFuelType(GetEntityModel(veh))
+                self:ActivateVehicleHud(veh)
+            end
             DisplayRadar(true)
-            self:ActivateVehicleHud(veh)
         else
             DisplayRadar(self.data.vehicle.miniMap.alwaysActive)
         end
@@ -70,13 +88,10 @@ function Koci.Client.HUD:Start(xPlayer)
             self:SetMiniMap(self.data.vehicle.miniMap.style)
         end)
 
-        Wait(300)
-        SendNUIMessage({ action = "hud", show = true,
-            voice   = { talking = false, range = 3, radio = false },
-            health  = 100, armor = 0, playerDead = false,
-            hunger  = 100, thirst = 100, stress = 0,
-            oxygen  = { range = 100, inwater = false, running = false },
-        })
+        -- show the HUD; the main loop sends the real values on its next tick
+        self.data.isVisible = true
+        lastHudPayload = {}
+        SendNUIMessage({ action = "hud", show = true })
     end)
 end
 
@@ -87,19 +102,9 @@ function Koci.Client.HUD:Toggle(state)
         self.data.isVisible = state
     end
     if self.data.isVisible then
-        local bars = self.data.bars
-        SendNUIMessage({
-            action     = "hud",
-            show       = true,
-            voice      = { talking = bars.voice.isTalking or false, range = bars.voice.range or 3, radio = bars.voice.radio or false },
-            health     = bars.health  or 100,
-            armor      = bars.armor   or 0,
-            playerDead = false,
-            hunger     = bars.hunger  or 100,
-            thirst     = bars.thirst  or 100,
-            stress     = bars.stress  or 0,
-            oxygen     = { range = 100, inwater = false, running = false },
-        })
+        -- no placeholder values (they used to flash full health); the main loop resends real ones
+        lastHudPayload = {}
+        SendNUIMessage({ action = "hud", show = true })
     else
         SendNUIMessage({ action = "hideHud", show = false })
     end
@@ -114,8 +119,17 @@ end)
 -- ──────────────────────────────────────────────────────────
 CreateThread(function()
     while true do
+        hudLoaded = playerLoaded() and true or false
         SetRadarBigmapEnabled(false, false)
         SetRadarZoom(1000)
+        -- minimap only in vehicles (unless alwaysActive / cinematic)
+        if hudLoaded
+            and not Koci.Client.HUD.data.vehicle.inVehicle
+            and not Koci.Client.HUD.data.vehicle.miniMap.alwaysActive
+            and not Koci.Client.HUD.data.isCinematicHudActive
+            and GetVehiclePedIsIn(PlayerPedId(), false) == 0 then
+            DisplayRadar(false)
+        end
         Wait(500)
     end
 end)
@@ -198,9 +212,6 @@ end
 -- ──────────────────────────────────────────────────────────
 --  Main Thick (player stats loop)
 -- ──────────────────────────────────────────────────────────
-local lastHudPayload  = {}
-local lastVehPayload  = {}
-local lastNavPayload  = {}
 local lastClock       = {}
 
 local function DeepEqual(a, b)
@@ -213,6 +224,7 @@ local function DeepEqual(a, b)
 end
 
 function Koci.Client.HUD:MainThick()
+    mainRunning = true
     CreateThread(function()
         while playerLoaded() do
             local playerId   = PlayerId()
@@ -300,8 +312,10 @@ function Koci.Client.HUD:MainThick()
             -- ── vehicle ──
             local vehicle = GetVehiclePedIsIn(playerPedId, false)
             if Config.Settings.VehicleHUD.active then
-                if vehicle ~= 0 and not self.data.vehicle.inVehicle then
+                if vehicle ~= 0 and (not self.data.vehicle.inVehicle or vehicle ~= self.data.vehicle.entity) then
                     if not IsThisModelABicycle(GetEntityModel(vehicle)) then
+                        lastVehPayload = {}
+                        lastNavPayload = {}
                         self.data.vehicle.inVehicle    = true
                         self.data.vehicle.entity       = vehicle
                         self.data.vehicle.isSeatbeltOn = false  -- غير مربوط عند دخول السيارة
@@ -320,6 +334,8 @@ function Koci.Client.HUD:MainThick()
                     self.data.vehicle.isSeatbeltOn      = false  -- رجّع للافتراضي
                     self.data.vehicle.cruiseControlStatus = false
                     self.data.vehicle._lastEntitySpeed  = 0
+                    lastVehPayload = {}
+                    lastNavPayload = {}
                     -- نخفي الخريطة لما نطلع من السيارة
                     if not self.data.isCinematicHudActive then
                         DisplayRadar(false)
@@ -332,6 +348,7 @@ function Koci.Client.HUD:MainThick()
 
             Wait(200)
         end
+        mainRunning = false
     end)
 end
 
@@ -383,7 +400,7 @@ end
 
 function Koci.Client.HUD:fVehicleInfoThick(vehicle)
     CreateThread(function()
-        while self.data.vehicle.inVehicle and DoesEntityExist(vehicle) do
+        while self.data.vehicle.inVehicle and self.data.vehicle.entity == vehicle and DoesEntityExist(vehicle) do
             local ped          = PlayerPedId()
             self.data.vehicle.isPassenger = GetPedInVehicleSeat(vehicle, -1) ~= ped
 
@@ -407,9 +424,15 @@ function Koci.Client.HUD:fVehicleInfoThick(vehicle)
             local isAircraft = (vehClass == 15 or vehClass == 16)
             local altitude   = isAircraft and GetEntityCoords(ped).z or 0
 
-            local rpmMat = math.ceil(rpm * 10000 - 2001) / 80
+            -- 0..100; rounded so an idling engine doesn't send a message every tick
+            local rpmMat = math.max(0, math.floor((rpm * 10000 - 2001) / 80 + 0.5))
 
-            local fuelLevel = self:GetFuelExport() or GetVehicleFuelLevel(vehicle)
+            local fuelLevel = tonumber(self:GetFuelExport()) or GetVehicleFuelLevel(vehicle)
+
+            -- no belt warning where a belt can't be worn (bikes, boats, aircraft...)
+            local beltWarning = not self.data.vehicle.isSeatbeltOn
+                and not isAircraft
+                and not Config.SeatBeltBlackListVehicles[vehClass]
 
             local payload = {
                 action     = "vehHud",
@@ -417,21 +440,18 @@ function Koci.Client.HUD:fVehicleInfoThick(vehicle)
                 speed      = speed,
                 rpm        = rpmMat,
                 gear       = gear,
-                fuel       = fuelLevel,
+                fuel       = math.floor(fuelLevel + 0.5),
                 engineHp   = engineHealth,
-                seatbelt   = not self.data.vehicle.isSeatbeltOn,
+                seatbelt   = beltWarning,
+                cruise     = self.data.vehicle.cruiseControlStatus and true or false,
+                electric   = self.data.vehicle.fuel.type == "electric",
                 isAircraft = isAircraft,
-                altitude   = altitude,
+                altitude   = math.floor(altitude),
             }
 
-            -- الحزام يُرسَل دايمًا بدون DeepEqual check عشان يستجيب فوراً
-            local seatbeltChanged = (lastVehPayload.seatbelt ~= payload.seatbelt)
             if not DeepEqual(payload, lastVehPayload) then
                 SendNUIMessage(payload)
                 lastVehPayload = payload
-            elseif seatbeltChanged then
-                -- أرسل فقط الحزام لو هو اللي تغيّر
-                SendNUIMessage({ action = "vehHud", seatbelt = payload.seatbelt })
             end
 
             Wait(self.data.vehicle.thick.wait)
@@ -445,7 +465,7 @@ end
 CreateThread(function()
     while true do
         local waitMs = 1000
-        if playerLoaded() and Koci.Client.HUD.data.vehicle.inVehicle then
+        if hudLoaded and Koci.Client.HUD.data.vehicle.inVehicle then
             local ped       = PlayerPedId()
             local pedCoords = GetEntityCoords(ped)
 
@@ -474,14 +494,17 @@ CreateThread(function()
                 directions = "None",
             }
 
-            local blipCoords = Sx_GetWaypointCoords()
+            local heading = GetEntityHeading(ped)
+            data.heading  = HeadingToCardinal(heading)
+
+            local blipCoords = GetWaypointCoords()
             if blipCoords then
-                data.waydist = GetDistanceBetweenCoords(
-                    pedCoords.x, pedCoords.y, pedCoords.z,
-                    blipCoords.x, blipCoords.y, blipCoords.z,
-                    true
-                ) / 1000
-                data.directions = Sx_GetDirectionToWaypoint()
+                -- km, rounded to 10 m; bearing rounded to 5° so small wobbles don't resend
+                local dist = #(vector2(pedCoords.x, pedCoords.y) - vector2(blipCoords.x, blipCoords.y)) / 1000
+                local bearing = GetWaypointBearing(pedCoords, heading, blipCoords)
+                data.waydist    = math.floor(dist * 100 + 0.5) / 100
+                data.bearing    = math.floor(bearing / 5 + 0.5) * 5
+                data.directions = BearingToDirection(bearing)
                 waitMs = 600
             else
                 waitMs = 1100
@@ -510,22 +533,36 @@ end
 -- ──────────────────────────────────────────────────────────
 --  Fuel
 -- ──────────────────────────────────────────────────────────
+local FUEL_RESOURCES = { "ox_fuel", "cdn-fuel", "ps-fuel", "frkn-fuelstationv3" }
+local fuelProvider, fuelProviderAt = false, nil
+
+local function GetFuelProvider()
+    local now = GetGameTimer()
+    if not fuelProviderAt or now - fuelProviderAt > 10000 then
+        fuelProviderAt = now
+        fuelProvider = false
+        for i = 1, #FUEL_RESOURCES do
+            if Utils.Functions:hasResource(FUEL_RESOURCES[i]) then
+                fuelProvider = FUEL_RESOURCES[i]
+                break
+            end
+        end
+    end
+    return fuelProvider
+end
+
 function Koci.Client.HUD:GetFuelExport()
     local veh = self.data.vehicle.entity
     if not veh or not DoesEntityExist(veh) then return nil end
 
-    if Utils.Functions:hasResource("ox_fuel") then
+    local provider = GetFuelProvider()
+    if provider == "ox_fuel" then
         local state = Entity(veh).state
         return state and state.fuel or nil
-    elseif Utils.Functions:hasResource("cdn-fuel") then
-        return exports["cdn-fuel"]:GetFuel(veh)
-    elseif Utils.Functions:hasResource("ps-fuel") then
-        return exports["ps-fuel"]:GetFuel(veh)
-    elseif Utils.Functions:hasResource("frkn-fuelstationv3") then
-        return exports["frkn-fuelstationv3"]:GetFuel(veh)
-    else
-        return Utils.Functions:CustomFuelExport(veh)
+    elseif provider then
+        return exports[provider]:GetFuel(veh)
     end
+    return Utils.Functions:CustomFuelExport(veh)
 end
 
 -- ──────────────────────────────────────────────────────────
@@ -683,7 +720,7 @@ end
 function Koci.Client.HUD:LowFuelThread(vehicle)
     if not Config.Settings.VehicleHUD.lowFuelNotify then return end
     CreateThread(function()
-        while self.data.vehicle.inVehicle and DoesEntityExist(vehicle) do
+        while self.data.vehicle.inVehicle and self.data.vehicle.entity == vehicle and DoesEntityExist(vehicle) do
             local ped = PlayerPedId()
             if playerLoaded() and IsPedInAnyVehicle(ped, false) then
                 local fuel = self:GetFuelExport()
@@ -728,6 +765,18 @@ CreateThread(function()
     if ok and type(items) == "table" then OxItems = items end
 end)
 
+local reserveCache = { weapon = nil, clip = -1, value = 0, at = 0 }
+
+local function GetOxReserve(weaponName, ammoItem, clip)
+    local c, now = reserveCache, GetGameTimer()
+    if c.weapon ~= weaponName or clip > c.clip or now - c.at > 1500 then
+        c.weapon, c.at = weaponName, now
+        c.value = exports.ox_inventory:Search("count", ammoItem) or 0
+    end
+    c.clip = clip
+    return c.value
+end
+
 local function GetAmmoState()
     local ped = PlayerPedId()
     if not IsPedArmed(ped, 6) then return { show = false, clip = 0, reserve = 0 } end
@@ -750,38 +799,24 @@ local function GetAmmoState()
     local ammoItem = itemData.ammoname or itemData.ammo or itemData.ammoName
     if not ammoItem or ammoItem == "" then return { show = true, clip = clip, reserve = 0 } end
 
-    local reserve = exports.ox_inventory:Search("count", ammoItem) or 0
-    return { show = true, clip = clip, reserve = reserve }
+    return { show = true, clip = clip, reserve = GetOxReserve(CurrentWeapon.name, ammoItem, clip) }
 end
 
 
 
--- Force minimap off while walking; it only appears after entering a vehicle
-CreateThread(function()
-    while true do
-        if playerLoaded() then
-            local ped = PlayerPedId()
-            local veh = GetVehiclePedIsIn(ped, false)
-            if veh == 0
-                and not Koci.Client.HUD.data.vehicle.miniMap.alwaysActive
-                and not Koci.Client.HUD.data.isCinematicHudActive then
-                DisplayRadar(false)
-            end
-        end
-        Wait(500)
-    end
-end)
-
 -- يخفي HUD الأصلي لـ GTA كل فريم حتى لا يظهر بين الفريمات
+-- (the only per-frame loop: constant list, no table built per frame, no state-bag read per frame)
+local HIDDEN_COMPONENTS = { 1, 2, 3, 4, 6, 7, 8, 9, 13, 20, 21 }   -- 21 = health/armour bars near minimap
 CreateThread(function()
+    local list, count = HIDDEN_COMPONENTS, #HIDDEN_COMPONENTS
     while true do
-        if playerLoaded() then
-            for _, id in ipairs({ 1, 2, 3, 4, 6, 7, 8, 9, 13, 20 }) do
-                HideHudComponentThisFrame(id)
-            end
-            -- إخفاء الهيل والدرع حق الخريطة
-            HideHudComponentThisFrame(21)  -- health/armour bars near minimap
+        if hudLoaded then
+            for i = 1, count do HideHudComponentThisFrame(list[i]) end
             DisplayAmmoThisFrame(false)
+        else
+            HideHudComponentThisFrame(3)    -- CASH
+            HideHudComponentThisFrame(4)    -- MP_CASH
+            HideHudComponentThisFrame(13)   -- CASH_CHANGE
         end
         Wait(0)
     end
@@ -791,7 +826,7 @@ CreateThread(function()
     local lastAmmo = {}
     while true do
         local waitMs = 400
-        if playerLoaded() then
+        if hudLoaded then
             SetWeaponsNoAutoswap(true)
 
             local state = GetAmmoState()
@@ -803,13 +838,6 @@ CreateThread(function()
         end
         Wait(waitMs)
     end
-end)
-
--- ──────────────────────────────────────────────────────────
---  GC
--- ──────────────────────────────────────────────────────────
-CreateThread(function()
-    while true do Wait(60000); collectgarbage("collect") end
 end)
 
 -- ──────────────────────────────────────────────────────────

@@ -93,7 +93,7 @@ RegisterNetEvent("hud:client:OnMoneyChange", function(moneyType, amount, bloom)
 end)
 
 RegisterNetEvent("hud:client:ShowAccounts", function(moneyType, amount)
-    SendNUIMessage({ action = 'money', money = 'cehckmoney', bank = math.floor(amount) })
+    SendNUIMessage({ action = 'money', money = 'cehckmoney', type = moneyType, bank = math.floor(tonumber(amount) or 0) })
 end)
 
 -- ──────────────────────────────────────────────────────────
@@ -157,6 +157,11 @@ end)
 -- ──────────────────────────────────────────────────────────
 --  NUI Callbacks
 -- ──────────────────────────────────────────────────────────
+-- the page asks for config.lua values once it has loaded
+RegisterNUICallback("hudReady", function(_, cb)
+    cb(Koci.Client.HUD:GetNuiConfig())
+end)
+
 RegisterNUICallback("OnHideSettingsMenu", function(_, cb)
     SetNuiFocus(false, false)
     cb(true)
@@ -214,11 +219,11 @@ end
 RegisterCommand("cash", function()
     local pd   = Koci.Client:GetPlayerData() or {}
     local cash = (pd.money and pd.money["cash"]) or 0
-    SendNUIMessage({ action = "money", money = "cehckmoney", bank = math.floor(cash) })
+    SendNUIMessage({ action = "money", money = "cehckmoney", type = "cash", bank = math.floor(cash) })
 end, false)
 
 RegisterCommand("bank", function()
     local pd   = Koci.Client:GetPlayerData() or {}
     local bank = (pd.money and pd.money["bank"]) or 0
-    SendNUIMessage({ action = "money", money = "cehckmoney", bank = math.floor(bank) })
+    SendNUIMessage({ action = "money", money = "cehckmoney", type = "bank", bank = math.floor(bank) })
 end, false)

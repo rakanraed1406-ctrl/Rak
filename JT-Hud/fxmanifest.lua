@@ -34,6 +34,9 @@ ui_page 'html/index.html'
 
 files {
     'html/index.html',
+    'html/hud.css',
+    'html/hud.js',
+    'html/fonts/oxanium.woff2',
     'html/seatbelt.svg',
     'html/seatbelt2.svg',
 }

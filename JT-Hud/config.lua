@@ -46,6 +46,13 @@ Config.Settings = {
     },
 }
 
+-- ── الواجهة (NUI) ──
+Config.Interface = {
+    smoothAnimations = true,            -- false = بدون أي حركة نهائياً (أخف شي للأجهزة الضعيفة)
+    watermark        = true,            -- إظهار الواتر مارك تحت (F9 يخفيه/يظهره)
+    watermarkText    = "DIS.GG/JTCFW",  -- نص الواتر مارك
+}
+
 Config.ElectricVehicles = {
     "Imorgon","Neon","Raiden","Cyclone","Voltic","Voltic2",
     "Tezeract","Airtug","Caddy","Caddy2","Caddy3",

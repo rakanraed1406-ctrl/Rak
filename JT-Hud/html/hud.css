@@ -1,0 +1,368 @@
+/* ============================================================================
+   JT-Hud — "Navy Leaf" identity
+   One shape language everywhere: deep navy glass panels with leaf corners
+   (12px / 3px), a royal-blue key line, Oxanium figures.
+
+   Performance rules this file follows:
+   - No infinite animations: when nothing changes, the page draws nothing.
+   - No blur / backdrop-filter / animated shadows.
+   - Moving parts use transform / opacity only (GPU-composited), except the
+     dial arcs, which are tiny SVG strokes.
+   ============================================================================ */
+
+:root {
+    --navy-950: #030813;
+    --navy-900: #050c20;
+    --navy-800: #0b1a3d;
+    --navy-700: #13295e;
+    --blue: #3a6cff;
+    --blue-deep: #1a4bd6;
+    --blue-soft: #8fb0ff;
+    --ice: #e8eeff;
+    --ice-dim: #8d9bc4;
+    --ice-ghost: rgba(141, 155, 196, 0.28);
+    --line: rgba(92, 130, 255, 0.30);
+    --line-dim: rgba(92, 130, 255, 0.14);
+    --panel-a: rgba(11, 26, 61, 0.90);
+    --panel-b: rgba(4, 10, 28, 0.90);
+    --danger: #ff4f6a;
+    --warn: #ffb547;
+    --good: #3ddc97;
+
+    --leaf: 12px 3px 12px 3px;
+    --leaf-sm: 9px 3px 9px 3px;
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --font: 'Oxanium', 'Rajdhani', 'Segoe UI', sans-serif;
+
+    /* minimap box (updated from Lua via setMapFrame) */
+    --map-x: 12px;
+    --map-y: 70px;
+    --map-w: 315px;
+    --map-h: 198px;
+    --dial: 184px;
+}
+
+/* Oxanium (SIL OFL 1.1, see fonts/OFL.txt), bundled: the HUD makes no network requests */
+@font-face {
+    font-family: 'Oxanium';
+    src: url('fonts/oxanium.woff2') format('woff2');
+    font-weight: 200 800;
+    font-style: normal;
+    font-display: block;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: transparent;
+    font-family: var(--font);
+    color: var(--ice);
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+}
+
+.ic { width: 1em; height: 1em; fill: currentColor; display: block; flex: none; }
+
+/* Low-end mode (Config.Interface.smoothAnimations = false) */
+body.lite *, body.lite *::before, body.lite *::after {
+    transition: none !important;
+    animation: none !important;
+}
+
+/* ── canvas: everything is laid out on 1920x1080 and scaled by height ── */
+.ui-scale {
+    position: fixed; left: 0; top: 0;
+    width: 1920px; height: 1080px;
+    transform-origin: 0 0;
+    pointer-events: none;
+}
+#hud { position: absolute; inset: 0; transition: opacity 0.2s ease; }
+#hud.off { opacity: 0; visibility: hidden; transition: opacity 0.2s ease, visibility 0s linear 0.2s; }
+
+/* show / hide helper: JS toggles .on, then sets [hidden] after the fade */
+.fx { opacity: 0; transform: translateX(10px); transition: opacity 0.24s var(--ease), transform 0.24s var(--ease); }
+.fx.fade { transform: none; }
+.fx.up { transform: translateY(8px); }
+.fx.on { opacity: 1; transform: none; }
+[hidden] { display: none !important; }
+
+/* ── panel ── */
+.nv {
+    position: relative;
+    background: linear-gradient(155deg, var(--panel-a), var(--panel-b));
+    border: 1px solid var(--line);
+    border-radius: var(--leaf);
+    box-shadow: 0 8px 22px rgba(0, 3, 14, 0.45), inset 0 1px 0 rgba(143, 176, 255, 0.10);
+}
+.nv.key::before {
+    content: '';
+    position: absolute; left: -1px; top: 50%;
+    width: 3px; height: 16px; margin-top: -8px;
+    background: var(--blue);
+    border-radius: 0 2px 2px 0;
+    box-shadow: 0 0 8px rgba(58, 108, 255, 0.85);
+}
+
+/* ══════════════════ TOP RIGHT ══════════════════ */
+.tr-stack {
+    position: absolute; top: 26px; right: 26px;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+}
+
+.clock {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 15px 8px 17px;
+}
+.clock-time { display: flex; align-items: baseline; }
+.clock-time b { font-size: 21px; font-weight: 700; letter-spacing: 0.5px; line-height: 1; }
+.clock-time i { font-style: normal; font-size: 10px; font-weight: 700; color: var(--blue-soft); letter-spacing: 1px; margin-left: 4px; }
+.clock-div { width: 1px; height: 24px; background: var(--line); }
+.clock-date { display: flex; flex-direction: column; gap: 3px; line-height: 1; }
+.clock-date i { font-style: normal; font-size: 9px; font-weight: 600; color: var(--blue-soft); letter-spacing: 2.6px; }
+.clock-date b { font-size: 11px; font-weight: 600; letter-spacing: 1.2px; }
+
+.ammo {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 15px 7px 16px;
+}
+.ammo .ic { font-size: 17px; color: var(--blue-soft); }
+.ammo-clip { font-size: 24px; font-weight: 700; line-height: 1; min-width: 28px; text-align: right; transition: color 0.2s; }
+.ammo-clip.empty { color: var(--danger); }
+.ammo-res { font-size: 15px; font-weight: 600; color: var(--ice-dim); line-height: 1; }
+.ammo-res i { font-style: normal; color: var(--ice-ghost); margin-right: 3px; }
+
+.money {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 15px 7px 14px;
+}
+.money-ic {
+    width: 28px; height: 28px; border-radius: 8px 2px 8px 2px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(58, 108, 255, 0.16); border: 1px solid var(--line);
+    font-size: 14px; color: var(--blue-soft);
+}
+.money-txt { display: flex; flex-direction: column; gap: 3px; line-height: 1; }
+.money-txt i { font-style: normal; font-size: 9px; font-weight: 600; letter-spacing: 2.4px; color: var(--ice-dim); }
+.money-txt b { font-size: 17px; font-weight: 700; letter-spacing: 0.4px; }
+.money-delta { font-size: 13px; font-weight: 700; padding-left: 4px; }
+.money-delta.pos { color: var(--good); }
+.money-delta.neg { color: var(--danger); }
+
+/* ══════════════════ STATUS TILES ══════════════════ */
+.stats {
+    position: absolute; left: var(--map-x); bottom: 14px;
+    display: flex; gap: 6px;
+}
+.stat {
+    --c: 143, 176, 255;
+    position: relative;
+    contain: layout paint style;
+    width: 40px; height: 48px;
+    border-radius: 11px 3px 11px 3px;
+    background: linear-gradient(160deg, var(--panel-a), var(--panel-b));
+    border: 1px solid var(--line);
+    overflow: hidden;
+    box-shadow: 0 6px 16px rgba(0, 3, 14, 0.4);
+}
+.stat-fill {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 100%;
+    transform-origin: 50% 100%;
+    background: linear-gradient(to top, rgba(var(--c), 0.46), rgba(var(--c), 0.12));
+    transition: transform 0.45s var(--ease);
+}
+.stat-lvl {
+    position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: rgb(var(--c));
+    box-shadow: 0 0 6px rgba(var(--c), 0.9);
+    transition: transform 0.45s var(--ease);
+}
+.stat > .ic {
+    position: absolute; left: 50%; top: 50%;
+    width: 17px; height: 17px; margin: -8.5px 0 0 -8.5px;
+    color: var(--ice);
+    transition: color 0.2s;
+}
+.stat.crit { border-color: rgba(255, 79, 106, 0.7); }
+.stat.crit > .ic { color: var(--danger); }
+.stat.crit::after {
+    content: ''; position: absolute; inset: 0;
+    background: rgba(255, 79, 106, 0.28);
+    opacity: 0;
+    animation: critFlash 0.5s ease-in-out 3;   /* three flashes, then still */
+}
+@keyframes critFlash { 50% { opacity: 1; } }
+
+#st-health  { --c: 255, 79, 106; }
+#st-armor   { --c: 90, 170, 255; }
+#st-hunger  { --c: 255, 181, 71; }
+#st-thirst  { --c: 63, 200, 255; }
+#st-stress  { --c: 177, 140, 255; }
+#st-stamina { --c: 61, 220, 151; }
+#st-stamina.water { --c: 63, 200, 255; }
+
+/* voice: no level, a range meter + talk / radio states */
+#st-voice > .ic { margin-top: -12px; }
+#st-voice .stat-fill { transform: none; opacity: 0; transition: opacity 0.15s; }
+#st-voice.talk  { --c: 58, 108, 255; border-color: rgba(58, 108, 255, 0.75); }
+#st-voice.radio { --c: 255, 181, 71; border-color: rgba(255, 181, 71, 0.75); }
+#st-voice.talk .stat-fill, #st-voice.radio .stat-fill { opacity: 1; }
+#st-voice .stat-lvl { display: none; }
+.vbars {
+    position: absolute; left: 50%; bottom: 9px; margin-left: -11px;
+    display: flex; gap: 2px;
+}
+.vbars i { width: 6px; height: 3px; border-radius: 1px; background: var(--ice-ghost); transition: background 0.15s; }
+.vbars i.on { background: rgb(var(--c)); }
+#st-voice:not(.talk):not(.radio) .vbars i.on { background: var(--blue-soft); }
+
+/* ══════════════════ MINIMAP FRAME + STREET ══════════════════ */
+.mapframe {
+    position: absolute; left: var(--map-x); bottom: var(--map-y);
+    width: var(--map-w); height: var(--map-h);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    box-shadow: 0 0 0 1px rgba(3, 8, 19, 0.55), 0 10px 26px rgba(0, 3, 14, 0.4);
+}
+.mapframe i { position: absolute; width: 16px; height: 16px; border: 0 solid var(--blue); }
+.mapframe .tl { left: -2px;  top: -2px;    border-width: 2px 0 0 2px; border-top-left-radius: 5px; }
+.mapframe .tr { right: -2px; top: -2px;    border-width: 2px 2px 0 0; }
+.mapframe .bl { left: -2px;  bottom: -2px; border-width: 0 0 2px 2px; }
+.mapframe .br { right: -2px; bottom: -2px; border-width: 0 2px 2px 0; border-bottom-right-radius: 5px; }
+
+.street {
+    position: absolute; left: var(--map-x);
+    contain: layout style;
+    bottom: calc(var(--map-y) + var(--map-h) + 9px);
+    width: var(--map-w); height: 48px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 12px 0 8px;
+}
+.nav {
+    width: 32px; height: 32px; flex: none;
+    border-radius: 9px 3px 9px 3px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(58, 108, 255, 0.14);
+    border: 1px solid var(--line);
+    color: var(--blue-soft);
+    transition: background 0.25s, border-color 0.25s, color 0.25s;
+}
+.nav .ic { font-size: 15px; }
+.nav .ic.arrow { transition: transform 0.5s var(--ease); }
+.nav.wp { background: var(--blue-deep); border-color: var(--blue); color: #fff; }
+.street-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; line-height: 1; }
+.street-txt i {
+    font-style: normal; font-size: 10px; font-weight: 600; letter-spacing: 1.8px; color: var(--blue-soft);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.street-txt b {
+    font-size: 15px; font-weight: 700; letter-spacing: 0.3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.street-meta { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; line-height: 1; }
+.street-head {
+    min-width: 28px; padding: 3px 5px 2px; text-align: center;
+    font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--ice);
+    border: 1px solid var(--line); border-radius: 6px 2px 6px 2px;
+}
+.street-dist { font-size: 10px; font-weight: 600; letter-spacing: 1px; color: var(--ice-dim); }
+
+/* ══════════════════ VEHICLE DIAL ══════════════════ */
+.veh {
+    position: absolute;
+    left: calc(var(--map-x) + var(--map-w) + 20px);
+    bottom: calc(var(--map-y) + (var(--map-h) - var(--dial)) / 2);
+    display: flex; align-items: center; gap: 12px;
+}
+.dial {
+    position: relative; flex: none;
+    contain: layout paint style;          /* speed / arc updates repaint the dial only */
+    width: var(--dial); height: var(--dial);
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 38%, rgba(19, 41, 94, 0.93) 0%, rgba(5, 12, 32, 0.93) 60%, rgba(3, 8, 19, 0.93) 100%);
+    border: 1px solid var(--line);
+    box-shadow: 0 10px 28px rgba(0, 3, 14, 0.5), inset 0 0 0 5px rgba(3, 8, 19, 0.35);
+}
+.dial-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.d-ticks  { fill: none; stroke: rgba(143, 176, 255, 0.30); stroke-width: 5; }
+.d-track  { fill: none; stroke: rgba(92, 130, 255, 0.17); stroke-width: 9; }
+.d-track.red { stroke: rgba(255, 79, 106, 0.24); }
+.d-glow   { fill: none; stroke: var(--blue); stroke-width: 18; opacity: 0.14; }
+.d-rpm    { fill: none; stroke: url(#rpmGrad); stroke-width: 9; }
+.d-rpm.red { stroke: var(--danger); }
+.d-side   { fill: none; stroke: rgba(92, 130, 255, 0.17); stroke-width: 6; }
+.d-bar    { fill: none; stroke: var(--blue-soft); stroke-width: 6; transition: stroke 0.3s; }
+.d-bar.warn { stroke: var(--warn); }
+.d-bar.crit { stroke: var(--danger); }
+/* gauges snap segment by segment (no per-frame animation while driving) */
+.d-glow, .d-rpm, .d-bar { stroke-dasharray: 100 100; }
+
+.dial-ic { position: absolute; width: 11px; height: 11px; color: var(--ice-dim); transition: color 0.3s; }
+.dial-ic.fuel { left: 52px;  top: 136px; }
+.dial-ic.eng  { left: 121px; top: 136px; }
+.dial-ic.warn { color: var(--warn); }
+.dial-ic.crit { color: var(--danger); }
+
+.dial-flags {
+    position: absolute; left: 0; right: 0; top: 37px; height: 16px;
+    display: flex; justify-content: center; gap: 8px;
+}
+.flag { width: 16px; height: 16px; }
+.flag.belt { color: var(--danger); }
+.flag.belt.on { animation: beltBlink 0.45s steps(1) 4; }   /* four blinks on appear, then steady */
+.flag.cruise { color: var(--blue-soft); }
+@keyframes beltBlink { 50% { opacity: 0.15; } }
+
+.dial-speed {
+    position: absolute; left: 0; right: 0; top: 60px;
+    display: flex; justify-content: center;
+    font-size: 50px; font-weight: 700; line-height: 1; letter-spacing: 0;
+}
+.dial-speed span { display: inline-block; width: 30px; text-align: center; }
+.dial-speed span.z { color: var(--ice-ghost); }
+.dial-unit {
+    position: absolute; left: 0; right: 0; top: 114px;
+    text-align: center; font-size: 10px; font-weight: 600; letter-spacing: 3px; color: var(--blue-soft);
+}
+.dial-gear {
+    position: absolute; left: 50%; top: 159px;
+    width: 30px; height: 21px; margin-left: -15px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; line-height: 1;
+    background: linear-gradient(160deg, var(--navy-700), var(--navy-900));
+    border: 1px solid var(--blue);
+    border-radius: 7px 2px 7px 2px;
+    box-shadow: 0 0 10px rgba(58, 108, 255, 0.45);
+}
+.dial-gear.neutral { color: var(--ice-dim); border-color: var(--line); box-shadow: none; }
+.dial-gear.rev { color: var(--danger); border-color: rgba(255, 79, 106, 0.7); box-shadow: 0 0 10px rgba(255, 79, 106, 0.35); }
+
+.alt {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 9px 12px 8px 13px; line-height: 1;
+}
+.alt .ic { font-size: 13px; color: var(--blue-soft); }
+.alt i { font-style: normal; font-size: 9px; font-weight: 600; letter-spacing: 2.4px; color: var(--ice-dim); }
+.alt b { font-size: 18px; font-weight: 700; }
+
+/* ══════════════════ WATERMARK ══════════════════ */
+.wm {
+    position: fixed; left: 50%; bottom: 1.8%;
+    transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+.wm.off { opacity: 0; }
+.wm-txt {
+    font-family: var(--font);
+    font-size: 13px; font-weight: 500;
+    letter-spacing: 5px; margin-right: -5px;
+    color: var(--blue-soft);
+    text-shadow: 0 0 6px rgba(58, 108, 255, 0.75), 0 1px 2px rgba(0, 3, 14, 0.9);
+    white-space: nowrap;
+}
+.wm-line {
+    width: 90px; height: 2px; border-radius: 1px;
+    background: linear-gradient(90deg, transparent, var(--blue) 30%, var(--blue-soft) 50%, var(--blue) 70%, transparent);
+}

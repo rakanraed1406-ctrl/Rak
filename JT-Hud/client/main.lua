@@ -1,17 +1,4 @@
-CreateThread(function()
-    while true do
-        -- إخفاء عداد الفلوس والوقت والأسلحة الافتراضي لـ GTA V
-        HideHudComponentThisFrame(3) -- CASH
-        HideHudComponentThisFrame(4) -- MP_CASH
-        HideHudComponentThisFrame(13) -- CASH_CHANGE
-        
-        -- إذا كنت تريد إخفاء عناصر أخرى مثل الخريطة المصغرة (الرادار) أو الأسلحة يمكنك تفعيل الأسطر بالأسفل:
-        -- HideHudComponentThisFrame(2) -- WEAPON_ICON
-        -- DisplayRadar(false) -- لإخفاء الخريطة الدائرية تماماً
-        
-        Wait(0) -- ضروري جداً لعدم تعليق اللعبة
-    end
-end)
+-- إخفاء الكاش (3, 4, 13) صار داخل الـ loop الوحيد اللي يشتغل كل فريم في client/thick.lua
 
 -- الواتر مارك يشتغل تلقائياً مع تشغيل الريسورس
 -- لا يحتاج فوكس (NuiFocus) لأنه بس عرض، مافيه تفاعل
