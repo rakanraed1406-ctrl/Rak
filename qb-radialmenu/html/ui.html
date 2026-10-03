@@ -219,7 +219,6 @@
             var resource = RadialMenu.resource();
             var menuKeybind = '';
             var menu = null;
-            var openedAt = 0;
 
             function post(name, data) {
                 return fetch('https://' + resource + '/' + name, {
@@ -251,7 +250,6 @@
                         }
                     });
                     menu.open();
-                    openedAt = performance.now();
                 } else if (eventData.state === 'destroy') {
                     if (menu) {
                         var old = menu;
@@ -263,13 +261,9 @@
                 }
             });
 
-            // Hold the key = the wheel closes when you let go. A quick tap leaves it open
-            // (the release of that same tap used to close it right after opening).
-            var HOLD_MS = 450;
+            // Close when the menu key is released (hold-to-use, same as before)
             window.addEventListener('keyup', function (event) {
-                if (!menu || !menuKeybind || String(event.key).toLowerCase() !== String(menuKeybind).toLowerCase()) return;
-                if (performance.now() - openedAt < HOLD_MS) return;
-                post('closemenu', {});
+                if (menuKeybind && String(event.key).toLowerCase() === String(menuKeybind).toLowerCase()) post('closemenu', {});
             });
         })();
     </script>

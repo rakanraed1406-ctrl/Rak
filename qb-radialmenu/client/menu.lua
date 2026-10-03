@@ -110,7 +110,6 @@ end
 local function closeMenu()
     menuOpen = false
     SetNuiFocus(false, false)
-    SetNuiFocusKeepInput(false)
     SendNUIMessage({ state = 'destroy' })
 end
 
@@ -119,7 +118,6 @@ local function openMenu()
         local pd = QBCore.Functions.GetPlayerData()
         isLoggedIn = pd ~= nil and pd.citizenid ~= nil
     end
-    -- the key press can arrive twice when the NUI takes focus: an open wheel just ignores it
     if menuOpen or not isLoggedIn or IsPauseMenuActive() or IsNuiFocused() then return end
     menuOpen = true
     SendNUIMessage({
