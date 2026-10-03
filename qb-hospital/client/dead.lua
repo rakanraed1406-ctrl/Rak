@@ -44,10 +44,13 @@ function OnDeath()
             else
                 NetworkResurrectLocalPlayer(pos.x, pos.y, pos.z + 0.5, heading, true, false)
             end
-			
+            player = PlayerPedId()
+
             SetEntityInvincible(player, true)
             SetEntityHealth(player, GetEntityMaxHealth(player))
-            if IsPedInAnyVehicle(player, false) then
+            if isInHospitalBed then
+                KeepInBed() -- stays on the bed instead of dropping through the floor
+            elseif IsPedInAnyVehicle(player, false) then
                 loadAnimDict("veh@low@front_ps@idle_duck")
                 TaskPlayAnim(player, "veh@low@front_ps@idle_duck", "sit", 1.0, 1.0, -1, 1, 0, 0, 0, 0)
             else
@@ -377,7 +380,14 @@ CreateThread(function()
                     end
                 end
 
-                if not isEscorted then
+                if isInHospitalBed then
+                    -- downed patient on a bed: keep lying on the bed (the ground "writhe"
+                    -- animation used to be forced on top of the bed animation)
+                    if not IsEntityPlayingAnim(ped, inBedDict, inBedAnim, 3) then
+                        loadAnimDict(inBedDict)
+                        TaskPlayAnim(ped, inBedDict, inBedAnim, 1.0, 1.0, -1, 1, 0, 0, 0, 0)
+                    end
+                elseif not isEscorted then
                     if IsPedInAnyVehicle(ped, false) then
                         loadAnimDict("veh@low@front_ps@idle_duck")
                         if not IsEntityPlayingAnim(ped, "veh@low@front_ps@idle_duck", "sit", 3) then

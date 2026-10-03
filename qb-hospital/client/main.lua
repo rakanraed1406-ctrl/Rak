@@ -351,6 +351,19 @@ local function SetBedCam()
     FreezeEntityPosition(player, true)
 end
 
+-- NetworkResurrectLocalPlayer recreates the ped: on a hospital bed that lost the
+-- bed position/freeze and the player could fall through the floor. Put it back.
+function KeepInBed()
+    if not isInHospitalBed or not bedOccupyingData then return end
+    local player = PlayerPedId()
+    local c = bedOccupyingData.coords
+    SetEntityCoords(player, c.x, c.y, c.z + 0.02, false, false, false, false)
+    SetEntityHeading(player, c.w)
+    FreezeEntityPosition(player, true)
+    loadAnimDict(inBedDict)
+    TaskPlayAnim(player, inBedDict, inBedAnim, 8.0, 1.0, -1, 1, 0, 0, 0, 0)
+end
+
 local function LeaveBed()
     exports['qb-ui']:HideText()
     bedText = false
@@ -687,9 +700,9 @@ RegisterNetEvent('hospital:client:Revive', function()
         SetLaststand(false)
     end
 
+    player = PlayerPedId() -- the resurrect above can give a new ped handle
     if isInHospitalBed then
-        loadAnimDict(inBedDict)
-        TaskPlayAnim(player, inBedDict , inBedAnim, 8.0, 1.0, -1, 1, 0, 0, 0, 0 )
+        KeepInBed()
         SetEntityInvincible(player, true)
         canLeaveBed = true
     end
@@ -911,9 +924,9 @@ RegisterNetEvent('hospital:client:adminHeal', function()
         SetLaststand(false)
     end
 
+    player = PlayerPedId() -- the resurrect above can give a new ped handle
     if isInHospitalBed then
-        loadAnimDict(inBedDict)
-        TaskPlayAnim(player, inBedDict , inBedAnim, 8.0, 1.0, -1, 1, 0, 0, 0, 0 )
+        KeepInBed()
         SetEntityInvincible(player, true)
         canLeaveBed = true
     end

@@ -87,7 +87,11 @@ function SetLaststand(bool, killid, killerWeapon)
             while InLaststand do
                 ped = PlayerPedId()
                 player = PlayerId()
-                if LaststandTime - 1 > Laststand.MinimumRevive then
+                if isInHospitalBed then
+                    -- being treated on a hospital bed: the bleed-out timer is paused, so it
+                    -- can't run out mid-treatment (that "killed" you in the bed and the
+                    -- re-spawn dropped you through the hospital floor)
+                elseif LaststandTime - 1 > Laststand.MinimumRevive then
                     LaststandTime = LaststandTime - 1
                     Config.DeathTime = LaststandTime
                 elseif LaststandTime - 1 <= Laststand.MinimumRevive and LaststandTime - 1 ~= 0 then
