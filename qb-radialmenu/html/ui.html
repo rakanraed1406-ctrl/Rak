@@ -243,10 +243,10 @@
                         closeOnClick: false,
                         menuItems: eventData.data || [],
                         onClick: function (item) {
-                            if (item.functionName !== 'undefined') {
-                                post('triggerAction', { action: item.functionName, type: item.functiontype, parameters: item.functionParameters });
-                                if (item.close) post('closemenu', {});
-                            }
+                            if (!item.uid) return;
+                            // one request: the client closes the wheel first (if needed), then runs the option
+                            if (item.close && menu) menu.collapse();
+                            post('select', { uid: item.uid });
                         }
                     });
                     menu.open();

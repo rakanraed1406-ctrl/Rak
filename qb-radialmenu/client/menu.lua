@@ -3,7 +3,11 @@ local MAX_MENU_ITEMS = 7
 QBCore = exports["qb-core"]:GetCoreObject()
 local isLoggedIn = LocalPlayer.state.isLoggedIn == true
 local menuOpen = false
-local allowed = {} -- "type|event" of the options on the last wheel that was opened
+-- Options of the last wheel that was opened: [uid] = { type, action, params, close }.
+-- The NUI only gets the uid, so the page can't fire any other event or change the
+-- parameters (devtools / a broken NUI can't abuse it).
+local actions = {}
+local lastAction = 0
 
 RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function() isLoggedIn = true end)
 RegisterNetEvent('QBCore:Client:OnPlayerUnload', function() isLoggedIn = false end)
@@ -30,8 +34,13 @@ end)
 -- Building the wheel
 -- ---------------------------------------------------------------------------
 
-local function allow(ftype, fname)
-    if ftype and fname then allowed[ftype .. '|' .. tostring(fname)] = true end
+-- registers an option and returns the uid the NUI sends back (nil = not clickable)
+local function register(cfg)
+    local ftype, fname = cfg.functiontype, cfg.functionName
+    if (ftype ~= 'client' and ftype ~= 'server') or type(fname) ~= 'string' or fname == '' then return nil end
+    local uid = #actions + 1
+    actions[uid] = { type = ftype, action = fname, params = cfg.functionParameters, close = cfg.close == true }
+    return uid
 end
 
 local function enabled(menuConfig)
@@ -57,20 +66,17 @@ local function chunk(list)
 end
 
 local function buildMenus()
-    allowed = {}
+    actions = {}
     local menus = {}
     for _, menuConfig in ipairs(Config.Menu) do
         if enabled(menuConfig) then
             local entry = {
                 id = menuConfig.id,
                 title = menuConfig.displayName,
-                close = menuConfig.close,
-                functiontype = menuConfig.functiontype,
-                functionParameters = menuConfig.functionParameters,
-                functionName = menuConfig.functionName,
+                close = menuConfig.close == true,
                 icon = menuConfig.icon,
+                uid = register(menuConfig),
             }
-            allow(menuConfig.functiontype, menuConfig.functionName)
             local subs = menuConfig.subMenus
             if subs and #subs > 0 then
                 local list = {}
@@ -81,12 +87,9 @@ local function buildMenus()
                             id = subs[i],
                             title = sub.title,
                             icon = sub.icon,
-                            close = sub.close,
-                            functiontype = sub.functiontype,
-                            functionName = sub.functionName,
-                            functionParameters = sub.functionParameters,
+                            close = sub.close == true,
+                            uid = register(sub),
                         }
-                        allow(sub.functiontype, sub.functionName)
                     end
                 end
                 entry.items = chunk(list)
@@ -107,6 +110,7 @@ end
 local function closeMenu()
     menuOpen = false
     SetNuiFocus(false, false)
+    SetNuiFocusKeepInput(false)
     SendNUIMessage({ state = 'destroy' })
 end
 
@@ -115,7 +119,8 @@ local function openMenu()
         local pd = QBCore.Functions.GetPlayerData()
         isLoggedIn = pd ~= nil and pd.citizenid ~= nil
     end
-    if menuOpen or not isLoggedIn or IsPauseMenuActive() or IsNuiFocused() then return end
+    if menuOpen then return closeMenu() end -- F1 again = close (escape hatch)
+    if not isLoggedIn or IsPauseMenuActive() or IsNuiFocused() then return end
     menuOpen = true
     SendNUIMessage({
         state = "show",
@@ -204,18 +209,36 @@ RegisterNUICallback('closemenu', function(_, cb)
     cb('ok')
 end)
 
-RegisterNUICallback('triggerAction', function(data, cb)
-    cb('ok')
-    if type(data) ~= 'table' or (data.type ~= 'client' and data.type ~= 'server') then return end
-    -- only an option that was on the wheel the player opened (kept after close:
-    -- the NUI sends triggerAction and closemenu right after each other)
-    if not allowed[data.type .. '|' .. tostring(data.action)] then return end
+local function runAction(a)
     if Config.GameSounds then PlaySoundFrontend(-1, "NAV", "HUD_AMMO_SHOP_SOUNDSET", 1) end
-    if data.type == 'client' then
-        TriggerEvent(data.action, data.parameters)
+    if a.type == 'client' then
+        TriggerEvent(a.action, a.params)
     else
-        TriggerServerEvent(data.action, data.parameters)
+        TriggerServerEvent(a.action, a.params)
     end
+end
+
+-- One request per click (was triggerAction + closemenu, two requests in any order):
+-- an option that opens another menu (emotes, clothing, garage...) used to open while
+-- the wheel still had the mouse/keyboard, then the wheel's SetNuiFocus(false) landed
+-- on top of it and that menu froze. Now: close the wheel, wait for the focus to
+-- really go, then run the option.
+RegisterNUICallback('select', function(data, cb)
+    cb('ok')
+    local a = type(data) == 'table' and actions[tonumber(data.uid) or -1]
+    if not a or not menuOpen then return end
+    local now = GetGameTimer()
+    local spam = now - lastAction < 250 -- double clicks / key spam
+    if a.close then closeMenu() end    -- the page already hid the wheel: always let the focus go
+    if spam then return end
+    lastAction = now
+
+    if not a.close then return runAction(a) end
+    CreateThread(function()
+        local deadline = GetGameTimer() + 300
+        repeat Wait(0) until not IsNuiFocused() or GetGameTimer() > deadline
+        runAction(a)
+    end)
 end)
 
 AddEventHandler('onResourceStop', function(res)
