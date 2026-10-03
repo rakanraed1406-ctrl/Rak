@@ -33,6 +33,7 @@ end)
 
 RegisterNetEvent("QBCore:Client:OnPlayerUnload", function()
     Wait(500)
+    Koci.Client.HUD:ResetVehicle()      -- logging out inside a car must not carry its UI to the next character
     Koci.Client.HUD:Toggle(false)
     DisplayRadar(false)
 end)

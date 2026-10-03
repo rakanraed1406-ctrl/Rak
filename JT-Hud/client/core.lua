@@ -78,7 +78,8 @@ function Koci.Client:TriggerServerCallback(key, payload, func)
 end
 
 function Koci.Client:GetPlayerData()
-    return Koci.Framework.Functions.GetPlayerData()
+    if not Koci.Framework or not Koci.Framework.Functions then return {} end
+    return Koci.Framework.Functions.GetPlayerData() or {}
 end
 
 function Koci.Client:SendNotify(title, notifyType, duration, icon, text)

@@ -7,6 +7,14 @@ local hudLoaded       = false   -- cached playerLoaded(), refreshed by the slow 
 local hudStarting     = false
 local mainRunning     = false
 local atan2           = math.atan2 or math.atan
+local mainBeat, vehBeat = 0, 0  -- last tick of the main / vehicle loops (watchdog below)
+
+-- natives that older FiveM builds may not have: a missing one must never kill a loop
+local GetIndicatorLights   = GetVehicleIndicatorLights or function() return 0 end
+local GetHighGear          = GetVehicleHighGear or function() return 6 end
+local GetHandbrakeOn       = GetVehicleHandbrake or function() return false end
+local GetGearState         = GetLandingGearState or function() return -1 end
+local GetHeightAboveGround = GetEntityHeightAboveGround or function(e) return GetEntityCoords(e).z end
 
 
 -- Waypoint helpers for the street block
@@ -125,6 +133,13 @@ end)
 CreateThread(function()
     while true do
         hudLoaded = playerLoaded() and true or false
+        -- watchdog: if the main loop died on a script error, start it again
+        if hudLoaded and mainRunning and GetGameTimer() - mainBeat > 3000 then
+            mainRunning = false
+        end
+        if hudLoaded and not mainRunning and not hudStarting then
+            Koci.Client.HUD:MainThick()
+        end
         SetRadarBigmapEnabled(false, false)
         SetRadarZoom(1000)
         -- minimap only in vehicles (unless alwaysActive / cinematic)
@@ -228,10 +243,28 @@ local function DeepEqual(a, b)
     return true
 end
 
+-- leave every vehicle state behind and clear the car / flight UI
+function Koci.Client.HUD:ResetVehicle()
+    local v = self.data.vehicle
+    v.inVehicle           = false
+    v.entity              = nil
+    v.isPassenger         = false
+    v.show                = false
+    v.isSeatbeltOn        = false
+    v.cruiseControlStatus = false
+    v._lastEntitySpeed    = 0
+    lastVehPayload = {}
+    lastNavPayload = {}
+    if not self.data.isCinematicHudActive and not v.miniMap.alwaysActive then DisplayRadar(false) end
+    SendNUIMessage({ action = "vehHideHud", showveh = false })
+end
+
 function Koci.Client.HUD:MainThick()
     mainRunning = true
+    mainBeat = GetGameTimer()
     CreateThread(function()
         while playerLoaded() do
+            mainBeat = GetGameTimer()
             local playerId   = PlayerId()
             local playerPedId = PlayerPedId()
 
@@ -334,20 +367,13 @@ function Koci.Client.HUD:MainThick()
                         end
                     end
                 elseif vehicle == 0 and self.data.vehicle.inVehicle then
-                    self.data.vehicle.inVehicle         = false
-                    self.data.vehicle.entity            = nil
-                    self.data.vehicle.isPassenger       = false
-                    self.data.vehicle.show              = false
-                    self.data.vehicle.isSeatbeltOn      = false  -- رجّع للافتراضي
-                    self.data.vehicle.cruiseControlStatus = false
-                    self.data.vehicle._lastEntitySpeed  = 0
+                    -- out of the car by any means: got out, pulled out, car deleted, respawned, teleported
+                    self:ResetVehicle()
+                elseif self.data.vehicle.inVehicle and GetGameTimer() - vehBeat > 2000
+                    and self.data.vehicle.entity and DoesEntityExist(self.data.vehicle.entity) then
+                    -- the vehicle loop stopped (script error): start a fresh one so the UI can't freeze
                     lastVehPayload = {}
-                    lastNavPayload = {}
-                    -- نخفي الخريطة لما نطلع من السيارة
-                    if not self.data.isCinematicHudActive then
-                        DisplayRadar(false)
-                    end
-                    SendNUIMessage({ action = "vehHideHud", showveh = false })
+                    self:ActivateVehicleHud(self.data.vehicle.entity)
                 end
             end
 
@@ -400,6 +426,7 @@ end)
 --  Vehicle thick (speed / rpm / fuel)
 -- ──────────────────────────────────────────────────────────
 function Koci.Client.HUD:ActivateVehicleHud(veh)
+    vehBeat = GetGameTimer()
     self.data.vehicle.show = true
     self:fVehicleInfoThick(veh)
     self:LowFuelThread(veh)
@@ -431,7 +458,7 @@ local function FlightPayload(vehicle, vehClass, engineHealth, fuelLevel, engineR
         show     = true,
         spd      = math.floor(GetEntitySpeed(vehicle) * 1.94384 + 0.5),            -- knots
         alt      = math.floor(coords.z * 3.28084 + 0.5),                           -- feet
-        agl      = math.max(0, math.floor(GetEntityHeightAboveGround(vehicle) * 3.28084 + 0.5)),
+        agl      = math.max(0, math.floor(GetHeightAboveGround(vehicle) * 3.28084 + 0.5)),
         vs       = round(vel.z, 0.1),                                              -- m/s
         hdg      = math.floor((360.0 - GetEntityHeading(vehicle)) % 360.0 + 0.5) % 360,
         pitch    = round(GetEntityPitch(vehicle), 0.5),
@@ -440,17 +467,18 @@ local function FlightPayload(vehicle, vehClass, engineHealth, fuelLevel, engineR
         eng      = math.floor(engineHealth / 10 + 0.5),
         fuel     = math.floor(fuelLevel + 0.5),
         engineOn = engineRunning and true or false,
-        gear     = vehClass == 16 and GetLandingGearState(vehicle) or -1,           -- 0 down, 1/2 moving, 3+ up
+        gear     = vehClass == 16 and GetGearState(vehicle) or -1,           -- 0 down, 1/2 moving, 3+ up
         heli     = vehClass == 15,
     }
 end
 
 function Koci.Client.HUD:fVehicleInfoThick(vehicle)
     CreateThread(function()
-        local maxGear = GetVehicleHighGear(vehicle)
+        local maxGear = GetHighGear(vehicle)
         if not maxGear or maxGear < 1 then maxGear = 6 end
         local flying = false
         while self.data.vehicle.inVehicle and self.data.vehicle.entity == vehicle and DoesEntityExist(vehicle) do
+            vehBeat = GetGameTimer()
             local ped          = PlayerPedId()
             self.data.vehicle.isPassenger = GetPedInVehicleSeat(vehicle, -1) ~= ped
 
@@ -517,8 +545,8 @@ function Koci.Client.HUD:fVehicleInfoThick(vehicle)
                 maxGear    = maxGear,
                 locked     = GetVehicleDoorLockStatus(vehicle) > 1,
                 lights     = lights,
-                handbrake  = GetVehicleHandbrake(vehicle) and true or false,
-                ind        = GetVehicleIndicatorLights(vehicle) or 0,
+                handbrake  = GetHandbrakeOn(vehicle) and true or false,
+                ind        = GetIndicatorLights(vehicle) or 0,
                 isAircraft = isAircraft,
                 altitude   = math.floor(altitude),
             }
