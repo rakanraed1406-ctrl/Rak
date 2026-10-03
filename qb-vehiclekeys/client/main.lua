@@ -175,8 +175,8 @@ local function handleNpcVehicle(ped, veh, driver, seat)
     npcBusy[veh] = nil
 end
 
--- لاعب سايق: تعلّق على F عند باب السواق → تسحبه غصب مثل قراند.
--- ما فيه رسايل ولا شريط: لو تركت F قبل الوقت أو الشروط ما تمت، ما يصير شي (والركوب العادي ما ينلمس)
+-- لاعب سايق: تضغط F عند باب السواق → تسحبه غصب مثل البوتات (أنيميشن قراند).
+-- ما فيه رسايل ولا شريط. لو ضغطت من بعيد شوي: شخصيتك تمشي للباب وأول ما توصل تسحبه
 local pullToken = 0
 
 local function tryPullOut(ped, veh, pressedAt)
@@ -185,15 +185,19 @@ local function tryPullOut(ped, veh, pressedAt)
     pullToken = pullToken + 1
     local token = pullToken
     local cfg = Config.PullOut
-    local deadline = pressedAt + cfg.HoldTime + (cfg.ApproachTime or 4000)
+    local hold = cfg.HoldTime or 0
+    local deadline = pressedAt + hold + (cfg.ApproachTime or 4000)
     local ready = false
 
-    while pullHeld and GetGameTimer() < deadline do
+    while GetGameTimer() < deadline do
+        if hold > 0 and not pullHeld then break end   -- HoldTime > 0 = لازم تعلّق
         if not DoesEntityExist(veh) or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) then break end
         local driver = GetPedInVehicleSeat(veh, -1)
         if driver == 0 or not IsPedAPlayer(driver) or isLocked(veh) then break end
-        if GetGameTimer() - pressedAt >= cfg.HoldTime and nearDriverDoor(ped, veh)
-            and GetEntitySpeed(veh) * 3.6 <= cfg.MaxSpeed then
+        local atDoor = nearDriverDoor(ped, veh)
+        -- وقفت تمشي للباب (تحركت/لغيت) وأنت بعيد عنه → خلاص
+        if not atDoor and GetVehiclePedIsTryingToEnter(ped) ~= veh then break end
+        if atDoor and GetGameTimer() - pressedAt >= hold and GetEntitySpeed(veh) * 3.6 <= cfg.MaxSpeed then
             ready = true
             break
         end
@@ -201,8 +205,8 @@ local function tryPullOut(ped, veh, pressedAt)
     end
 
     if not ready then
-        -- ضغطة وتركت عند باب سواق لاعب: كرسيه مو فاضي، نوقف شخصيتك بدل ما تعلق عند الباب
-        if not pullHeld and DoesEntityExist(veh) and GetVehiclePedIsTryingToEnter(ped) == veh
+        -- عالق عند باب سواق لاعب (كرسيه مو فاضي): نوقف شخصيتك بدل ما تعلق
+        if DoesEntityExist(veh) and GetVehiclePedIsTryingToEnter(ped) == veh
             and GetSeatPedIsTryingToEnter(ped) == -1 and IsPedAPlayer(GetPedInVehicleSeat(veh, -1)) then
             ClearPedTasks(ped)
         end
@@ -218,6 +222,13 @@ local function tryPullOut(ped, veh, pressedAt)
     pulling = 'waiting'
 end
 
+-- أقرب سيارة سايقها لاعب وأنت عند باب سواقها (لو قراند ما بدأ يركّبك)
+local function driverDoorVehicle(ped)
+    local veh = closestDrivenVehicle(ped, 3.5)
+    if veh ~= 0 and IsPedAPlayer(GetPedInVehicleSeat(veh, -1)) and nearDriverDoor(ped, veh) then return veh end
+    return 0
+end
+
 RegisterCommand('+vehkeys_f', function()
     pullHeld = true
     local pressedAt = GetGameTimer()
@@ -227,7 +238,11 @@ RegisterCommand('+vehkeys_f', function()
     CreateThread(function()
         local veh = waitTryingToEnter(ped, 400)
         local seat = veh ~= 0 and GetSeatPedIsTryingToEnter(ped) or nil   -- nil = ما بدأت تركب
-        if veh == 0 and Config.PullOut.Enabled and pullHeld then veh = closestDrivenVehicle(ped, 3.5) end
+        if veh == 0 then
+            if Config.PullOut.Enabled then veh = driverDoorVehicle(ped) end
+            -- بوتات: زي قبل، لو معلّق على F
+            if veh == 0 and Config.PullOut.Enabled and pullHeld then veh = closestDrivenVehicle(ped, 3.5) end
+        end
         if veh == 0 or isBlacklistedVehicle(veh) then return end
 
         local driver = GetPedInVehicleSeat(veh, -1)
@@ -239,17 +254,22 @@ RegisterCommand('+vehkeys_f', function()
             return
         end
 
+        -- عند باب السواق (أو رايح لكرسي السواق)؟ باب الراكب/ورا = ركوب عادي وما نلمسه أبد
+        local driverSide = seat == -1 or nearDriverDoor(ped, veh)
+
         -- مقفلة (قفلها صاحبها): شخصيتك تحاول تفتح الباب مثل قراند → Locked
         if isLocked(veh) then
-            if seat == nil then return end
+            if seat == nil then
+                if driver == 0 or not driverSide then return end
+                TaskEnterVehicle(ped, veh, 4000, -1, 2.0, 1, 0)   -- تمسك المقبض وتحاول
+                Wait(300)
+            end
             if GetVehiclePedIsTryingToEnter(ped) == veh then waitGaveUp(ped, veh, 6000) end
             return QBCore.Functions.Notify(Lang:t('notify.veh_locked'), 'error')
         end
 
-        -- لاعب سايق: بس اللي عند باب السواق (أو رايح لكرسي السواق) ومعلّق على F.
-        -- الراكب (أي باب ثاني) ما نلمسه أبد → يركب عادي
-        if driver == 0 or not Config.PullOut.Enabled or not pullHeld then return end
-        if seat ~= -1 and not nearDriverDoor(ped, veh) then return end
+        -- مفتوحة + لاعب سايق + أنت عند باب السواق → تسحبه
+        if driver == 0 or not Config.PullOut.Enabled or not driverSide then return end
         tryPullOut(ped, veh, pressedAt)
     end)
 end, false)
@@ -258,7 +278,7 @@ RegisterCommand('-vehkeys_f', function()
     pullHeld = false
 end, false)
 
-RegisterKeyMapping('+vehkeys_f', 'Vehicle: enter / hold to pull out driver', 'keyboard', 'F')
+RegisterKeyMapping('+vehkeys_f', 'Vehicle: enter / pull out driver', 'keyboard', 'F')
 
 -- السيرفر وافق: تسحب السواق بأنيميشن قراند (جاك) وتقعد مكانه (والمفتاح يجيك لما تقعد)
 RegisterNetEvent('qb-vehiclekeys:client:PullOutGo', function(netId)
