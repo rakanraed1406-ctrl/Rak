@@ -366,6 +366,7 @@
     }
 
     function updateVehHud(d) {
+        if (S_FLY) setFlying(false);
         if (!S.inVeh) setVehicleUi(true);
 
         if (d.maxGear !== undefined) gearMax = Math.max(1, Number(d.maxGear) || 6);
@@ -424,8 +425,103 @@
     }
 
     function hideVehHud() {
+        setFlying(false);
         setVehicleUi(false);
         lastSpeed = -1;
+    }
+
+    // ══════════════════ FLIGHT HUD (bottom centre; replaces the car cluster) ══════════════════
+    var flightEl = byId('flight'), S_FLY = false;
+    // a tape is 9 rows that slide; labels are rewritten only when a row boundary is crossed
+    function Tape(id, step, minVal) {
+        var el = byId(id), rows = [], i;
+        for (i = 0; i < 9; i++) {
+            var r = document.createElement('div');
+            r.className = 'trow';
+            r.innerHTML = '<span></span>';
+            el.appendChild(r);
+            rows.push(r.firstChild);
+        }
+        return { el: el, rows: rows, step: step, min: minVal, base: null, ROW: 36, WIN: 162 };
+    }
+    function tapeSet(t, v) {
+        var b = Math.floor(v / t.step), snap = false;
+        if (b !== t.base) {
+            snap = t.base !== null;
+            t.base = b;
+            for (var i = 0; i < 9; i++) {
+                var val = (b + 4 - i) * t.step;
+                setText(t.rows[i], val < t.min ? '' : val);
+            }
+        }
+        var y = t.WIN / 2 - (4 * t.ROW + t.ROW / 2) + (v / t.step - b) * t.ROW;
+        setCls(t.el, 'snap', snap);
+        t.el.style.transform = 'translateY(' + y.toFixed(1) + 'px)';
+    }
+    var tpSpd = Tape('tp-spd', 20, 0), tpAlt = Tape('tp-alt', 100, -1000);
+    var fl = {
+        hdg: byId('fl-hdg'), spd: byId('fl-spd'), alt: byId('fl-alt'), hor: byId('fl-hor'), rollp: byId('fl-rollp'),
+        eng: byId('fl-eng'), engN: byId('fl-eng-n'), dot: byId('fl-dot'), fuel: byId('fl-fuel'), fuelN: byId('fl-fuel-n'),
+        vsu: byId('fl-vsu'), vsd: byId('fl-vsd'), vs: byId('fl-vs'), thr: byId('fl-thr'), thrN: byId('fl-thr-n'),
+        agl: byId('fl-agl'), gear: byId('fl-gear'), gearT: byId('fl-gear-t'), warn: byId('fl-warn')
+    };
+    function three(n) { n = Math.round(n) % 360; return (n < 10 ? '00' : n < 100 ? '0' : '') + n; }
+    function vfill(el, label, v, warnAt, critAt) {
+        v = clamp(v, 0, 100);
+        setStyle(el, 'transform', 'scaleY(' + (v / 100).toFixed(3) + ')');
+        setText(label, Math.round(v));
+        setCls(el, 'crit', v <= critAt);
+        setCls(el, 'warn', v > critAt && v <= warnAt);
+    }
+
+    function setFlying(on) {
+        on = !!on;
+        if (on === S_FLY) return;
+        S_FLY = on;
+        show(flightEl, on);
+        if (on) show(carEl, false);                       // the car cluster steps aside in the air
+        else if (S.inVeh) show(carEl, true);
+    }
+
+    function updateFlight(d) {
+        if (d.show === false) { setFlying(false); return; }
+        if (!S.inVeh) { S.inVeh = true; show(mapEl, true); setCls(dtEl, 'veh', true); }
+        setFlying(true);
+
+        setText(fl.hdg, three(Number(d.hdg) || 0));
+        var spd = Math.max(0, Number(d.spd) || 0), alt = Number(d.alt) || 0;
+        setText(fl.spd, spd); tapeSet(tpSpd, spd);
+        setText(fl.alt, fmt(alt)); tapeSet(tpAlt, alt);
+
+        // attitude: rotate by roll, then slide by pitch along the rotated vertical
+        var pitch = clamp(d.pitch, -90, 90), roll = clamp(d.roll, -180, 180);
+        fl.hor.style.transform = 'rotate(' + (-roll) + 'deg) translateY(' + (pitch * 2.6).toFixed(1) + 'px)';
+        fl.rollp.style.transform = 'rotate(' + (-roll) + 'deg)';
+
+        vfill(fl.eng, fl.engN, Number(d.eng), 60, 30);
+        vfill(fl.fuel, fl.fuelN, Number(d.fuel), 25, 10);
+        setCls(fl.dot, 'on', !!d.engineOn);
+
+        var vs = clamp(d.vs, -30, 30);
+        setStyle(fl.vsu, 'transform', 'scaleY(' + Math.max(0, vs / 20).toFixed(3) + ')');
+        setStyle(fl.vsd, 'transform', 'scaleY(' + Math.max(0, -vs / 20).toFixed(3) + ')');
+        setText(fl.vs, (vs > 0 ? '+' : '') + vs.toFixed(1));
+
+        var thr = clamp(d.thr, 0, 100);
+        setStyle(fl.thr, 'transform', 'scaleX(' + (thr / 100).toFixed(3) + ')');
+        setText(fl.thrN, Math.round(thr) + '%');
+        setText(fl.agl, fmt(d.agl));
+
+        var g = Number(d.gear);
+        setHidden(fl.gear, d.heli || g < 0);
+        setText(fl.gearT, g === 0 ? 'DOWN' : (g === 1 || g === 2) ? 'MOVING' : 'UP');
+        setCls(fl.gear, 'up', g >= 3);
+        setCls(fl.gear, 'moving', g === 1 || g === 2);
+
+        // warnings: low and sinking fast, or almost out of fuel
+        var pull = d.agl < 400 && d.vs < -12, lowFuel = Number(d.fuel) <= 10;
+        setText(fl.warn, pull ? 'PULL UP' : 'LOW FUEL');
+        setHidden(fl.warn, !(pull || lowFuel));
     }
 
     // ══════════════════ AMMO ══════════════════
@@ -501,6 +597,9 @@
                 break;
             case 'vehHud':
                 updateVehHud(d);
+                break;
+            case 'flightHud':
+                updateFlight(d);
                 break;
             case 'vehHideHud':
                 hideVehHud();

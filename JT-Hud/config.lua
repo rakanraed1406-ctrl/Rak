@@ -54,6 +54,13 @@ Config.Interface = {
     clockSeconds     = true,            -- الثواني في الساعة اللي فوق الخريطة (false = تتحدث كل دقيقة بس)
 }
 
+-- ── هود الطيران (يطلع بالنص تحت مكان عداد السيارة) ──
+Config.FlightHud = {
+    active = true,
+    -- سيارات تطير: يطلع لها هود الطيران بس وهي بالجو
+    models = { "deluxo", "oppressor", "oppressor2", "thruster", "scramjet" },
+}
+
 Config.ElectricVehicles = {
     "Imorgon","Neon","Raiden","Cyclone","Voltic","Voltic2",
     "Tezeract","Airtug","Caddy","Caddy2","Caddy3",

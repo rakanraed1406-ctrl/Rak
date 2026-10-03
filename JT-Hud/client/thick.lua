@@ -402,10 +402,51 @@ function Koci.Client.HUD:ActivateVehicleHud(veh)
     self:LowFuelThread(veh)
 end
 
+-- ──────────────────────────────────────────────────────────
+--  Flight HUD: aircraft, plus flying cars (Config.FlightHud.models) while airborne
+-- ──────────────────────────────────────────────────────────
+local flightModels = nil
+local function IsFlightVehicle(vehicle, vehClass)
+    local cfg = Config.FlightHud or {}
+    if cfg.active == false then return false end
+    if vehClass == 15 or vehClass == 16 then return true end
+    if not flightModels then
+        flightModels = {}
+        for _, name in ipairs(cfg.models or {}) do flightModels[GetHashKey(name)] = true end
+    end
+    return flightModels[GetEntityModel(vehicle)] == true and IsEntityInAir(vehicle)
+end
+
+local function round(v, step) return math.floor(v / step + 0.5) * step end
+
+local function FlightPayload(vehicle, vehClass, engineHealth, fuelLevel, engineRunning)
+    local coords = GetEntityCoords(vehicle)
+    local vel    = GetEntityVelocity(vehicle)
+    local thr    = GetVehicleThrottleOffset and GetVehicleThrottleOffset(vehicle) or 0
+    return {
+        action   = "flightHud",
+        show     = true,
+        spd      = math.floor(GetEntitySpeed(vehicle) * 1.94384 + 0.5),            -- knots
+        alt      = math.floor(coords.z * 3.28084 + 0.5),                           -- feet
+        agl      = math.max(0, math.floor(GetEntityHeightAboveGround(vehicle) * 3.28084 + 0.5)),
+        vs       = round(vel.z, 0.1),                                              -- m/s
+        hdg      = math.floor((360.0 - GetEntityHeading(vehicle)) % 360.0 + 0.5) % 360,
+        pitch    = round(GetEntityPitch(vehicle), 0.5),
+        roll     = round(GetEntityRoll(vehicle), 0.5),
+        thr      = math.floor(math.min(1.0, math.abs(thr or 0)) * 100 + 0.5),
+        eng      = math.floor(engineHealth / 10 + 0.5),
+        fuel     = math.floor(fuelLevel + 0.5),
+        engineOn = engineRunning and true or false,
+        gear     = vehClass == 16 and GetLandingGearState(vehicle) or -1,           -- 0 down, 1/2 moving, 3+ up
+        heli     = vehClass == 15,
+    }
+end
+
 function Koci.Client.HUD:fVehicleInfoThick(vehicle)
     CreateThread(function()
         local maxGear = GetVehicleHighGear(vehicle)
         if not maxGear or maxGear < 1 then maxGear = 6 end
+        local flying = false
         while self.data.vehicle.inVehicle and self.data.vehicle.entity == vehicle and DoesEntityExist(vehicle) do
             local ped          = PlayerPedId()
             self.data.vehicle.isPassenger = GetPedInVehicleSeat(vehicle, -1) ~= ped
@@ -434,6 +475,22 @@ function Koci.Client.HUD:fVehicleInfoThick(vehicle)
             local rpmMat = math.max(0, math.floor((rpm * 10000 - 2001) / 80 + 0.5))
 
             local fuelLevel = tonumber(self:GetFuelExport()) or GetVehicleFuelLevel(vehicle)
+
+            -- aircraft / flying car: the flight HUD replaces the car cluster
+            if IsFlightVehicle(vehicle, vehClass) then
+                if not flying then flying = true; lastVehPayload = {} end
+                local fp = FlightPayload(vehicle, vehClass, engineHealth, fuelLevel, engineRunning)
+                if not DeepEqual(fp, lastVehPayload) then
+                    SendNUIMessage(fp)
+                    lastVehPayload = fp
+                end
+                Wait(100)
+                goto continue
+            elseif flying then
+                flying = false
+                lastVehPayload = {}
+                SendNUIMessage({ action = "flightHud", show = false })
+            end
 
             -- no belt warning where a belt can't be worn (bikes, boats, aircraft...)
             local beltWarning = not self.data.vehicle.isSeatbeltOn
@@ -469,7 +526,9 @@ function Koci.Client.HUD:fVehicleInfoThick(vehicle)
             end
 
             Wait(self.data.vehicle.thick.wait)
+            ::continue::
         end
+        if flying then SendNUIMessage({ action = "flightHud", show = false }) end
     end)
 end
 

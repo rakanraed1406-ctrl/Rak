@@ -170,6 +170,52 @@
           </div>
         </div>
 
+
+        <!-- ── flight HUD (bottom centre; replaces the car cluster in the air) ── -->
+        <div class="flight fx up" id="flight" hidden>
+            <div class="fl-hdg"><i>HDG</i><b id="fl-hdg">000</b></div>
+            <div class="fl-body">
+                <div class="fl-col" id="fl-engcol">
+                    <div class="fl-cap"><i class="dot" id="fl-dot"></i>ENG</div>
+                    <div class="vbar"><div class="vfill" id="fl-eng"></div></div>
+                    <b class="fl-n" id="fl-eng-n">100</b>
+                </div>
+                <div class="fl-col" id="fl-fuelcol">
+                    <div class="fl-cap">FUEL</div>
+                    <div class="vbar"><div class="vfill fuel" id="fl-fuel"></div></div>
+                    <b class="fl-n" id="fl-fuel-n">100</b>
+                </div>
+                <div class="tape spd">
+                    <div class="fl-cap">SPD</div>
+                    <div class="tape-win"><div class="tape-in" id="tp-spd"></div></div>
+                    <div class="tape-read"><b id="fl-spd">0</b><i>KTS</i></div>
+                </div>
+                <div class="adi">
+                    <div class="adi-ball">
+                        <div class="horizon" id="fl-hor"><div class="sky"></div><div class="ground"></div><i class="hz-line"></i><i class="lad maj" style="--p:-60"><b>60</b><b>60</b></i><i class="lad" style="--p:-55"></i><i class="lad maj" style="--p:-50"><b>50</b><b>50</b></i><i class="lad" style="--p:-45"></i><i class="lad maj" style="--p:-40"><b>40</b><b>40</b></i><i class="lad" style="--p:-35"></i><i class="lad maj" style="--p:-30"><b>30</b><b>30</b></i><i class="lad" style="--p:-25"></i><i class="lad maj" style="--p:-20"><b>20</b><b>20</b></i><i class="lad" style="--p:-15"></i><i class="lad maj" style="--p:-10"><b>10</b><b>10</b></i><i class="lad" style="--p:-5"></i><i class="lad" style="--p:5"></i><i class="lad maj" style="--p:10"><b>10</b><b>10</b></i><i class="lad" style="--p:15"></i><i class="lad maj" style="--p:20"><b>20</b><b>20</b></i><i class="lad" style="--p:25"></i><i class="lad maj" style="--p:30"><b>30</b><b>30</b></i><i class="lad" style="--p:35"></i><i class="lad maj" style="--p:40"><b>40</b><b>40</b></i><i class="lad" style="--p:45"></i><i class="lad maj" style="--p:50"><b>50</b><b>50</b></i><i class="lad" style="--p:55"></i><i class="lad maj" style="--p:60"><b>60</b><b>60</b></i></div>
+                    </div>
+                    <svg class="adi-scale" viewBox="-100 -100 200 200"><path d="M -78.8 -45.5 A 91 91 0 0 1 78.8 -45.5" fill="none" stroke="rgba(200,218,255,0.5)" stroke-width="1.2"/><g stroke="#dfe8ff" stroke-width="1.8"><line x1="0.0" y1="-91.0" x2="0.0" y2="-100.0"/><line x1="-15.8" y1="-89.6" x2="-16.8" y2="-95.5"/><line x1="15.8" y1="-89.6" x2="16.8" y2="-95.5"/><line x1="-31.1" y1="-85.5" x2="-33.2" y2="-91.2"/><line x1="31.1" y1="-85.5" x2="33.2" y2="-91.2"/><line x1="-45.5" y1="-78.8" x2="-50.0" y2="-86.6"/><line x1="45.5" y1="-78.8" x2="50.0" y2="-86.6"/><line x1="-64.3" y1="-64.3" x2="-68.6" y2="-68.6"/><line x1="64.3" y1="-64.3" x2="68.6" y2="-68.6"/><line x1="-78.8" y1="-45.5" x2="-86.6" y2="-50.0"/><line x1="78.8" y1="-45.5" x2="86.6" y2="-50.0"/></g></svg>
+                    <div class="roll-ptr" id="fl-rollp"><i></i></div>
+                    <svg class="plane-sym" viewBox="0 0 120 20"><path d="M2 9h34l8 8 8-8h-6M118 9H84l-8 8-8-8h6" fill="none" stroke="#ffb547" stroke-width="3.2" stroke-linejoin="round"/><circle cx="60" cy="9" r="3" fill="#ffb547"/></svg>
+                </div>
+                <div class="tape alt">
+                    <div class="fl-cap">ALT</div>
+                    <div class="tape-win"><div class="tape-in" id="tp-alt"></div></div>
+                    <div class="tape-read r"><b id="fl-alt">0</b><i>FT</i></div>
+                </div>
+                <div class="fl-col vsi">
+                    <div class="fl-cap">VSI</div>
+                    <div class="vsi-bar"><div class="vsi-up" id="fl-vsu"></div><div class="vsi-dn" id="fl-vsd"></div><i class="vsi-mid"></i></div>
+                    <b class="fl-n" id="fl-vs">0.0</b>
+                </div>
+            </div>
+            <div class="fl-foot">
+                <div class="fl-thr"><i>THR</i><div class="hbar"><div class="hfill" id="fl-thr"></div></div><b id="fl-thr-n">0%</b></div>
+                <div class="fl-agl"><i>AGL</i><b id="fl-agl">0</b><i>FT</i></div>
+                <div class="fl-gear" id="fl-gear"><i>GEAR</i><b id="fl-gear-t">DOWN</b></div>
+                <div class="fl-warn" id="fl-warn" hidden>PULL UP</div>
+            </div>
+        </div>
     </div><!-- #hud -->
     </div><!-- .ui-scale -->
 
