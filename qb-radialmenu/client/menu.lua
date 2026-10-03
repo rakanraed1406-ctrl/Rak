@@ -1,4 +1,9 @@
 local MAX_MENU_ITEMS = 7
+-- After the wheel closes it can't reopen for this long. Holding F1 and picking an option
+-- (Emote Menu...) gave the focus back to the game while F1 was still down, so the wheel
+-- opened again on top of the other menu and that menu stopped responding.
+local REOPEN_COOLDOWN = 700 -- ms
+local lastClose = 0
 
 QBCore = exports["qb-core"]:GetCoreObject()
 local isLoggedIn = LocalPlayer.state.isLoggedIn == true
@@ -106,6 +111,7 @@ end
 
 local function closeMenu()
     menuOpen = false
+    lastClose = GetGameTimer()
     SetNuiFocus(false, false)
     SendNUIMessage({ state = 'destroy' })
 end
@@ -116,6 +122,7 @@ local function openMenu()
         isLoggedIn = pd ~= nil and pd.citizenid ~= nil
     end
     if menuOpen or not isLoggedIn or IsPauseMenuActive() or IsNuiFocused() then return end
+    if GetGameTimer() - lastClose < REOPEN_COOLDOWN then return end
     menuOpen = true
     SendNUIMessage({
         state = "show",
