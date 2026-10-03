@@ -72,11 +72,13 @@
     }
 
     // ── scale: lay out on 1920x1080, scale by height ───────────────────────
-    var scaleEl = byId('scale');
+    var scaleEl = byId('scale'), uiScale = 0.85, canvasScale = 1, mapPx = null;
     function fit() {
-        var s = window.innerHeight / 1080;
-        scaleEl.style.transform = 'scale(' + s + ')';
-        scaleEl.style.width = (window.innerWidth / s) + 'px';
+        canvasScale = window.innerHeight / 1080 * uiScale;     // Config.Interface.scale shrinks everything
+        scaleEl.style.transform = 'scale(' + canvasScale + ')';
+        scaleEl.style.width = (window.innerWidth / canvasScale) + 'px';
+        scaleEl.style.height = (window.innerHeight / canvasScale) + 'px';
+        if (mapPx) placeMap();
     }
     window.addEventListener('resize', fit);
     fit();
@@ -216,8 +218,8 @@
     var CHIP_KEYS = ['stress', 'hunger', 'thirst'];
     var CHIP_CRIT = {
         stress: function (v) { return v >= 80; },
-        hunger: function (v) { return v <= 20; },
-        thirst: function (v) { return v <= 20; }
+        hunger: function (v) { return v <= 30; },
+        thirst: function (v) { return v <= 30; }
     };
 
     var lastHp = -1, lastAr = -1, lastStam = -1;
@@ -560,11 +562,20 @@
     }
 
     // ══════════════════ MINIMAP FRAME ══════════════════
+    // the game draws the minimap in screen pixels; convert to canvas units so the corners,
+    // the date line and the car cluster sit on it whatever the UI scale is
     var root = document.documentElement;
+    function placeMap() {
+        var k = window.innerHeight / mapPx.resY / canvasScale;     // screen px -> canvas units
+        root.style.setProperty('--map-x', (mapPx.left * k).toFixed(1) + 'px');
+        root.style.setProperty('--map-y', (mapPx.bottom * k).toFixed(1) + 'px');
+        root.style.setProperty('--map-w', (mapPx.width * k).toFixed(1) + 'px');
+        root.style.setProperty('--map-h', (mapPx.height * k).toFixed(1) + 'px');
+    }
     function setMapFrame(d) {
-        if (!d.resX || !d.resY) return;
-        root.style.setProperty('--map-w', (d.width * 1920 / d.resX).toFixed(1) + 'px');
-        root.style.setProperty('--map-h', (d.height * 1080 / d.resY).toFixed(1) + 'px');
+        if (!d.resX || !d.resY || d.left === undefined) return;
+        mapPx = d;
+        placeMap();
     }
 
     // ══════════════════ CONFIG (from config.lua) ══════════════════
@@ -577,6 +588,7 @@
         if (c.watermark !== undefined) setCls(wmEl, 'off', !c.watermark);
         if (c.watermarkText) setText(wmTxt, c.watermarkText);
         var engOn = S.bars.engineHealth !== false;
+        if (c.scale !== undefined) { uiScale = clamp(c.scale, 0.5, 1.5); fit(); }
         if (c.clockSeconds !== undefined && clockSeconds !== !!c.clockSeconds) { clockSeconds = !!c.clockSeconds; tick(); }
         miniEng.style.display = engOn ? '' : 'none';
         if (S.last) updateHud(S.last);

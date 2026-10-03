@@ -55,6 +55,7 @@ function Koci.Client.HUD:GetNuiConfig()
         watermark     = ui.watermark ~= false,
         watermarkText = ui.watermarkText,
         clockSeconds  = ui.clockSeconds ~= false,
+        scale         = tonumber(ui.scale) or 0.85,
     }
 end
 
@@ -143,18 +144,21 @@ function Koci.Client.HUD:SetMiniMap(_type)
     local resX, resY = GetActiveScreenResolution()
 
     if _type == "square" then
-        local mx    = -35.0  / resX
-        local my    = -47.76 / resY
-        local mw    = 314.5  / resX
-        local mh    = 197.6  / resY
-        local maskX = -35.0  / resX
-        local maskY =   0.0  / resY
-        local maskW = 245.8  / resX
-        local maskH = 216.0  / resY
-        local blurX = -35.0  / resX
-        local blurY =  27.0  / resY
-        local blurW = 503.0  / resX
-        local blurH = 324.0  / resY
+        -- the original layout was tuned in pixels at 1080p; scale it with the screen height
+        -- and Config.Interface.minimapSize (1.0 = original size)
+        local f     = ((Config.Interface or {}).minimapSize or 1.0) * (resY / 1080.0)
+        local mx    = -35.0  * f / resX
+        local my    = -47.76 * f / resY
+        local mw    = 314.5  * f / resX
+        local mh    = 197.6  * f / resY
+        local maskX = -35.0  * f / resX
+        local maskY =   0.0  * f / resY
+        local maskW = 245.8  * f / resX
+        local maskH = 216.0  * f / resY
+        local blurX = -35.0  * f / resX
+        local blurY =  27.0  * f / resY
+        local blurW = 503.0  * f / resX
+        local blurH = 324.0  * f / resY
 
         RequestStreamedTextureDict("squaremap", false)
         while not HasStreamedTextureDictLoaded("squaremap") do Wait(150) end
@@ -169,16 +173,13 @@ function Koci.Client.HUD:SetMiniMap(_type)
         SetMinimapClipType(0)
         Wait(50)
         SetRadarBigmapEnabled(false, false)
-        -- send minimap rect in actual pixels so NUI box matches exactly
-        local sz      = GetSafeZoneSize()
-        local szOffX  = (1.0 - sz) * resX * 0.5
-        local szOffY  = (1.0 - sz) * resY * 0.5
+        -- visible map box on screen, in pixels (left / bottom were tuned at 12 / 70 for 1080p)
         SendNUIMessage({
             action = "setMapFrame",
-            x      = mx * resX + szOffX,
-            y      = my * resY + szOffY,
-            width  = mw * resX,
-            height = mh * resY,
+            left   = 12.0 * f,
+            bottom = 70.0 * f,
+            width  = 315.0 * f,
+            height = 198.0 * f,
             resX   = resX,
             resY   = resY,
         })
@@ -280,7 +281,9 @@ function Koci.Client.HUD:MainThick()
             local health   = math.floor((GetEntityHealth(playerPedId) - 100) / (maxHp > 0 and maxHp or 100) * 100)
             health = math.max(0, math.min(100, health))
             local armor    = math.max(0, GetPedArmour(playerPedId))
-            local dead     = IsEntityDead(playerPedId) or false
+            -- QBCore keeps the ped alive while downed, so also read the dead / last-stand metadata
+            local md       = (Koci.Client:GetPlayerData() or {}).metadata or {}
+            local dead     = IsEntityDead(playerPedId) or md.isdead == true or md.inlaststand == true
 
 
 
