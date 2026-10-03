@@ -66,13 +66,20 @@ end
 
 local pulledVehicles = {}   -- [vehicle] = true  (نزّلت سواقها بالتعليق على F)
 
+local function boneDist(veh, name, pos)
+    local bone = GetEntityBoneIndexByName(veh, name)
+    if bone == -1 then return nil end
+    return #(GetWorldPositionOfEntityBone(veh, bone) - pos)
+end
+
+-- عند باب السواق؟ (ومو عند الباب اللي وراه — هذاك راكب)
 local function nearDriverDoor(ped, veh)
     local pos = GetEntityCoords(ped)
-    local bone = GetEntityBoneIndexByName(veh, 'door_dside_f')
-    if bone ~= -1 then
-        return #(GetWorldPositionOfEntityBone(veh, bone) - pos) <= Config.PullOut.DoorDistance
-    end
-    return #(GetEntityCoords(veh) - pos) <= 3.0
+    local d = boneDist(veh, 'door_dside_f', pos)
+    if not d then return #(GetEntityCoords(veh) - pos) <= 3.0 end
+    if d > Config.PullOut.DoorDistance then return false end
+    local rear = boneDist(veh, 'door_dside_r', pos)
+    return not rear or d <= rear
 end
 
 -- السواق البوت ميت: تاخذ المفتاح من جثته
@@ -168,39 +175,52 @@ local function handleNpcVehicle(ped, veh, driver, seat)
     npcBusy[veh] = nil
 end
 
--- لاعب سايق: تعلّق على F عند باب السواق وينزل (لو الباب مفتوح)
-local function tryPullOut(ped, veh)
+-- لاعب سايق: تعلّق على F عند باب السواق → تسحبه غصب مثل قراند.
+-- ما فيه رسايل ولا شريط: لو تركت F قبل الوقت أو الشروط ما تمت، ما يصير شي (والركوب العادي ما ينلمس)
+local pullToken = 0
+
+local function tryPullOut(ped, veh, pressedAt)
     if pulling then return end
-    ClearPedTasks(ped)
-
-    if not nearDriverDoor(ped, veh) then
-        return QBCore.Functions.Notify(Lang:t('notify.pull_door'), 'error')
-    end
-    if isLocked(veh) then
-        return QBCore.Functions.Notify(Lang:t('notify.pull_locked'), 'error')
-    end
-    if GetEntitySpeed(veh) * 3.6 > Config.PullOut.MaxSpeed then
-        return QBCore.Functions.Notify(Lang:t('notify.pull_moving'), 'error')
-    end
-
     pulling = true
-    QBCore.Functions.Progressbar('pull_driver', Lang:t('progress.pulldriver'), Config.PullOut.HoldTime, false, true, {
-        disableMovement = true,
-        disableCarMovement = true,
-        disableMouse = false,
-        disableCombat = true,
-    }, {}, {}, {}, function()
-        pulling = false
-        if pullHeld and DoesEntityExist(veh) then
-            TriggerServerEvent('qb-vehiclekeys:server:PullOutDriver', NetworkGetNetworkIdFromEntity(veh))
+    pullToken = pullToken + 1
+    local token = pullToken
+    local cfg = Config.PullOut
+    local deadline = pressedAt + cfg.HoldTime + (cfg.ApproachTime or 4000)
+    local ready = false
+
+    while pullHeld and GetGameTimer() < deadline do
+        if not DoesEntityExist(veh) or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) then break end
+        local driver = GetPedInVehicleSeat(veh, -1)
+        if driver == 0 or not IsPedAPlayer(driver) or isLocked(veh) then break end
+        if GetGameTimer() - pressedAt >= cfg.HoldTime and nearDriverDoor(ped, veh)
+            and GetEntitySpeed(veh) * 3.6 <= cfg.MaxSpeed then
+            ready = true
+            break
         end
-    end, function()
+        Wait(50)
+    end
+
+    if not ready then
+        -- ضغطة وتركت عند باب سواق لاعب: كرسيه مو فاضي، نوقف شخصيتك بدل ما تعلق عند الباب
+        if not pullHeld and DoesEntityExist(veh) and GetVehiclePedIsTryingToEnter(ped) == veh
+            and GetSeatPedIsTryingToEnter(ped) == -1 and IsPedAPlayer(GetPedInVehicleSeat(veh, -1)) then
+            ClearPedTasks(ped)
+        end
         pulling = false
+        return
+    end
+
+    TriggerServerEvent('qb-vehiclekeys:server:PullOutDriver', NetworkGetNetworkIdFromEntity(veh))
+    -- السيرفر رفض (ما يرد): نفك القفل بعد شوي
+    SetTimeout(3000, function()
+        if pullToken == token and pulling == 'waiting' then pulling = false end
     end)
+    pulling = 'waiting'
 end
 
 RegisterCommand('+vehkeys_f', function()
     pullHeld = true
+    local pressedAt = GetGameTimer()
     local ped = PlayerPedId()
     if not LocalPlayer.state.isLoggedIn or pulling or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) then return end
 
@@ -219,58 +239,87 @@ RegisterCommand('+vehkeys_f', function()
             return
         end
 
-        -- مقفلة (قفلها صاحبها): تحاول تفتح الباب مثل قراند → Locked
+        -- مقفلة (قفلها صاحبها): شخصيتك تحاول تفتح الباب مثل قراند → Locked
         if isLocked(veh) then
+            if seat == nil then return end
             if GetVehiclePedIsTryingToEnter(ped) == veh then waitGaveUp(ped, veh, 6000) end
             return QBCore.Functions.Notify(Lang:t('notify.veh_locked'), 'error')
         end
 
-        if driver == 0 then return end
-        if IsPedAPlayer(driver) then
-            -- لاعب: تعلّق على F عند باب السواق
-            if Config.PullOut.Enabled and pullHeld then tryPullOut(ped, veh) end
-        end
+        -- لاعب سايق: بس اللي عند باب السواق (أو رايح لكرسي السواق) ومعلّق على F.
+        -- الراكب (أي باب ثاني) ما نلمسه أبد → يركب عادي
+        if driver == 0 or not Config.PullOut.Enabled or not pullHeld then return end
+        if seat ~= -1 and not nearDriverDoor(ped, veh) then return end
+        tryPullOut(ped, veh, pressedAt)
     end)
 end, false)
 
 RegisterCommand('-vehkeys_f', function()
     pullHeld = false
-    if pulling then TriggerEvent('progressbar:client:cancel') end
 end, false)
 
 RegisterKeyMapping('+vehkeys_f', 'Vehicle: enter / hold to pull out driver', 'keyboard', 'F')
 
--- السيرفر وافق: السواق ينزل وأنت تركب مكانه (والمفتاح يجيك لما تقعد)
+-- السيرفر وافق: تسحب السواق بأنيميشن قراند (جاك) وتقعد مكانه (والمفتاح يجيك لما تقعد)
 RegisterNetEvent('qb-vehiclekeys:client:PullOutGo', function(netId)
     local veh = NetworkGetEntityFromNetworkId(netId)
-    if veh == 0 or not DoesEntityExist(veh) then return end
+    if veh == 0 or not DoesEntityExist(veh) then pulling = false return end
     pulledVehicles[veh] = true
+    pulling = true
+
     CreateThread(function()
-        local deadline = GetGameTimer() + 5000
-        while GetGameTimer() < deadline and not IsVehicleSeatFree(veh, -1) do Wait(100) end
-        if IsVehicleSeatFree(veh, -1) then
-            TaskEnterVehicle(PlayerPedId(), veh, 10000, -1, 2.0, 1, 0)
+        local ped = PlayerPedId()
+        TaskEnterVehicle(ped, veh, 6000, -1, 2.0, 8, 0)   -- 8 = يسحب اللي بالكرسي غصب
+        local retried = false
+        local started = GetGameTimer()
+        local deadline = started + (Config.PullOut.ForceTimeout or 4000) + 4000
+        while GetGameTimer() < deadline and DoesEntityExist(veh) and GetPedInVehicleSeat(veh, -1) ~= ped do
+            if IsEntityDead(ped) then break end
+            if GetVehiclePedIsTryingToEnter(ped) ~= veh then
+                if IsVehicleSeatFree(veh, -1) then
+                    -- السواق نزل (انطلع غصب): اركب عادي
+                    TaskEnterVehicle(ped, veh, 5000, -1, 2.0, 1, 0)
+                elseif not retried and GetGameTimer() - started > 800 then
+                    -- السحب ما مشى أول مرة (تأخير شبكة): نعيده مرة وحدة
+                    retried = true
+                    TaskEnterVehicle(ped, veh, 6000, -1, 2.0, 8, 0)
+                end
+            end
+            Wait(200)
         end
+        pulling = false
     end)
 end)
 
--- انسحبت من سيارتك
+-- أحد سحبك من سيارتك: نخليك تنسحب (أنيميشن قراند)، وما تقدر تمشي/تنزل بنفسك.
+-- لو السحب ما صار خلال ForceTimeout → تنطلع برا غصب
+local beingPulled = false
 RegisterNetEvent('qb-vehiclekeys:client:PulledOut', function(netId)
     local ped = PlayerPedId()
     local veh = NetworkGetEntityFromNetworkId(netId)
-    if veh == 0 or GetPedInVehicleSeat(veh, -1) ~= ped then return end
+    if beingPulled or veh == 0 or GetPedInVehicleSeat(veh, -1) ~= ped then return end
+    beingPulled = true
 
-    QBCore.Functions.Notify(Lang:t('notify.pulled_out'), 'error')
-    TaskLeaveVehicle(ped, veh, 256)
+    SetPedCanBeDraggedOut(ped, true)
+    TriggerServerEvent('qb-vehiclekeys:server:PullOutReady', netId)
+    if Config.PullOut.Notify then QBCore.Functions.Notify(Lang:t('notify.pulled_out'), 'error') end
+
     CreateThread(function()
-        local deadline = GetGameTimer() + 2500
-        while GetGameTimer() < deadline do
-            DisableControlAction(0, 71, true)
-            DisableControlAction(0, 72, true)
-            DisableControlAction(0, 75, true)
+        local deadline = GetGameTimer() + (Config.PullOut.ForceTimeout or 4000)
+        while GetGameTimer() < deadline and GetVehiclePedIsIn(ped, false) == veh do
+            DisableControlAction(0, 71, true)   -- بنزين
+            DisableControlAction(0, 72, true)   -- فرامل/ريوس
+            DisableControlAction(0, 75, true)   -- نزول
             DisableControlAction(0, 23, true)
             Wait(0)
         end
+        if DoesEntityExist(veh) and GetPedInVehicleSeat(veh, -1) == ped then
+            TaskLeaveVehicle(ped, veh, 16)      -- ما انسحب (لاق): ينطلع برا غصب
+        end
+
+        Wait(1500)
+        beingPulled = false
+        applyPedFlags()
     end)
 end)
 

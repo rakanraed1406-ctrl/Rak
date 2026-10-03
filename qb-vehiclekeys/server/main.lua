@@ -307,8 +307,18 @@ QBCore.Functions.CreateCallback('qb-vehiclekeys:server:Gunpoint', function(sourc
     cb(true)
 end)
 
--- تعلّق على F عند باب لاعب سايق → ينزل (لو الباب مفتوح)
+-- تعلّق على F عند باب لاعب سايق → تسحبه غصب (لو الباب مفتوح)
+-- 1) السواق يجيه PulledOut (يصير ينسحب) 2) يرد Ready 3) اللي يسحب يجيه Go ويسوي أنيميشن السحب
 local pullCooldown = {}
+local pendingPull = {}   -- [netId] = { src = اللي يسحب, target = السواق }
+
+local function sendPullGo(netId)
+    local p = pendingPull[netId]
+    if not p then return end
+    pendingPull[netId] = nil
+    TriggerClientEvent('qb-vehiclekeys:client:PullOutGo', p.src, netId)
+end
+
 RegisterNetEvent('qb-vehiclekeys:server:PullOutDriver', function(netId)
     local src = source
     if not Config.PullOut.Enabled then return end
@@ -319,6 +329,8 @@ RegisterNetEvent('qb-vehiclekeys:server:PullOutDriver', function(netId)
 
     local veh = vehicleFromNet(netId)
     if not veh then return end
+    netId = NetworkGetNetworkIdFromEntity(veh)
+    if pendingPull[netId] then return end
     if GetEntityHealth(GetPlayerPed(src)) <= 0 then return end
     if GetVehiclePedIsIn(GetPlayerPed(src), false) ~= 0 then return end
     if distanceTo(src, veh) > 4.0 then return end
@@ -332,9 +344,15 @@ RegisterNetEvent('qb-vehiclekeys:server:PullOutDriver', function(netId)
     local target = NetworkGetEntityOwner(driver)
     if not target or target == src then return end
 
-    PulledOut[NetworkGetNetworkIdFromEntity(veh)] = { src = src, t = os.time() }
+    PulledOut[netId] = { src = src, t = os.time() }
+    pendingPull[netId] = { src = src, target = target }
     TriggerClientEvent('qb-vehiclekeys:client:PulledOut', target, netId)
-    TriggerClientEvent('qb-vehiclekeys:client:PullOutGo', src, netId)
+    SetTimeout(1500, function() sendPullGo(netId) end)   -- السواق ما رد (لاق): نكمل
+end)
+
+RegisterNetEvent('qb-vehiclekeys:server:PullOutReady', function(netId)
+    local p = pendingPull[tonumber(netId)]
+    if p and p.target == source then sendPullGo(tonumber(netId)) end
 end)
 
 AddEventHandler('playerDropped', function()
