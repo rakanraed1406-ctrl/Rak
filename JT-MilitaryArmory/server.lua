@@ -455,7 +455,8 @@ local function saveFleet()
         if DoesEntityExist(veh) then
             local shop = Shops[info.shop]
             local p = shop and shop.byId[info.pid]
-            if p then t[tostring(NetworkGetNetworkIdFromEntity(veh))] = { s = info.shop, p = info.pid, m = p.hash, l = info.plate, c = info.cid } end
+            -- (GlobalState reaches every client: shop, product, model and plate only — no citizenid)
+            if p then t[tostring(NetworkGetNetworkIdFromEntity(veh))] = { s = info.shop, p = info.pid, m = p.hash, l = info.plate } end
         end
     end
     GlobalState.jtLogisticsFleet = t
@@ -526,7 +527,7 @@ local function retrackFleet()
         local p = shop and shop.byId[e.p]
         if veh and veh ~= 0 and p and p.type == 'vehicle' and not spawned[veh] and DoesEntityExist(veh) and sameHash(GetEntityModel(veh), p.hash) then
             spawned[veh] = { shop = shop.id, pid = p.id, plate = type(e.l) == 'string' and e.l or trim(GetVehicleNumberPlateText(veh)),
-                cid = type(e.c) == 'string' and e.c or nil, wrecked = isWrecked(veh) }
+                wrecked = isWrecked(veh) }
             found[shop] = found[shop] or {}
             found[shop][p.id] = (found[shop][p.id] or 0) + 1
         end
@@ -539,7 +540,10 @@ local function retrackFleet()
         for pid in pairs(pids) do
             local was, still = shop.state.out[pid] or 0, seen[pid] or 0
             if was ~= still then
-                if still < was then shop.state.depot[pid] = (shop.state.depot[pid] or 0) + (was - still) end
+                -- garage + out stays the same: missing ones go back to the garage, extra ones
+                -- (the DB was behind) come out of it — never more units than were bought
+                local g = (shop.state.depot[pid] or 0) + (was - still)
+                shop.state.depot[pid] = g > 0 and g or nil
                 shop.state.out[pid] = still > 0 and still or nil
                 saveDepot(shop, pid)
             end
@@ -547,6 +551,14 @@ local function retrackFleet()
     end
     saveFleet()
 end
+
+-- a fleet vehicle blown up and removed before the next 30 s check still counts as destroyed
+AddEventHandler('entityRemoved', function(entity)
+    local info = spawned[entity]
+    if not info or info.wrecked then return end
+    local ok, wrecked = pcall(isWrecked, entity)
+    if ok and wrecked then info.wrecked = true end
+end)
 
 local function tickAll()
     withLock(function()
@@ -596,7 +608,8 @@ RegisterNetEvent('jt-logistics:server:close', function()
     for _, v in pairs(viewers) do v[src] = nil end
 end)
 
-QBCore.Functions.CreateCallback('jt-logistics:server:displays', function(_, cb)
+QBCore.Functions.CreateCallback('jt-logistics:server:displays', function(source, cb)
+    if not cooldown(source, 'displays', 3000) then return cb({}) end
     local out = {}
     for id, shop in pairs(Shops) do if shop.state then out[id] = fleetOf(shop) end end
     cb(out)
@@ -701,11 +714,21 @@ end)
 local function freePoints(shop, group)
     local points = (shop.cfg.spawnPoints or {})[group] or {}
     local vehicles = GetAllVehicles()
+    local players = {}
+    for _, id in ipairs(GetPlayers()) do
+        local ped = GetPlayerPed(tonumber(id) or id)
+        if ped and ped ~= 0 then players[#players + 1] = GetEntityCoords(ped) end
+    end
     local free = {}
     for _, p in ipairs(points) do
         local pos, ok = vector3(p.x, p.y, p.z), true
         for _, veh in ipairs(vehicles) do
             if #(GetEntityCoords(veh) - pos) < 6.0 then ok = false break end
+        end
+        if ok then -- never spawn a vehicle on top of someone
+            for _, c in ipairs(players) do
+                if #(c - pos) < 4.0 then ok = false break end
+            end
         end
         if ok then free[#free + 1] = p end
     end
@@ -716,6 +739,20 @@ local function randomPlate(prefix)
     prefix = tostring(prefix or 'MIL'):upper():gsub('[^%w]', ''):sub(1, 4)
     local digits = 8 - #prefix
     return prefix .. tostring(math.random(10 ^ (digits - 1), 10 ^ digits - 1))
+end
+
+--- a plate no player vehicle and no vehicle in the world already uses: keys go by
+--- plate, so a clash would hand out keys to somebody else's car
+local function uniquePlate(prefix)
+    local inWorld = {}
+    for _, veh in ipairs(GetAllVehicles()) do inWorld[trim(GetVehicleNumberPlateText(veh))] = true end
+    local plate
+    for _ = 1, 15 do
+        plate = randomPlate(prefix)
+        local ok, row = pcall(MySQL.scalar.await, 'SELECT 1 FROM player_vehicles WHERE plate = ? LIMIT 1', { plate })
+        if not inWorld[plate] and not (ok and row ~= nil) then return plate end
+    end
+    return plate
 end
 
 --- Always created by the server itself (CreateVehicleServerSetter): no client
@@ -744,6 +781,7 @@ end
 
 QBCore.Functions.CreateCallback('jt-logistics:server:pickupInfo', function(source, cb, shopId, kind, pid)
     local src = source
+    if not cooldown(src, 'info', 1000) then return cb(false) end
     local shop = ready and type(shopId) == 'string' and Shops[shopId]
     local Player = QBCore.Functions.GetPlayer(src)
     if not shop or not can(Player, shop, 'pickup') then notify(src, L.no_permission, 'error') return cb(false) end
@@ -788,7 +826,7 @@ QBCore.Functions.CreateCallback('jt-logistics:server:takeVehicles', function(sou
 
         local out = {}
         for i = 1, math.min(amount, #points) do
-            local plate = randomPlate(shop.cfg.platePrefix)
+            local plate = uniquePlate(shop.cfg.platePrefix)
             local veh = spawnVehicle(p, points[i], plate)
             if veh then
                 shop.state.depot[p.id] = shop.state.depot[p.id] - 1
@@ -826,6 +864,18 @@ local function condition(veh)
     return math.max(0, math.min(100, math.floor(GetVehicleEngineHealth(veh) / 10 + 0.5)))
 end
 
+--- nobody but `myPed` sitting in it, and standing still: storing deletes the
+--- vehicle, so anyone else inside (a passenger in a hovering helicopter…) would drop
+local function freeToStore(veh, myPed)
+    for seat = -1, 15 do
+        local ped = GetPedInVehicleSeat(veh, seat)
+        if ped and ped ~= 0 and ped ~= myPed and IsPedAPlayer(ped) then return false, 'occupied' end
+    end
+    local v = GetEntityVelocity(veh)
+    if v and #v > 2.0 then return false, 'moving' end
+    return true
+end
+
 local function ownedByPlayer(plate)
     if not plate or plate == '' then return false end
     local ok, row = pcall(MySQL.scalar.await, 'SELECT 1 FROM player_vehicles WHERE plate = ? LIMIT 1', { plate })
@@ -852,6 +902,7 @@ end
 
 QBCore.Functions.CreateCallback('jt-logistics:server:storeInfo', function(source, cb, shopId)
     local src = source
+    if not cooldown(src, 'info', 1000) then return cb(false) end
     local shop = ready and type(shopId) == 'string' and Shops[shopId]
     local Player = QBCore.Functions.GetPlayer(src)
     if not shop or not can(Player, shop, 'pickup') then notify(src, L.no_permission, 'error') return cb(false) end
@@ -888,7 +939,7 @@ QBCore.Functions.CreateCallback('jt-logistics:server:storeVehicles', function(so
 
         local myPed = GetPlayerPed(src)
         local st = shop.state
-        local stored, touched, labels, wrecked, extra = 0, {}, {}, false, 0
+        local stored, touched, labels, wrecked, extra, blocked = 0, {}, {}, false, 0, nil
         local seen = {}
         for i, id in ipairs(ids) do
             if i > 20 then break end
@@ -898,10 +949,13 @@ QBCore.Functions.CreateCallback('jt-logistics:server:storeVehicles', function(so
             if veh and veh ~= 0 and not seen[veh] and DoesEntityExist(veh) and #(GetEntityCoords(veh) - center) <= radius then
                 seen[veh] = true
                 local p, info = storable(shop, veh)
-                local driver = p and GetPedInVehicleSeat(veh, -1)
+                local free, why = false, nil
+                if p then free, why = freeToStore(veh, myPed) end
                 if p and isWrecked(veh) then
                     wrecked = true
-                elseif p and (driver == 0 or driver == myPed) then
+                elseif p and not free then
+                    blocked = why
+                elseif p then
                     spawned[veh] = nil
                     DeleteEntity(veh)
                     if info then
@@ -921,7 +975,12 @@ QBCore.Functions.CreateCallback('jt-logistics:server:storeVehicles', function(so
                 end
             end
         end
-        if stored == 0 then return { ok = false, msg = wrecked and L.wrecked or L.nothing_to_store } end
+        if stored == 0 then
+            local msg = (blocked == 'occupied' and (L.occupied or 'فيه أحد راكب المركبة'))
+                or (blocked == 'moving' and (L.moving or 'وقّف المركبة أول'))
+                or (wrecked and L.wrecked) or L.nothing_to_store
+            return { ok = false, msg = msg }
+        end
         for pid in pairs(touched) do saveDepot(shop, pid) end
         saveFleet()
         log('Vehicles stored', 'blue', ('[%s] %s (%s) stored %s%s'):format(shop.id, GetPlayerName(src) or '?', Player.PlayerData.citizenid,
@@ -989,6 +1048,17 @@ end)
 -- ---------------------------------------------------------------------------
 -- Admin
 -- ---------------------------------------------------------------------------
+--- a product by its id or its model, any case (ids with spaces, like 'Hunter V2',
+--- can't be typed in a command — 'ah64' finds it)
+local function findProduct(shop, key)
+    if not shop or type(key) ~= 'string' then return nil end
+    if shop.byId[key] then return shop.byId[key] end
+    key = key:lower()
+    for _, p in ipairs(shop.list) do
+        if p.id:lower() == key or (p.model and p.model:lower() == key) then return p end
+    end
+end
+
 QBCore.Commands.Add('logisticsbalance', 'Set a logistics budget (admin)', { { name = 'shop', help = 'cia / lspd ...' }, { name = 'amount', help = 'new balance' } }, true, function(source, args)
     if not isAdmin(source) then return notify(source, L.no_permission, 'error') end
     local shop = Shops[args[1] or '']
@@ -1006,7 +1076,7 @@ end)
 QBCore.Commands.Add('logisticsfleet', 'Set how many of a product are in a depot (admin)', { { name = 'shop', help = 'cia' }, { name = 'product', help = 'product id (lazer, carbine...)' }, { name = 'amount', help = 'in the garage / ready' } }, true, function(source, args)
     if not isAdmin(source) then return notify(source, L.no_permission, 'error') end
     local shop = Shops[args[1] or '']
-    local p = shop and shop.byId[args[2] or '']
+    local p = findProduct(shop, args[2])
     local amount = int(args[3], 0, 100000)
     if not p or not amount then return notify(source, 'usage: /logisticsfleet shop product amount', 'error') end
     withLock(function()
@@ -1023,8 +1093,9 @@ end)
 QBCore.Commands.Add('logisticsrecall', 'Bring a shop\'s fleet back to the garage (admin)', { { name = 'shop', help = 'cia' }, { name = 'product', help = 'optional: product id' } }, true, function(source, args)
     if not isAdmin(source) then return notify(source, L.no_permission, 'error') end
     local shop = Shops[args[1] or '']
-    local only = args[2]
-    if not shop or (only and not shop.byId[only]) then return notify(source, 'usage: /logisticsrecall shop [product]', 'error') end
+    local onlyP = args[2] and findProduct(shop, args[2])
+    if not shop or (args[2] and not onlyP) then return notify(source, 'usage: /logisticsrecall shop [product id / model]', 'error') end
+    local only = onlyP and onlyP.id
     local n = withLock(function()
         local count, touched = 0, {}
         for veh, info in pairs(spawned) do
