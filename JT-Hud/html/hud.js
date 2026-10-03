@@ -121,16 +121,16 @@
         o.push('<svg width="' + w + '" height="' + CH + '" viewBox="0 0 ' + w + ' ' + CH + '">');
         for (var d = C0; d <= C1; d += 5) {
             var x = ((d - C0) * PPD).toFixed(1), n = ((d % 360) + 360) % 360, y1, sw, col;
-            if (n % 45 === 0) { y1 = 28; sw = 2; col = n === 0 ? '#ff6b80' : '#ffffff'; }
-            else if (n % 15 === 0) { y1 = 31; sw = 1.4; col = 'rgba(225,235,255,0.82)'; }
-            else { y1 = 34; sw = 1; col = 'rgba(200,215,255,0.5)'; }
+            if (n % 45 === 0) { y1 = 28; sw = 2; col = n === 0 ? '#e3264a' : '#d6e0f7'; }
+            else if (n % 15 === 0) { y1 = 31; sw = 1.4; col = 'rgba(160,180,230,0.8)'; }
+            else { y1 = 34; sw = 1; col = 'rgba(130,150,210,0.5)'; }
             o.push('<line x1="' + x + '" x2="' + x + '" y1="' + (y1 - 0.5) + '" y2="' + CH + '" stroke="rgba(0,3,14,0.55)" stroke-width="' + (sw + 2) + '"/>');
             o.push('<line x1="' + x + '" x2="' + x + '" y1="' + y1 + '" y2="' + CH + '" stroke="' + col + '" stroke-width="' + sw + '"/>');
             if (n % 45 === 0) {
                 o.push('<text x="' + x + '" y="25" text-anchor="middle" font-size="' + (n % 90 === 0 ? 14 : 12) +
                        '" font-weight="800" fill="' + col + '"' + halo + '>' + CARD[n / 45] + '</text>');
             } else if (n % 15 === 0) {
-                o.push('<text x="' + x + '" y="25" text-anchor="middle" font-size="9.5" font-weight="600" fill="rgba(225,235,255,0.8)"' + halo + '>' + n + '</text>');
+                o.push('<text x="' + x + '" y="25" text-anchor="middle" font-size="9.5" font-weight="600" fill="rgba(165,185,232,0.8)"' + halo + '>' + n + '</text>');
             }
         }
         o.push('</svg>');
