@@ -773,11 +773,7 @@ Cooldown = false
 
 local function PlayToggleEmote(e, cb)
 	local Ped = PlayerPedId()
-	local timeout = GetGameTimer() + 3000 -- a dict that never loads used to hang this forever
-	while not HasAnimDictLoaded(e.Dict) do
-		if GetGameTimer() > timeout then return cb() end
-		RequestAnimDict(e.Dict) Wait(100)
-	end
+	while not HasAnimDictLoaded(e.Dict) do RequestAnimDict(e.Dict) Wait(100) end
 	if IsPedInAnyVehicle(Ped) then e.Move = 51 end
 	TaskPlayAnim(Ped, e.Dict, e.Anim, 3.0, 3.0, e.Dur, e.Move, 0, false, false, false)
 	local Pause = e.Dur-500 if Pause < 500 then Pause = 500 end
