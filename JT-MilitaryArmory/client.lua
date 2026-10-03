@@ -38,12 +38,13 @@ local areas = {}              -- [shopId] = { center, radius }
 -- ---------------------------------------------------------------------------
 -- Player data (cached: qb-target calls canInteract a lot)
 -- ---------------------------------------------------------------------------
-local function refreshPlayer() PlayerData = QBCore.Functions.GetPlayerData() or {} end
+local permCache = {}          -- [shopId] = { [action] = bool }, cleared whenever the player data changes
+local function refreshPlayer() PlayerData = QBCore.Functions.GetPlayerData() or {} permCache = {} end
 RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function() refreshPlayer() end)
-RegisterNetEvent('QBCore:Client:OnPlayerUnload', function() PlayerData = {} end)
-RegisterNetEvent('QBCore:Player:SetPlayerData', function(pd) if type(pd) == 'table' then PlayerData = pd end end)
-RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job) PlayerData.job = job end)
-RegisterNetEvent('QBCore:Client:OnGangUpdate', function(gang) PlayerData.gang = gang end)
+RegisterNetEvent('QBCore:Client:OnPlayerUnload', function() PlayerData = {} permCache = {} end)
+RegisterNetEvent('QBCore:Player:SetPlayerData', function(pd) if type(pd) == 'table' then PlayerData = pd permCache = {} end end)
+RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job) PlayerData.job = job permCache = {} end)
+RegisterNetEvent('QBCore:Client:OnGangUpdate', function(gang) PlayerData.gang = gang permCache = {} end)
 
 local function matches(rule)
     if type(rule) ~= 'table' or not PlayerData.citizenid then return false end
@@ -64,11 +65,24 @@ local function matches(rule)
 end
 
 -- (only decides what the player sees; the server checks again)
+local permCacheAt = 0
 local function can(shopId, action)
-    local shop = Config.Shops[shopId]
-    if not shop or not matches(shop.access) then return false end
-    local rule = action and shop.permissions and shop.permissions[action]
-    return rule == nil or matches(rule)
+    local now = GetGameTimer()
+    if now - permCacheAt > 2000 then permCache, permCacheAt = {}, now end -- also expires on its own (framework forks)
+    local cache = permCache[shopId]
+    if not cache then cache = {} permCache[shopId] = cache end
+    local key = action or 'open'
+    local v = cache[key]
+    if v == nil then
+        local shop = Config.Shops[shopId]
+        if not shop or not matches(shop.access) then v = false
+        else
+            local rule = action and shop.permissions and shop.permissions[action]
+            v = rule == nil or matches(rule)
+        end
+        cache[key] = v
+    end
+    return v
 end
 
 -- Which shop an event / export means: 'cia', { shop = 'cia' } (qb-target / ox_target
@@ -284,11 +298,16 @@ local function inGarage(f)
     return type(f) == 'table' and tonumber(f.g) or 0
 end
 
-local function fleetOut(shopId)
-    for _, f in pairs(depot[shopId] or {}) do
-        if type(f) == 'table' and (tonumber(f.o) or 0) > 0 then return true end
+local anyOut = {}             -- [shopId] = true when some fleet vehicle is out (from the fleet updates)
+local function fleetOut(shopId) return anyOut[shopId] == true end
+
+local function setFleet(shopId, fleet)
+    depot[shopId] = fleet
+    local out = false
+    for _, f in pairs(fleet) do
+        if type(f) == 'table' and (tonumber(f.o) or 0) > 0 then out = true break end
     end
-    return false
+    anyOut[shopId] = out
 end
 
 local function loadModel(model)
@@ -364,7 +383,9 @@ end
 
 local function spawnPed(shopId, kind, cfg)
     local key = shopId .. '|' .. kind
-    if peds[key] or not cfg then return end
+    local cur = peds[key]
+    if cur and cur ~= 0 and not DoesEntityExist(cur) then peds[key], cur = nil, nil end -- deleted by something else
+    if cur or not cfg then return end
     peds[key] = 0 -- placeholder
     local hash = loadModel(cfg.model)
     if not hash or peds[key] ~= 0 then return end
@@ -408,12 +429,21 @@ local function shopArea(shopId, shop)
     local center = vector3(x / #pts, y / #pts, z / #pts)
     local radius = 0.0
     for _, c in ipairs(pts) do radius = math.max(radius, #(center - vector3(c.x, c.y, c.z))) end
-    return { center = center, radius = radius }
+    -- everything the loop needs, made once (no strings / vectors built every second)
+    local list = {}
+    for _, p in ipairs(shop.products or {}) do
+        if p.type == 'vehicle' and p.display then
+            list[#list + 1] = { p = p, key = shopId .. '|' .. p.id, pos = vector3(p.display.x, p.display.y, p.display.z) }
+        end
+    end
+    return { center = center, radius = radius, displays = list, pedKeys = { shopId .. '|open', shopId .. '|item' } }
 end
 
 local function clearShop(shopId)
-    for key in pairs(displays) do if key:sub(1, #shopId + 1) == shopId .. '|' then removeDisplay(key) end end
-    for key in pairs(peds) do if key:sub(1, #shopId + 1) == shopId .. '|' then removePed(key) end end
+    local area = areas[shopId]
+    if not area then return end
+    for _, d in ipairs(area.displays) do removeDisplay(d.key) end
+    for _, key in ipairs(area.pedKeys) do removePed(key) end
 end
 
 CreateThread(function()
@@ -422,29 +452,41 @@ CreateThread(function()
     end
     Wait(1500)
     refreshPlayer()
-    QBCore.Functions.TriggerCallback('jt-logistics:server:displays', function(all) if type(all) == 'table' then depot = all end end)
+    QBCore.Functions.TriggerCallback('jt-logistics:server:displays', function(all)
+        if type(all) ~= 'table' then return end
+        for id, fleet in pairs(all) do
+            if type(fleet) == 'table' then setFleet(id, fleet) if areas[id] then areas[id].dirty = true end end
+        end
+    end)
 
     local range = Config.DisplayDistance or 120.0
+    for _, area in pairs(areas) do area.reach = area.radius + range end
     while true do
-        local sleep = 2000
+        local sleep = 2500
         local pos = GetEntityCoords(PlayerPedId())
+        local now = GetGameTimer()
         for id, area in pairs(areas) do
-            if #(pos - area.center) <= area.radius + range then
+            if #(pos - area.center) <= area.reach then
                 sleep = 1000
-                local shop = Config.Shops[id]
-                spawnPed(id, 'open', shop.openPed)
-                spawnPed(id, 'item', shop.itemPed)
-                local fleet = depot[id] or {}
-                for _, p in ipairs(shop.products or {}) do
-                    if p.type == 'vehicle' and p.display then
-                        local key = id .. '|' .. p.id
+                local last = area.lastPos
+                if area.dirty or not last or #(pos - last) > 6.0 or now - (area.lastCheck or 0) > 15000 then
+                    area.dirty, area.lastPos, area.lastCheck = false, pos, now
+                    local shop = Config.Shops[id]
+                    spawnPed(id, 'open', shop.openPed)
+                    spawnPed(id, 'item', shop.itemPed)
+                    local fleet = depot[id] or {}
+                    for _, d in ipairs(area.displays) do
+                        local cur = displays[d.key]
+                        if cur and cur.veh and not DoesEntityExist(cur.veh) then displays[d.key] = nil cur = nil end -- deleted by something else
                         -- only while there is one in the garage to take out
-                        local want = inGarage(fleet[p.id]) > 0 and #(pos - vector3(p.display.x, p.display.y, p.display.z)) <= range
-                        if want and not displays[key] then spawnDisplay(id, p)
-                        elseif not want and displays[key] then removeDisplay(key) end
+                        local want = inGarage(fleet[d.p.id]) > 0 and #(pos - d.pos) <= range
+                        if want and not cur then spawnDisplay(id, d.p)
+                        elseif not want and cur then removeDisplay(d.key) end
                     end
+                    area.live = true
                 end
-            else
+            elseif area.live then
+                area.live, area.lastPos = false, nil
                 clearShop(id)
             end
         end
@@ -454,7 +496,8 @@ end)
 
 RegisterNetEvent('jt-logistics:client:displays', function(shopId, fleet)
     if type(shopId) ~= 'string' or type(fleet) ~= 'table' then return end
-    depot[shopId] = fleet
+    setFleet(shopId, fleet)
+    if areas[shopId] then areas[shopId].dirty = true end
     for pid, f in pairs(fleet) do
         if inGarage(f) < 1 then removeDisplay(shopId .. '|' .. pid) end -- every unit is out (or lost)
     end

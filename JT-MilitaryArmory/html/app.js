@@ -104,9 +104,10 @@ function clampCart() {
 // ---------------------------------------------------------------------------
 // Ticker (only while open)
 // ---------------------------------------------------------------------------
+const END_NODES = [...document.querySelectorAll('[data-end]')]; // static: looked up once
 function tick() {
     const now = Date.now();
-    document.querySelectorAll('[data-end]').forEach((n) => {
+    END_NODES.forEach((n) => {
         const end = S.ends[n.dataset.end];
         if (end) n.textContent = hms((end - now) / 1000);
     });
