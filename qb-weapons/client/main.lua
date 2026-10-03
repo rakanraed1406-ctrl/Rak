@@ -74,40 +74,53 @@ RegisterNetEvent('weapons:client:SetWeaponQuality', function(amount)
     end
 end)
 
-RegisterNetEvent('weapons:client:AddAmmo', function(type, amount, itemData)
+-- Loading a magazine: the server decides (one item per reload) and the bullets
+-- are added only after it confirmed the item was taken.
+local loadingUntil = 0
+
+RegisterNetEvent('weapons:client:AddAmmo', function(ammoType, amount, itemData)
+    local function cancel(msg)
+        TriggerServerEvent('jt-weapons:server:ammoCancelled')
+        if msg then QBCore.Functions.Notify(msg, "error") end
+    end
+    if GetGameTimer() < loadingUntil then return end -- already loading
     local ped = PlayerPedId()
     local weapon = GetSelectedPedWeapon(ped)
-    if CurrentWeaponData then
-        if QBCore.Shared.Weapons[weapon]["name"] ~= "weapon_unarmed" and QBCore.Shared.Weapons[weapon]["ammotype"] == type:upper() then
-            local total = GetAmmoInPedWeapon(ped, weapon)
-            local _, maxAmmo = GetMaxAmmo(ped, weapon)
-            if total < maxAmmo then
-                QBCore.Functions.Progressbar("taking_bullets", Lang:t('info.loading_bullets'), Config.ReloadTime, false, true, {
-                    disableMovement = false,
-                    disableCarMovement = false,
-                    disableMouse = false,
-                    disableCombat = true,
-                }, {}, {}, {}, function() -- Done
-                    if QBCore.Shared.Weapons[weapon] then
-                        AddAmmoToPed(ped,weapon,amount)
-                        MakePedReload(ped)
-                        TriggerServerEvent("weapons:server:UpdateWeaponAmmo", CurrentWeaponData, total + amount)
-                        TriggerServerEvent('weapons:server:removeWeaponAmmoItem', itemData)
-                        TriggerEvent('inventory:client:ItemBox', QBCore.Shared.Items[itemData.name], "remove")
-                        TriggerEvent('QBCore:Notify', Lang:t('success.reloaded'), "success")
-                    end
-                end, function()
-                    QBCore.Functions.Notify(Lang:t('error.canceled'), "error")
-                end)
-            else
-                QBCore.Functions.Notify(Lang:t('error.max_ammo'), "error")
-            end
-        else
-            QBCore.Functions.Notify(Lang:t('error.no_weapon'), "error")
-        end
-    else
-        QBCore.Functions.Notify(Lang:t('error.no_weapon'), "error")
+    local data = QBCore.Shared.Weapons[weapon]
+    if not data or data.name == "weapon_unarmed" or type(ammoType) ~= 'string' or data.ammotype ~= ammoType:upper() then
+        return cancel(Lang:t('error.no_weapon'))
     end
+    local total = GetAmmoInPedWeapon(ped, weapon)
+    local _, maxAmmo = GetMaxAmmo(ped, weapon)
+    if total >= maxAmmo then return cancel(Lang:t('error.max_ammo')) end
+    -- something else already has the loading bar (another action, or a second copy of a
+    -- weapons script handling the same item): let go now instead of waiting for nothing
+    local okBusy, busy = pcall(function() return exports['progressbar']:isDoingSomething() end)
+    if okBusy and busy then return cancel() end
+
+    loadingUntil = GetGameTimer() + Config.ReloadTime + 6000 -- safety: never stuck if the bar can't start
+    QBCore.Functions.Progressbar("taking_bullets", Lang:t('info.loading_bullets'), Config.ReloadTime, false, true, {
+        disableMovement = false,
+        disableCarMovement = false,
+        disableMouse = false,
+        disableCombat = true,
+    }, {}, {}, {}, function() -- Done
+        QBCore.Functions.TriggerCallback('jt-weapons:server:loadAmmo', function(ok)
+            loadingUntil = 0
+            if not ok then return end
+            local now = GetAmmoInPedWeapon(ped, weapon)
+            AddAmmoToPed(ped, weapon, amount)
+            MakePedReload(ped)
+            TriggerServerEvent("weapons:server:UpdateWeaponAmmo", CurrentWeaponData, now + amount)
+            if itemData and itemData.name then
+                TriggerEvent('inventory:client:ItemBox', QBCore.Shared.Items[itemData.name], "remove")
+            end
+            TriggerEvent('QBCore:Notify', Lang:t('success.reloaded'), "success")
+        end)
+    end, function() -- Cancel
+        loadingUntil = 0
+        cancel(Lang:t('error.canceled'))
+    end)
 end)
 
 RegisterNetEvent("weapons:client:EquipAttachment", function(ItemData, attachment)

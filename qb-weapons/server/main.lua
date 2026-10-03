@@ -298,12 +298,42 @@ RegisterNetEvent("weapons:server:EquipAttachment", function(ItemData, CurrentWea
     end
 end)
 
-RegisterNetEvent('weapons:server:removeWeaponAmmoItem', function(item)
-    local Player = QBCore.Functions.GetPlayer(source)
+-- Ammo: exactly one magazine per reload, decided by the server.
+-- Using the item records which one; when the loading bar finishes the client
+-- asks 'jt-weapons:server:loadAmmo' and the server takes that one item, then
+-- the client adds the bullets. The old shared event name
+-- ('weapons:server:removeWeaponAmmoItem') is gone on purpose: a second copy of a
+-- weapons script listening to it took a second magazine every reload.
+local reloads = {} -- [src] = { name, slot, expires }
 
-    if not Player or type(item) ~= 'table' or not item.name or not item.slot then return end
+local function useAmmo(source, item, ammoType, amount)
+    local src = source
+    if type(item) ~= 'table' or not item.name or not item.slot then return end
+    local now = GetGameTimer()
+    local r = reloads[src]
+    if r and r.expires > now then return end -- already loading one
+    reloads[src] = { name = item.name, slot = item.slot, expires = now + 8000 }
+    TriggerClientEvent('weapons:client:AddAmmo', src, ammoType, amount, item)
+end
 
-    Player.Functions.RemoveItem(item.name, 1, item.slot)
+QBCore.Functions.CreateCallback('jt-weapons:server:loadAmmo', function(source, cb)
+    local src = source
+    local r = reloads[src]
+    reloads[src] = nil -- one answer per use, whatever happens
+    if not r or r.expires < GetGameTimer() then return cb(false) end
+    local Player = QBCore.Functions.GetPlayer(src)
+    if not Player then return cb(false) end
+    local inSlot = Player.PlayerData.items[r.slot]
+    local slot = (inSlot and inSlot.name == r.name) and r.slot or nil -- moved meanwhile: any stack of it
+    cb(Player.Functions.RemoveItem(r.name, 1, slot) and true or false)
+end)
+
+RegisterNetEvent('jt-weapons:server:ammoCancelled', function()
+    reloads[source] = nil
+end)
+
+AddEventHandler('playerDropped', function()
+    reloads[source] = nil
 end)
 
 -- Commands
@@ -316,39 +346,39 @@ end, "god")
 
 -- AMMO
 QBCore.Functions.CreateUseableItem('pistol_ammo', function(source, item)
-    TriggerClientEvent('weapons:client:AddAmmo', source, 'AMMO_PISTOL', 12, item)
+    useAmmo(source, item, 'AMMO_PISTOL', 12)
 end)
 
 QBCore.Functions.CreateUseableItem('rifle_ammo', function(source, item)
-    TriggerClientEvent('weapons:client:AddAmmo', source, 'AMMO_RIFLE', 30, item)
+    useAmmo(source, item, 'AMMO_RIFLE', 30)
 end)
 
 QBCore.Functions.CreateUseableItem('smg_ammo', function(source, item)
-    TriggerClientEvent('weapons:client:AddAmmo', source, 'AMMO_SMG', 20, item)
+    useAmmo(source, item, 'AMMO_SMG', 20)
 end)
 
 QBCore.Functions.CreateUseableItem('shotgun_ammo', function(source, item)
-    TriggerClientEvent('weapons:client:AddAmmo', source, 'AMMO_SHOTGUN', 10, item)
+    useAmmo(source, item, 'AMMO_SHOTGUN', 10)
 end)
 
 QBCore.Functions.CreateUseableItem('mg_ammo', function(source, item)
-    TriggerClientEvent('weapons:client:AddAmmo', source, 'AMMO_MG', 30, item)
+    useAmmo(source, item, 'AMMO_MG', 30)
 end)
 
 QBCore.Functions.CreateUseableItem('snp_ammo', function(source, item)
-    TriggerClientEvent('weapons:client:AddAmmo', source, 'AMMO_SNIPER', 10, item)
+    useAmmo(source, item, 'AMMO_SNIPER', 10)
 end)
 
 QBCore.Functions.CreateUseableItem('emp_ammo', function(source, item)
-    TriggerClientEvent('weapons:client:AddAmmo', source, 'AMMO_EMPLAUNCHER', 10, item)
+    useAmmo(source, item, 'AMMO_EMPLAUNCHER', 10)
 end)
 
 QBCore.Functions.CreateUseableItem('rubberslugs_ammo', function(source, item)
-    TriggerClientEvent('weapons:client:AddAmmo', source, 'AMMO_RUBBERSLUGS', 10, item)
+    useAmmo(source, item, 'AMMO_RUBBERSLUGS', 10)
 end)
 
 QBCore.Functions.CreateUseableItem('rpg_ammo', function(source, item)
-    TriggerClientEvent('weapons:client:AddAmmo', source, 'AMMO_RPG', 10, item)
+    useAmmo(source, item, 'AMMO_RPG', 10)
 end)
 
 -- TINTS

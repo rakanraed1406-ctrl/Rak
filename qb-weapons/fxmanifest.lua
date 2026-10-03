@@ -22,7 +22,6 @@ client_script 'client/main.lua'
 -- data_file 'WEAPONINFO_FILE_PATCH' 'weaponsnspistol.meta'
 
 lua54 'yes'
-server_scripts { '@mysql-async/lib/MySQL.lua' }server_scripts { '@mysql-async/lib/MySQL.lua' }
 -- سكربتات حصرية وكل شيء مجانا و ملفات و مبات
 -- https://discord.gg/rsmqe67qjN
 -- حياكم الله دس
