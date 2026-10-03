@@ -518,11 +518,9 @@ local function drawStudio()
     for _, t in ipairs({ { a, b, d }, { a, d, e }, { d, b, a }, { e, d, a } }) do -- both windings
         DrawPoly(t[1].x, t[1].y, t[1].z, t[2].x, t[2].y, t[2].z, t[3].x, t[3].y, t[3].z, col[1], col[2], col[3], 255)
     end
-    if s.fill > 0 then -- studio lights from the camera side: key (up-left) and a softer fill (right)
-        local key = s.camPos + u * (s.radius * 0.8) - r * (s.radius * 0.6)
-        DrawLightWithRange(key.x, key.y, key.z, 255, 248, 236, s.dist * 2.5, s.fill)
-        local fill = s.camPos - u * (s.radius * 0.2) + r * (s.radius * 0.9)
-        DrawLightWithRange(fill.x, fill.y, fill.z, 236, 242, 255, s.dist * 2.5, s.fill * 0.6)
+    if s.fill > 0 then -- soft light from just above the camera
+        local l = s.camPos + u * (s.radius * 0.5)
+        DrawLightWithRange(l.x, l.y, l.z, 255, 250, 240, s.dist * 2.0, s.fill)
     end
 end
 
@@ -546,28 +544,9 @@ local function shoot(model, index)
     local cx, cy, cz = (min.x + max.x) / 2, (min.y + max.y) / 2, (min.z + max.z) / 2
     local radius = #(max - min) / 2
     local fov = cfg.fov or 28.0
+    local dist = radius / math.sin(math.rad(fov / 2)) * 1.02
     -- the same direction for every vehicle: yaw from the nose (+ = its left side), pitch above
     local dir = vector3(-math.sin(yaw) * math.cos(pitch), math.cos(yaw) * math.cos(pitch), math.sin(pitch))
-    -- distance: as close as possible with the vehicle's box still inside the frame (88%),
-    -- so it fills the shot (more pixels = sharper) instead of a sphere around it
-    local aspect = GetAspectRatio(false)
-    if not aspect or aspect < 0.5 or aspect > 4.0 then aspect = 16 / 9 end
-    local tanV = math.tan(math.rad(fov / 2)) * 0.88
-    local tanH = tanV * aspect
-    local fw = vector3(-dir.x, -dir.y, -dir.z)
-    local rt = normalize(cross(fw, vector3(0.0, 0.0, 1.0)))
-    local up = cross(rt, fw)
-    local function dot(a, b) return a.x * b.x + a.y * b.y + a.z * b.z end
-    local dist = radius * 1.1 -- never inside it
-    for _, x in ipairs({ min.x, max.x }) do
-        for _, y in ipairs({ min.y, max.y }) do
-            for _, z in ipairs({ min.z, max.z }) do
-                local c = vector3(x - cx, y - cy, z - cz)
-                local depth = dot(c, fw)
-                dist = math.max(dist, math.abs(dot(c, rt)) / tanH - depth, math.abs(dot(c, up)) / tanV - depth)
-            end
-        end
-    end
     local target = GetOffsetFromEntityInWorldCoords(veh, cx, cy, cz)
     local camPos = GetOffsetFromEntityInWorldCoords(veh, cx + dir.x * dist, cy + dir.y * dist, cz + dir.z * dist)
     local cam = CreateCamWithParams('DEFAULT_SCRIPTED_CAMERA', camPos.x, camPos.y, camPos.z, 0.0, 0.0, 0.0, fov, false, 0)
@@ -577,7 +556,7 @@ local function shoot(model, index)
     RenderScriptCams(true, false, 0, true, true)
     SetFocusPosAndVel(target.x, target.y, target.z, 0.0, 0.0, 0.0)
     studio.target, studio.camPos, studio.radius, studio.dist = target, camPos, radius, dist
-    studio.fill = (cfg.fill or 1.0) * 4.0
+    studio.fill = (cfg.fill or 1.0) * 1.5
 
     -- with the vehicle on both backdrops, then the empty backdrops (same order back)
     studio.backdrop = 1
@@ -602,8 +581,7 @@ local function shoot(model, index)
 
     local p = promise.new()
     photoWaits[index] = p
-    SendNUIMessage({ action = 'photoProcess', id = index, a1 = a1, a2 = a2, b1 = b1, b2 = b2,
-        opts = { width = cfg.width or 1024, brightness = cfg.brightness or 0.42, sharpen = cfg.sharpen or 0.35 } })
+    SendNUIMessage({ action = 'photoProcess', id = index, a1 = a1, a2 = a2, b1 = b1, b2 = b2 })
     SetTimeout(30000, function() if photoWaits[index] then photoWaits[index] = nil p:resolve(nil) end end)
     return Citizen.Await(p)
 end
