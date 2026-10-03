@@ -5,12 +5,6 @@ local QBCore = exports['qb-core']:GetCoreObject()
 local KeysList = {}
 
 local isTakingKeys = false
-local isCarjacking = false
-local canCarjack = true
-local AlertSend = false
-local lastPickedVehicle = nil
-local usingAdvanced = false
-local IsHotwiring = false
 local runningClaims = {}   -- [vehicle] = 'pending' | 'granted' | 'denied'
 
 -----------------------
@@ -19,8 +13,7 @@ local runningClaims = {}   -- [vehicle] = 'pending' | 'granted' | 'denied'
 -- كل شي هنا يشتغل على الأحداث (زر F / ركبت سيارة) — وأنت ماشي ما فيه أي لوب شغال
 
 local npcPending = {}      -- [vehicle] = true  (سيارة بوت طلعت مفتوحة)
-local pullHeld = false
-local pulling = false
+local fHeld = false
 local inVehicleSession = false
 
 local function isImmune(veh)
@@ -32,8 +25,8 @@ local function isImmune(veh)
 end
 
 local function applyPedFlags()
-    -- ما أحد يسحبك من سيارتك بضغطة F، لازم يعلّق عليها (Config.PullOut)
-    if Config.PullOut.Enabled then SetPedCanBeDraggedOut(PlayerPedId(), false) end
+    -- ما أحد يسحبك من سيارتك بضغطة F (Config.PlayersCanBeDraggedOut)
+    if not Config.PlayersCanBeDraggedOut then SetPedCanBeDraggedOut(PlayerPedId(), false) end
 end
 
 local function waitTryingToEnter(ped, ms)
@@ -62,24 +55,6 @@ end
 -- مقفلة؟ (حالة القفل من السيرفر + حالة اللعبة)
 local function isLocked(veh)
     return GetVehicleDoorLockStatus(veh) >= 2
-end
-
-local pulledVehicles = {}   -- [vehicle] = true  (نزّلت سواقها بالتعليق على F)
-
-local function boneDist(veh, name, pos)
-    local bone = GetEntityBoneIndexByName(veh, name)
-    if bone == -1 then return nil end
-    return #(GetWorldPositionOfEntityBone(veh, bone) - pos)
-end
-
--- عند باب السواق؟ (ومو عند الباب اللي وراه — هذاك راكب)
-local function nearDriverDoor(ped, veh)
-    local pos = GetEntityCoords(ped)
-    local d = boneDist(veh, 'door_dside_f', pos)
-    if not d then return #(GetEntityCoords(veh) - pos) <= 3.0 end
-    if d > Config.PullOut.DoorDistance then return false end
-    local rear = boneDist(veh, 'door_dside_r', pos)
-    return not rear or d <= rear
 end
 
 -- السواق البوت ميت: تاخذ المفتاح من جثته
@@ -175,73 +150,19 @@ local function handleNpcVehicle(ped, veh, driver, seat)
     npcBusy[veh] = nil
 end
 
--- لاعب سايق: تضغط F عند باب السواق → تسحبه غصب مثل البوتات (أنيميشن قراند).
--- ما فيه رسايل ولا شريط. لو ضغطت من بعيد شوي: شخصيتك تمشي للباب وأول ما توصل تسحبه
-local pullToken = 0
-
-local function tryPullOut(ped, veh, pressedAt)
-    if pulling then return end
-    pulling = true
-    pullToken = pullToken + 1
-    local token = pullToken
-    local cfg = Config.PullOut
-    local hold = cfg.HoldTime or 0
-    local deadline = pressedAt + hold + (cfg.ApproachTime or 4000)
-    local ready = false
-
-    while GetGameTimer() < deadline do
-        if hold > 0 and not pullHeld then break end   -- HoldTime > 0 = لازم تعلّق
-        if not DoesEntityExist(veh) or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) then break end
-        local driver = GetPedInVehicleSeat(veh, -1)
-        if driver == 0 or not IsPedAPlayer(driver) or isLocked(veh) then break end
-        local atDoor = nearDriverDoor(ped, veh)
-        -- وقفت تمشي للباب (تحركت/لغيت) وأنت بعيد عنه → خلاص
-        if not atDoor and GetVehiclePedIsTryingToEnter(ped) ~= veh then break end
-        if atDoor and GetGameTimer() - pressedAt >= hold and GetEntitySpeed(veh) * 3.6 <= cfg.MaxSpeed then
-            ready = true
-            break
-        end
-        Wait(50)
-    end
-
-    if not ready then
-        -- عالق عند باب سواق لاعب (كرسيه مو فاضي): نوقف شخصيتك بدل ما تعلق
-        if DoesEntityExist(veh) and GetVehiclePedIsTryingToEnter(ped) == veh
-            and GetSeatPedIsTryingToEnter(ped) == -1 and IsPedAPlayer(GetPedInVehicleSeat(veh, -1)) then
-            ClearPedTasks(ped)
-        end
-        pulling = false
-        return
-    end
-
-    TriggerServerEvent('qb-vehiclekeys:server:PullOutDriver', NetworkGetNetworkIdFromEntity(veh))
-    -- السيرفر رفض (ما يرد): نفك القفل بعد شوي
-    SetTimeout(3000, function()
-        if pullToken == token and pulling == 'waiting' then pulling = false end
-    end)
-    pulling = 'waiting'
-end
-
--- أقرب سيارة سايقها لاعب وأنت عند باب سواقها (لو قراند ما بدأ يركّبك)
-local function driverDoorVehicle(ped)
-    local veh = closestDrivenVehicle(ped, 3.5)
-    if veh ~= 0 and IsPedAPlayer(GetPedInVehicleSeat(veh, -1)) and nearDriverDoor(ped, veh) then return veh end
-    return 0
-end
-
+-- زر F: سيارات البوتات (50/50) + سيارة مقفلة (Locked). سيارات اللاعبين = ركوب عادي مثل قراند
 RegisterCommand('+vehkeys_f', function()
-    pullHeld = true
-    local pressedAt = GetGameTimer()
+    fHeld = true
     local ped = PlayerPedId()
-    if not LocalPlayer.state.isLoggedIn or pulling or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) then return end
+    if not LocalPlayer.state.isLoggedIn or IsPedInAnyVehicle(ped, false) or IsEntityDead(ped) then return end
 
     CreateThread(function()
         local veh = waitTryingToEnter(ped, 400)
         local seat = veh ~= 0 and GetSeatPedIsTryingToEnter(ped) or nil   -- nil = ما بدأت تركب
-        if veh == 0 then
-            if Config.PullOut.Enabled then veh = driverDoorVehicle(ped) end
-            -- بوتات: زي قبل، لو معلّق على F
-            if veh == 0 and Config.PullOut.Enabled and pullHeld then veh = closestDrivenVehicle(ped, 3.5) end
+        -- بوت يمشي شوي وقراند ما بدأ يركّبك: لو معلّق على F ناخذ أقرب سيارة
+        if veh == 0 and Config.NpcCarjack.Enabled and fHeld then
+            veh = closestDrivenVehicle(ped, 3.5)
+            if veh ~= 0 and IsPedAPlayer(GetPedInVehicleSeat(veh, -1)) then veh = 0 end
         end
         if veh == 0 or isBlacklistedVehicle(veh) then return end
 
@@ -254,94 +175,19 @@ RegisterCommand('+vehkeys_f', function()
             return
         end
 
-        -- عند باب السواق (أو رايح لكرسي السواق)؟ باب الراكب/ورا = ركوب عادي وما نلمسه أبد
-        local driverSide = seat == -1 or nearDriverDoor(ped, veh)
-
         -- مقفلة (قفلها صاحبها): شخصيتك تحاول تفتح الباب مثل قراند → Locked
-        if isLocked(veh) then
-            if seat == nil then
-                if driver == 0 or not driverSide then return end
-                TaskEnterVehicle(ped, veh, 4000, -1, 2.0, 1, 0)   -- تمسك المقبض وتحاول
-                Wait(300)
-            end
+        if seat ~= nil and isLocked(veh) then
             if GetVehiclePedIsTryingToEnter(ped) == veh then waitGaveUp(ped, veh, 6000) end
-            return QBCore.Functions.Notify(Lang:t('notify.veh_locked'), 'error')
+            QBCore.Functions.Notify(Lang:t('notify.veh_locked'), 'error')
         end
-
-        -- مفتوحة + لاعب سايق + أنت عند باب السواق → تسحبه
-        if driver == 0 or not Config.PullOut.Enabled or not driverSide then return end
-        tryPullOut(ped, veh, pressedAt)
     end)
 end, false)
 
 RegisterCommand('-vehkeys_f', function()
-    pullHeld = false
+    fHeld = false
 end, false)
 
-RegisterKeyMapping('+vehkeys_f', 'Vehicle: enter / pull out driver', 'keyboard', 'F')
-
--- السيرفر وافق: تسحب السواق بأنيميشن قراند (جاك) وتقعد مكانه (والمفتاح يجيك لما تقعد)
-RegisterNetEvent('qb-vehiclekeys:client:PullOutGo', function(netId)
-    local veh = NetworkGetEntityFromNetworkId(netId)
-    if veh == 0 or not DoesEntityExist(veh) then pulling = false return end
-    pulledVehicles[veh] = true
-    pulling = true
-
-    CreateThread(function()
-        local ped = PlayerPedId()
-        TaskEnterVehicle(ped, veh, 6000, -1, 2.0, 8, 0)   -- 8 = يسحب اللي بالكرسي غصب
-        local retried = false
-        local started = GetGameTimer()
-        local deadline = started + (Config.PullOut.ForceTimeout or 4000) + 4000
-        while GetGameTimer() < deadline and DoesEntityExist(veh) and GetPedInVehicleSeat(veh, -1) ~= ped do
-            if IsEntityDead(ped) then break end
-            if GetVehiclePedIsTryingToEnter(ped) ~= veh then
-                if IsVehicleSeatFree(veh, -1) then
-                    -- السواق نزل (انطلع غصب): اركب عادي
-                    TaskEnterVehicle(ped, veh, 5000, -1, 2.0, 1, 0)
-                elseif not retried and GetGameTimer() - started > 800 then
-                    -- السحب ما مشى أول مرة (تأخير شبكة): نعيده مرة وحدة
-                    retried = true
-                    TaskEnterVehicle(ped, veh, 6000, -1, 2.0, 8, 0)
-                end
-            end
-            Wait(200)
-        end
-        pulling = false
-    end)
-end)
-
--- أحد سحبك من سيارتك: نخليك تنسحب (أنيميشن قراند)، وما تقدر تمشي/تنزل بنفسك.
--- لو السحب ما صار خلال ForceTimeout → تنطلع برا غصب
-local beingPulled = false
-RegisterNetEvent('qb-vehiclekeys:client:PulledOut', function(netId)
-    local ped = PlayerPedId()
-    local veh = NetworkGetEntityFromNetworkId(netId)
-    if beingPulled or veh == 0 or GetPedInVehicleSeat(veh, -1) ~= ped then return end
-    beingPulled = true
-
-    SetPedCanBeDraggedOut(ped, true)
-    TriggerServerEvent('qb-vehiclekeys:server:PullOutReady', netId)
-    if Config.PullOut.Notify then QBCore.Functions.Notify(Lang:t('notify.pulled_out'), 'error') end
-
-    CreateThread(function()
-        local deadline = GetGameTimer() + (Config.PullOut.ForceTimeout or 4000)
-        while GetGameTimer() < deadline and GetVehiclePedIsIn(ped, false) == veh do
-            DisableControlAction(0, 71, true)   -- بنزين
-            DisableControlAction(0, 72, true)   -- فرامل/ريوس
-            DisableControlAction(0, 75, true)   -- نزول
-            DisableControlAction(0, 23, true)
-            Wait(0)
-        end
-        if DoesEntityExist(veh) and GetPedInVehicleSeat(veh, -1) == ped then
-            TaskLeaveVehicle(ped, veh, 16)      -- ما انسحب (لاق): ينطلع برا غصب
-        end
-
-        Wait(1500)
-        beingPulled = false
-        applyPedFlags()
-    end)
-end)
+RegisterKeyMapping('+vehkeys_f', 'Vehicle: enter', 'keyboard', 'F')
 
 -- وأنت داخل سيارة بس: المفتاح / إطفاء الموتر لو ما عندك مفتاح / تبليغ لما تنزل
 local function startVehicleSession()
@@ -359,7 +205,7 @@ local function startVehicleSession()
                 local plate = QBCore.Functions.GetPlate(veh)
                 -- معك المفتاح = ما فيه شي نسويه (فحص كل ثانية بس)
                 sleep = HasKeys(plate) and 1000 or 500
-                if sleep == 500 and not IsHotwiring and not isBlacklistedVehicle(veh) and not AreKeysJobShared(veh) then
+                if sleep == 500 and not isBlacklistedVehicle(veh) and not AreKeysJobShared(veh) then
                     if ClaimRunningVehicle(veh) then
                         sleep = 100
                     else
@@ -370,7 +216,7 @@ local function startVehicleSession()
             Wait(sleep)
         end
 
-        runningClaims, npcPending, pulledVehicles = {}, {}, {}
+        runningClaims, npcPending = {}, {}
         inVehicleSession = false
     end)
 end
@@ -740,15 +586,13 @@ end
 
 -- ركبت سواق بسيارة موترها شغال وما عندك مفتاحها: نطلب المفتاح من السيرفر.
 -- يرجّع true = خل الموتر شغال (الطلب ماشي أو انقبل)
--- تجيك المفاتيح لما تقعد سواق إذا:
+-- تجيك المفاتيح لما تقعد سواق إذا (والسيرفر يتأكد):
 --   1) الموتر شغال والأبواب مفتوحة
---   2) سيارة بوت طلعت مفتوحة (50/50) ونزلته
---   3) نزّلت السواق بالتعليق على F
+--   2) سيارة بوت طلعت مفتوحة (50/50 أو رفعت السلاح) ونزلته
 function ClaimRunningVehicle(vehicle)
     local npcUnlocked = Entity(vehicle).state.npcLock == 'unlocked'
-    local pulled = pulledVehicles[vehicle] == true
     local running = Config.RunningEngine.Enabled and GetIsVehicleEngineRunning(vehicle) and not isLocked(vehicle)
-    if not npcUnlocked and not pulled and not running then return false end
+    if not npcUnlocked and not running then return false end
 
     local claim = runningClaims[vehicle]
     if claim == 'pending' or claim == 'granted' then return true end
@@ -915,7 +759,6 @@ function LockpickDoor(isAdvanced, slot)
     if #(pos - GetEntityCoords(vehicle)) > 2.5 then return end
     if GetVehicleDoorLockStatus(vehicle) <= 0 then return end
 
-    usingAdvanced = isAdvanced
     if vehicle ~= 0 then 
 
         SetVehicleAlarm(vehicle, true)
@@ -935,172 +778,12 @@ end
 
 function LockpickFinishCallback(success)
     local vehicle = QBCore.Functions.GetClosestVehicle()
+    TriggerServerEvent('hud:server:GainStress', math.random(3, 6))
+    if not success or not vehicle or vehicle == 0 then return end
 
-    local chance = math.random()
-    if success then
-        TriggerServerEvent('hud:server:GainStress', math.random(3, 6))
-        lastPickedVehicle = vehicle
-
-        if GetPedInVehicleSeat(vehicle, -1) == PlayerPedId() then
-            TriggerServerEvent('qb-vehiclekeys:server:AcquireVehicleKeys', QBCore.Functions.GetPlate(vehicle))
-        else
-            QBCore.Functions.Notify(Lang:t("notify.vlockpick"), 'success')
-            TriggerServerEvent('qb-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(vehicle), 1)
-        end
-
-    else
-        TriggerServerEvent('hud:server:GainStress', math.random(3, 6))
-        -- AttemptPoliceAlert("steal")
+    -- السيرفر يتأكد إن القفال معك وأنك جنبها (سواق = مفتاح، برا = تنفتح)
+    TriggerServerEvent('qb-vehiclekeys:server:LockpickSuccess', NetworkGetNetworkIdFromEntity(vehicle))
+    if GetPedInVehicleSeat(vehicle, -1) ~= PlayerPedId() then
+        QBCore.Functions.Notify(Lang:t("notify.vlockpick"), 'success')
     end
-
-    -- if usingAdvanced then
-    --     if chance <= Config.RemoveLockpickAdvanced then
-    --         TriggerServerEvent("qb-vehiclekeys:server:breakLockpick", "advancedlockpick")
-    --     end
-    -- else
-    --     if chance <= Config.RemoveLockpickNormal then
-    --         TriggerServerEvent("qb-vehiclekeys:server:breakLockpick", "lockpick")
-    --     end
-    -- end
 end
-
-function Hotwire(vehicle, plate)
-    local hotwireTime = math.random(Config.minHotwireTime, Config.maxHotwireTime)
-    local ped = PlayerPedId()
-    IsHotwiring = true
-
-    SetVehicleAlarm(vehicle, true)
-    SetVehicleAlarmTimeLeft(vehicle, hotwireTime)
-    QBCore.Functions.Progressbar("hotwire_vehicle", Lang:t("progress.hskeys"), hotwireTime, false, true, {
-        disableMovement = true,
-        disableCarMovement = true,
-        disableMouse = false,
-        disableCombat = true
-    }, {
-        animDict = "anim@amb@clubhouse@tutorial@bkr_tut_ig3@",
-        anim = "machinic_loop_mechandplayer",
-        flags = 16
-    }, {}, {}, function() -- Done
-        StopAnimTask(ped, "anim@amb@clubhouse@tutorial@bkr_tut_ig3@", "machinic_loop_mechandplayer", 1.0)
-        TriggerServerEvent('hud:server:GainStress', math.random(1, 4))
-        if (math.random() <= Config.HotwireChance) then
-            TriggerServerEvent('qb-vehiclekeys:server:AcquireVehicleKeys', plate)
-        else
-            QBCore.Functions.Notify(Lang:t("notify.fvlockpick"), "error")
-        end
-        Wait(Config.TimeBetweenHotwires)
-        IsHotwiring = false
-    end, function() -- Cancel
-        StopAnimTask(ped, "anim@amb@clubhouse@tutorial@bkr_tut_ig3@", "machinic_loop_mechandplayer", 1.0)
-        IsHotwiring = false
-    end)
-    SetTimeout(10000, function()
-        -- AttemptPoliceAlert("steal")
-    end)
-    IsHotwiring = false
-end
-
-function CarjackVehicle(target)
-    if not Config.CarJackEnable then return end
-    isCarjacking = true
-    canCarjack = false
-    loadAnimDict('mp_am_hold_up')
-    local vehicle = GetVehiclePedIsUsing(target)
-    local occupants = GetPedsInVehicle(vehicle)
-    for p=1,#occupants do
-        local ped = occupants[p]
-        CreateThread(function()
-            TaskPlayAnim(ped, "mp_am_hold_up", "holdup_victim_20s", 8.0, -8.0, -1, 49, 0, false, false, false)
-            PlayPain(ped, 6, 0)
-        end)
-        Wait(math.random(200,500))
-    end
-    -- Cancel progress bar if: Ped dies during robbery, car gets too far away
-    CreateThread(function()
-        while isCarjacking do
-            local distance = #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(target))
-            if IsPedDeadOrDying(target) or distance > 7.5 then
-                TriggerEvent("progressbar:client:cancel")
-            end
-            Wait(100)
-        end
-    end)
-    QBCore.Functions.Progressbar("rob_keys", Lang:t("progress.acjack"), Config.CarjackingTime, false, true, {}, {}, {}, {}, function()
-        local hasWeapon, weaponHash = GetCurrentPedWeapon(PlayerPedId(), true)
-        if hasWeapon and isCarjacking then
-            local carjackChance
-            if Config.CarjackChance[tostring(GetWeapontypeGroup(weaponHash))] then
-                carjackChance = Config.CarjackChance[tostring(GetWeapontypeGroup(weaponHash))]
-            else
-                carjackChance = 0.5
-            end
-            if math.random() <= carjackChance then
-                local plate = QBCore.Functions.GetPlate(vehicle)
-                    for p=1,#occupants do
-                        local ped = occupants[p]
-                        CreateThread(function()
-                        TaskLeaveVehicle(ped, vehicle, 0)
-                        PlayPain(ped, 6, 0)
-                        Wait(1250)
-                        ClearPedTasksImmediately(ped)
-                        PlayPain(ped, math.random(7,8), 0)
-                        MakePedFlee(ped)
-                    end)
-                end
-                TriggerServerEvent('hud:server:GainStress', math.random(1, 4))
-                TriggerServerEvent('qb-vehiclekeys:server:AcquireVehicleKeys', plate)
-            else
-                QBCore.Functions.Notify(Lang:t("notify.cjackfail"), "error")
-                MakePedFlee(target)
-                TriggerServerEvent('hud:server:GainStress', math.random(1, 4))
-            end
-            isCarjacking = false
-            Wait(2000)
-            -- AttemptPoliceAlert("carjack")
-            Wait(Config.DelayBetweenCarjackings)
-            canCarjack = true
-        end
-    end, function()
-        MakePedFlee(target)
-        isCarjacking = false
-        Wait(Config.DelayBetweenCarjackings)
-        canCarjack = true
-    end)
-end
-
--- function AttemptPoliceAlert(type)
---     if not AlertSend then
---         local chance = Config.PoliceAlertChance
---         if GetClockHours() >= 1 and GetClockHours() <= 6 then
---             chance = Config.PoliceNightAlertChance
---         end
---         if math.random() <= chance then
---            TriggerServerEvent('police:server:policeAlert', Lang:t("info.palert") .. type)
---         end
---         AlertSend = true
---         SetTimeout(Config.AlertCooldown, function()
---             AlertSend = false
---         end)
---     end
--- end
-
-function MakePedFlee(ped)
-    SetPedFleeAttributes(ped, 0, 0)
-    TaskReactAndFleePed(ped, PlayerPedId())
-end
-
-function DrawText3D(x, y, z, text)
-    SetTextScale(0.35, 0.35)
-    SetTextFont(4)
-    SetTextProportional(1)
-    SetTextColour(255, 255, 255, 215)
-    SetTextEntry("STRING")
-    SetTextCentre(true)
-    AddTextComponentString(text)
-    SetDrawOrigin(x, y, z, 0)
-    DrawText(0.0, 0.0)
-    local factor = (string.len(text)) / 370
-    DrawRect(0.0, 0.0 + 0.0125, 0.017 + factor, 0.03, 0, 0, 0, 75)
-    ClearDrawOrigin()
-end
-

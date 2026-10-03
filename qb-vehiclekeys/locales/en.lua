@@ -15,17 +15,12 @@ local Translations = {
         engine_gbusy = 'G key is busy',
         running_keys = 'You took the keys',
         npc_locked = 'Locked',
-        pull_locked = 'Locked',
-        pull_moving = 'Vehicle is moving',
-        pull_door = 'Go to the driver door',
-        pulled_out = 'You were pulled out',
         veh_locked = 'Locked',
     },
     progress = {
         takekeys = 'Taking keys from body...',
         hskeys = 'Searching for the car keys...',
         acjack = 'Attempting Carjacking...',
-        pulldriver = 'Pulling out driver...',
     },
     info = {
         skeys = '~g~[H]~w~ - Search for Keys',

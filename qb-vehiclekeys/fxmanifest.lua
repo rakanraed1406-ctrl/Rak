@@ -3,7 +3,7 @@ game 'gta5'
 lua54 'yes'
 
 description 'qb-vehiclekeys (cleaned + running-engine keys + engine rules)'
-version '1.1.0'
+version '1.2.0'
 
 shared_scripts {
     '@qb-core/shared/locale.lua',
