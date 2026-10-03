@@ -18,23 +18,26 @@ local function GetWaypointCoords()
     return nil
 end
 
--- 0 = straight ahead, +90 = right, -90 = left, ±180 = behind
-local function GetWaypointBearing(pedCoords, heading, wp)
+-- compass bearing from the player to the waypoint: 0 = north, 90 = east (clockwise)
+local function GetWaypointCompassBearing(pedCoords, wp)
     local angle = math.deg(atan2(wp.y - pedCoords.y, wp.x - pedCoords.x))   -- 0 = east, counter-clockwise
-    return ((90 - (angle - heading)) + 180) % 360 - 180
+    return math.floor((90 - angle) % 360 + 0.5) % 360
 end
 
-local function BearingToDirection(b)
-    local a = math.abs(b)
-    if a < 22.5 then return "Front" end
-    if a > 135  then return "Back" end
-    if a < 67.5 then return b > 0 and "Halfright" or "Halfleft" end
-    return b > 0 and "Right" or "Left"
+local function NativeFlag(v)
+    return v == true or v == 1
 end
 
-local CARDINALS = { "N", "NW", "W", "SW", "S", "SE", "E", "NE" }   -- GTA heading turns counter-clockwise
-local function HeadingToCardinal(h)
-    return CARDINALS[(math.floor((h + 22.5) / 45) % 8) + 1]
+-- compass is shown on foot too unless Config.Settings.Compass.onlyInVehicle
+local compassVisible = false
+local function CompassWanted()
+    local c = Config.Settings.Compass
+    if not hudLoaded or not c or not c.active then return false end
+    if Koci.Client.HUD.data.compass.show == false then return false end
+    if (c.onlyInVehicle or Koci.Client.HUD.data.compass.onlyInVehicle) and not Koci.Client.HUD.data.vehicle.inVehicle then
+        return false
+    end
+    return true
 end
 
 -- config.lua values the NUI needs (also returned by the "hudReady" NUI callback)
@@ -400,6 +403,8 @@ end
 
 function Koci.Client.HUD:fVehicleInfoThick(vehicle)
     CreateThread(function()
+        local maxGear = GetVehicleHighGear(vehicle)
+        if not maxGear or maxGear < 1 then maxGear = 6 end
         while self.data.vehicle.inVehicle and self.data.vehicle.entity == vehicle and DoesEntityExist(vehicle) do
             local ped          = PlayerPedId()
             self.data.vehicle.isPassenger = GetPedInVehicleSeat(vehicle, -1) ~= ped
@@ -417,7 +422,7 @@ function Koci.Client.HUD:fVehicleInfoThick(vehicle)
 
             local engineHealth = math.max(0, math.floor(GetVehicleEngineHealth(vehicle)))
             local _, lowBeam, highBeam = GetVehicleLightsState(vehicle)
-            local lightsOn = (lowBeam == 1 or highBeam == 1)
+            local lights = NativeFlag(highBeam) and 2 or NativeFlag(lowBeam) and 1 or 0
 
             -- aircraft?
             local vehClass   = GetVehicleClass(vehicle)
@@ -443,8 +448,15 @@ function Koci.Client.HUD:fVehicleInfoThick(vehicle)
                 fuel       = math.floor(fuelLevel + 0.5),
                 engineHp   = engineHealth,
                 seatbelt   = beltWarning,
+                belted     = self.data.vehicle.isSeatbeltOn and true or false,
                 cruise     = self.data.vehicle.cruiseControlStatus and true or false,
                 electric   = self.data.vehicle.fuel.type == "electric",
+                engineOn   = engineRunning and true or false,
+                maxGear    = maxGear,
+                locked     = GetVehicleDoorLockStatus(vehicle) > 1,
+                lights     = lights,
+                handbrake  = GetVehicleHandbrake(vehicle) and true or false,
+                ind        = GetVehicleIndicatorLights(vehicle) or 0,
                 isAircraft = isAircraft,
                 altitude   = math.floor(altitude),
             }
@@ -465,12 +477,14 @@ end
 CreateThread(function()
     while true do
         local waitMs = 1000
-        if hudLoaded and Koci.Client.HUD.data.vehicle.inVehicle then
+        if hudLoaded and (Koci.Client.HUD.data.vehicle.inVehicle or compassVisible) then
             local ped       = PlayerPedId()
             local pedCoords = GetEntityCoords(ped)
 
             local currentStreetHash, intersectStreetHash = GetStreetNameAtCoord(pedCoords.x, pedCoords.y, pedCoords.z)
             local streetName = GetStreetNameFromHashKey(currentStreetHash)
+            local crossing   = (intersectStreetHash and intersectStreetHash ~= 0) and GetStreetNameFromHashKey(intersectStreetHash) or ""
+            if crossing == streetName then crossing = "" end
             local area       = GetLabelText(GetNameOfZone(pedCoords.x, pedCoords.y, pedCoords.z))
 
             -- نفس اختصارات Sx-HUD للأماكن الطويلة
@@ -485,35 +499,55 @@ CreateThread(function()
             end
 
             local data = {
-                action     = "updateNav",
-                area       = area,
-                street     = streetName,
-                zone       = area,
-                streetName = streetName,
-                waydist    = -1,
-                directions = "None",
+                action   = "updateNav",
+                area     = area,
+                street   = streetName,
+                crossing = crossing,
+                waydist  = -1,
             }
-
-            local heading = GetEntityHeading(ped)
-            data.heading  = HeadingToCardinal(heading)
 
             local blipCoords = GetWaypointCoords()
             if blipCoords then
-                -- km, rounded to 10 m; bearing rounded to 5° so small wobbles don't resend
+                -- km rounded to 10 m, bearing to 1°, so small wobbles don't resend
                 local dist = #(vector2(pedCoords.x, pedCoords.y) - vector2(blipCoords.x, blipCoords.y)) / 1000
-                local bearing = GetWaypointBearing(pedCoords, heading, blipCoords)
-                data.waydist    = math.floor(dist * 100 + 0.5) / 100
-                data.bearing    = math.floor(bearing / 5 + 0.5) * 5
-                data.directions = BearingToDirection(bearing)
+                data.waydist   = math.floor(dist * 100 + 0.5) / 100
+                data.wpBearing = GetWaypointCompassBearing(pedCoords, blipCoords)
                 waitMs = 600
             else
-                waitMs = 1100
+                waitMs = 1000
             end
 
             if not DeepEqual(data, lastNavPayload) then
                 SendNUIMessage(data)
                 lastNavPayload = data
             end
+        end
+        Wait(waitMs)
+    end
+end)
+
+-- ──────────────────────────────────────────────────────────
+--  Compass (top centre): camera heading, sent only when it changes by a degree
+-- ──────────────────────────────────────────────────────────
+CreateThread(function()
+    local lastDeg = -1
+    while true do
+        local waitMs = 500
+        local want = CompassWanted()
+        if want ~= compassVisible then
+            compassVisible = want
+            lastDeg = -1
+            lastNavPayload = {}
+            SendNUIMessage({ action = "compassShow", show = want })
+        end
+        if want then
+            local rot = GetGameplayCamRot(0)
+            local deg = math.floor((360.0 - rot.z) % 360.0 + 0.5) % 360   -- 0 = north, clockwise
+            if deg ~= lastDeg then
+                lastDeg = deg
+                SendNUIMessage({ action = "compass", h = deg })
+            end
+            waitMs = 100
         end
         Wait(waitMs)
     end

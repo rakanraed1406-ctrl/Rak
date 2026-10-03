@@ -1,5 +1,5 @@
 /* ============================================================================
-   JT-Hud — NUI logic (no jQuery, no icon fonts)
+   JT-Hud — NUI logic v2 (no jQuery, no icon fonts, no network)
    Every setter compares with the last value first, so repeated Lua messages
    with the same data cost nothing on the page.
    ============================================================================ */
@@ -15,6 +15,8 @@
         inVeh: false,
         forceAll: false,
         last: null,
+        heading: 0,
+        wp: null,            // waypoint compass bearing (0..359) or null
         bars: { voice: true, health: true, armor: true, hunger: true, thirst: true, stress: true, stamina: true, oxygen: true, engineHealth: true }
     };
 
@@ -40,7 +42,7 @@
         var k = '_s_' + prop;
         if (el[k] !== val) { el[k] = val; el.style[prop] = val; }
     }
-    // fade/slide in or out; [hidden] removes it from layout once faded
+    // fade/slide in or out; [hidden] removes it from layout once faded (HTML elements)
     function show(el, on) {
         on = !!on;
         if (el._on === on) return;
@@ -56,7 +58,11 @@
         }
     }
     function clamp(v, a, b) { v = Number(v); if (!isFinite(v)) v = a; return v < a ? a : v > b ? b : v; }
+    function num(x) { return (x && typeof x === 'object') ? Number(x.range) : Number(x); }
+    function two(n) { return (n < 10 ? '0' : '') + n; }
     function fmt(n) { return Math.floor(Math.abs(Number(n) || 0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    function fmtDist(km) { return km < 1 ? (Math.round(km * 100) * 10) + ' M' : km.toFixed(1) + ' KM'; }
+    function wrap180(a) { return ((a % 360) + 540) % 360 - 180; }
     function post(name, body) {
         return fetch('https://' + RES + '/' + name, {
             method: 'POST',
@@ -85,7 +91,6 @@
     var MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
     var DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     var cTime = byId('c-time'), cAmpm = byId('c-ampm'), cDow = byId('c-dow'), cDate = byId('c-date');
-    function two(n) { return (n < 10 ? '0' : '') + n; }
     function tick() {
         var d = new Date();
         var h = d.getHours();
@@ -97,17 +102,131 @@
     }
     tick();
 
-    // ══════════════════ STATUS TILES ══════════════════
-    var TRAVEL = 44; // px the level line travels (tile inner height - line height)
+    // ══════════════════ COMPASS (top centre) ══════════════════
+    // The ribbon is drawn once (-180°..540°) and only slides with a transform.
+    var CW = 500, PPD = 2.6, C0 = -180, C1 = 540;
+    var CARD = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    var compassEl = byId('compass'), strip = byId('cmp-strip');
+    var cmpCard = byId('cmp-card'), cmpDeg = byId('cmp-deg'), cmpStreet = byId('cmp-street'), cmpCross = byId('cmp-cross');
+    var cmpZone = byId('cmp-zone'), cmpWpd = byId('cmp-wpd'), cmpWpdT = byId('cmp-wpd-t');
+    var edgeL = byId('cmp-edge-l'), edgeR = byId('cmp-edge-r');
+    var wpMarks = [];
+
+    (function buildStrip() {
+        var w = (C1 - C0) * PPD, o = [];
+        o.push('<svg width="' + w + '" height="36" viewBox="0 0 ' + w + ' 36">');
+        for (var d = C0; d <= C1; d += 5) {
+            var x = ((d - C0) * PPD).toFixed(1), n = ((d % 360) + 360) % 360;
+            if (n % 45 === 0) {
+                var north = n === 0, col = north ? '#ff5d73' : '#eef3ff';
+                o.push('<line x1="' + x + '" x2="' + x + '" y1="27" y2="36" stroke="' + col + '" stroke-width="2"/>');
+                o.push('<text x="' + x + '" y="21" text-anchor="middle" font-size="' + (n % 90 === 0 ? 13 : 11) +
+                       '" font-weight="800" fill="' + col + '">' + CARD[n / 45] + '</text>');
+            } else if (n % 15 === 0) {
+                o.push('<line x1="' + x + '" x2="' + x + '" y1="29" y2="36" stroke="rgba(143,176,255,0.6)" stroke-width="1.3"/>');
+                o.push('<text x="' + x + '" y="20" text-anchor="middle" font-size="9" font-weight="600" fill="rgba(141,155,196,0.85)">' + n + '</text>');
+            } else {
+                o.push('<line x1="' + x + '" x2="' + x + '" y1="32" y2="36" stroke="rgba(143,176,255,0.35)" stroke-width="1"/>');
+            }
+        }
+        o.push('</svg>');
+        strip.innerHTML = o.join('');
+        strip.style.width = w + 'px';
+        for (var i = 0; i < 3; i++) {
+            var m = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            m.setAttribute('class', 'ic cmp-wp');
+            m.innerHTML = '<use href="#i-pin"/>';
+            setHidden(m, true);
+            strip.appendChild(m);
+            wpMarks.push(m);
+        }
+    })();
+
+    var cmpU = null;   // unwrapped heading, so 359° → 1° slides 2° and not 358°
+    function compassHeading(h) {
+        h = ((Number(h) || 0) % 360 + 360) % 360;
+        var snap = false;
+        if (cmpU === null) { cmpU = h; snap = true; }
+        else {
+            cmpU += wrap180(h - cmpU);
+            // the ribbon repeats every 360°, so re-centring is invisible
+            if (cmpU < -60 || cmpU > 420) { cmpU = ((cmpU % 360) + 360) % 360; snap = true; }
+        }
+        setCls(strip, 'snap', snap);
+        strip.style.transform = 'translateX(' + (CW / 2 - (cmpU - C0) * PPD).toFixed(1) + 'px)';
+        S.heading = h;
+        setText(cmpDeg, Math.round(h) % 360 + '°');
+        setText(cmpCard, CARD[Math.round(h / 45) % 8]);
+        wpEdges();
+    }
+
+    function wpEdges() {
+        var rel = S.wp === null ? 0 : wrap180(S.wp - S.heading);
+        setCls(edgeL, 'on', S.wp !== null && rel < -62);
+        setCls(edgeR, 'on', S.wp !== null && rel > 62);
+    }
+
+    function updateNav(d) {
+        var area = String(d.area || d.zone || '');
+        setText(cmpZone, area.toUpperCase());
+        setText(cmpStreet, d.street || d.streetName || area || 'Unknown');
+        var cross = d.crossing ? String(d.crossing) : '';
+        setText(cmpCross, cross ? '/ ' + cross : '');
+        setHidden(cmpCross, !cross);
+
+        var dist = Number(d.waydist);
+        var has = isFinite(dist) && dist >= 0 && typeof d.wpBearing === 'number';
+        if (has) {
+            if (S.wp !== d.wpBearing) {
+                S.wp = d.wpBearing;
+                for (var i = 0; i < 3; i++) {
+                    wpMarks[i].style.left = ((S.wp + (i - 1) * 360 - C0) * PPD).toFixed(1) + 'px';
+                    setHidden(wpMarks[i], false);
+                }
+            }
+            setText(cmpWpdT, fmtDist(dist));
+        } else if (S.wp !== null) {
+            S.wp = null;
+            for (var j = 0; j < 3; j++) setHidden(wpMarks[j], true);
+        }
+        setHidden(cmpWpd, !has);
+        wpEdges();
+    }
+
+    // ══════════════════ VITALS DOCK ══════════════════
+    var vitalEl = byId('vital'), vHp = byId('v-hp'), vAr = byId('v-ar'), vSt = byId('v-st');
+    var vHpN = byId('v-hp-n'), vArN = byId('v-ar-n'), vArRow = byId('v-ar-row'), vStRow = byId('v-st-row');
+
+    function scaleX(el, v) { setStyle(el, 'transform', 'scaleX(' + (v / 100).toFixed(3) + ')'); }
+
+    function vitals(d) {
+        var hp = Math.round(clamp(num(d.health), 0, 100));
+        scaleX(vHp, hp);
+        setText(vHpN, hp);
+        setCls(vitalEl, 'crit', hp <= 25 || !!d.playerDead);
+
+        var ar = Math.round(clamp(num(d.armor), 0, 100));
+        scaleX(vAr, ar);
+        setText(vArN, ar);
+        setHidden(vArN, ar <= 0 || !S.bars.armor);
+        setHidden(vArRow, !S.bars.armor);
+
+        var o = d.oxygen, water = !!(o && typeof o === 'object' && o.inwater);
+        setCls(vitalEl, 'water', water);
+        scaleX(vSt, clamp(num(o), 0, 100));
+        setHidden(vStRow, !(water ? (S.bars.oxygen || S.bars.stamina) : S.bars.stamina));
+
+        show(vitalEl, S.bars.health !== false);
+    }
+
+    // ══════════════════ NEED TILES ══════════════════
+    var TRAVEL = 40; // px the level line travels (tile inner height - line height)
     function tile(key) {
         var el = byId('st-' + key);
-        return { el: el, fill: el.querySelector('.stat-fill'), lvl: el.querySelector('.stat-lvl'), v: -1 };
+        return { el: el, fill: el.querySelector('.stat-fill'), lvl: el.querySelector('.stat-lvl'), num: el.querySelector('.stat-num'), v: -1 };
     }
-    var T = {
-        voice: tile('voice'), health: tile('health'), armor: tile('armor'), hunger: tile('hunger'),
-        thirst: tile('thirst'), stress: tile('stress'), stamina: tile('stamina')
-    };
-    var vUse = byId('v-use'), staUse = byId('sta-use');
+    var T = { voice: tile('voice'), hunger: tile('hunger'), thirst: tile('thirst'), stress: tile('stress') };
+    var vUse = byId('v-use');
     var vBars = T.voice.el.querySelectorAll('.vbars i');
 
     function level(t, v) {
@@ -116,26 +235,24 @@
         t.v = v;
         t.fill.style.transform = 'scaleY(' + (v / 100) + ')';
         t.lvl.style.transform = 'translateY(' + ((1 - v / 100) * TRAVEL).toFixed(1) + 'px)';
+        if (t.num) setText(t.num, v);
     }
-    function num(x) { return (x && typeof x === 'object') ? Number(x.range) : Number(x); }
 
-    // when each tile is worth showing, and when it turns critical (d = whole hud payload)
+    // when each tile is worth showing, and when it turns critical
     var RULES = {
-        health: { show: function (v, d) { return v < 97 || d.playerDead; }, crit: function (v, d) { return v <= 25 || d.playerDead; } },
-        armor:  { show: function (v) { return v > 0; },  crit: function () { return false; } },
         hunger: { show: function (v) { return v < 80; }, crit: function (v) { return v <= 20; } },
         thirst: { show: function (v) { return v < 80; }, crit: function (v) { return v <= 20; } },
         stress: { show: function (v) { return v > 0; },  crit: function (v) { return v >= 80; } }
     };
-    var RULE_KEYS = ['health', 'armor', 'hunger', 'thirst', 'stress'];
+    var RULE_KEYS = ['hunger', 'thirst', 'stress'];
 
-    function bar(key, d) {
+    function need(key, d) {
         var t = T[key], rule = RULES[key];
         var v = clamp(num(d[key]), 0, 100);
         if (v < 1) v = 0;
         level(t, v);
-        setCls(t.el, 'crit', rule.crit(v, d));
-        show(t.el, S.bars[key] && (S.forceAll || rule.show(v, d)));
+        setCls(t.el, 'crit', rule.crit(v));
+        show(t.el, S.bars[key] && (S.forceAll || rule.show(v)));
     }
 
     var voiceState = { mode: null, lvl: 0 };
@@ -157,68 +274,72 @@
         show(T.voice.el, S.bars.voice);
     }
 
-    function stamina(d) {
-        var t = T.stamina;
-        var water = !!(d && typeof d === 'object' && d.inwater);
-        var v = clamp(num(d), 0, 100);
-        setCls(t.el, 'water', water);
-        setHref(staUse, water ? '#i-lungs' : '#i-run');
-        level(t, v);
-        setCls(t.el, 'crit', water ? v <= 25 : v <= 15);
-        var enabled = water ? (S.bars.oxygen || S.bars.stamina) : S.bars.stamina;
-        show(t.el, enabled && (S.forceAll || water || v < 99));
-    }
-
     function updateHud(d) {
         S.last = d;
+        vitals(d);
         voice(d.voice);
-        for (var i = 0; i < RULE_KEYS.length; i++) bar(RULE_KEYS[i], d);
-        stamina(d.oxygen);
+        for (var i = 0; i < RULE_KEYS.length; i++) need(RULE_KEYS[i], d);
     }
 
-    // ══════════════════ VEHICLE DIAL ══════════════════
-    // Angles in degrees, SVG space: 0 = right, 90 = down (clockwise).
-    var CX = 100, CY = 100, R = 84;
-    var RPM_A0 = 150, RPM_A1 = 390, RED_T = 0.8;           // 240° sweep over the top, redline last 20%
-    var RPM_SEGS = 30, RED_SEGS = 6, SIDE_SEGS = 8;          // must match the mask dash patterns in index.html
-    var RED_A = RPM_A0 + (RPM_A1 - RPM_A0) * RED_T;
-    var FUEL_A0 = 106, FUEL_A1 = 144;                        // lower left, fills upward
-    var ENG_A0 = 74, ENG_A1 = 36;                            // lower right, fills upward
+    // ══════════════════ VEHICLE CLUSTER ══════════════════
+    // "Kick" lines: a short diagonal into a long horizontal (SVG space 340x126).
+    var RPM_PTS = [[12, 96], [38, 62], [326, 62]];
+    var FUEL_PTS = [[42, 26], [50, 18], [170, 18]];
+    var ENG_PTS = [[42, 44], [50, 36], [170, 36]];
+    var RPM_SEGS = 40, RED_SEGS = 6, BAR_SEGS = 20;   // must match the mask dash patterns in index.html
 
-    function pt(a, r) {
-        var rad = a * Math.PI / 180;
-        return (CX + r * Math.cos(rad)).toFixed(2) + ' ' + (CY + r * Math.sin(rad)).toFixed(2);
+    function poly(pts) {
+        var s = 'M ' + pts[0][0] + ' ' + pts[0][1];
+        for (var i = 1; i < pts.length; i++) s += ' L ' + pts[i][0].toFixed(2) + ' ' + pts[i][1].toFixed(2);
+        return s;
     }
-    function arc(a0, a1, r) {
-        var sweep = a1 > a0 ? 1 : 0;
-        var large = Math.abs(a1 - a0) > 180 ? 1 : 0;
-        return 'M ' + pt(a0, r) + ' A ' + r + ' ' + r + ' 0 ' + large + ' ' + sweep + ' ' + pt(a1, r);
+    // split a polyline at fraction t of its length
+    function splitAt(pts, t) {
+        var lens = [], total = 0, i;
+        for (i = 1; i < pts.length; i++) {
+            var l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+            lens.push(l); total += l;
+        }
+        var want = total * t, acc = 0;
+        for (i = 1; i < pts.length; i++) {
+            if (acc + lens[i - 1] >= want) {
+                var f = (want - acc) / lens[i - 1];
+                var p = [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f];
+                return [pts.slice(0, i).concat([p]), [p].concat(pts.slice(i))];
+            }
+            acc += lens[i - 1];
+        }
+        return [pts, [pts[pts.length - 1]]];
     }
-    (function buildDial() {
-        var rpm = arc(RPM_A0, RPM_A1, R), fuel = arc(FUEL_A0, FUEL_A1, R), eng = arc(ENG_A0, ENG_A1, R);
+    (function buildCar() {
         var set = function (id, d) { byId(id).setAttribute('d', d); };
-        set('m-rpm', rpm); set('m-fuel', fuel); set('m-eng', eng);
-        set('p-track', arc(RPM_A0, RED_A, R)); set('p-track-red', arc(RED_A, RPM_A1, R));
-        set('p-rpm', arc(RPM_A0, RED_A, R)); set('p-rpm-red', arc(RED_A, RPM_A1, R));
-        set('p-glow', arc(RPM_A0, RED_A, R));
-        set('p-fuel-track', fuel); set('p-fuel', fuel);
-        set('p-eng-track', eng); set('p-eng', eng);
-        set('p-ticks', arc(RPM_A0, RPM_A1 + 1, 72));
+        var parts = splitAt(RPM_PTS, (RPM_SEGS - RED_SEGS) / RPM_SEGS);
+        var normal = poly(parts[0]), red = poly(parts[1]);
+        set('p-plate', 'M 26 0 H 336 Q 340 0 340 4 V 112 Q 340 126 326 126 H 4 Q 0 126 0 122 V 30 Z');
+        set('m-rpm', poly(RPM_PTS)); set('m-fuel', poly(FUEL_PTS)); set('m-eng', poly(ENG_PTS));
+        set('p-track', normal); set('p-track-red', red);
+        set('p-rpm', normal); set('p-rpm-red', red); set('p-glow', normal);
+        set('p-fuel-track', poly(FUEL_PTS)); set('p-fuel', poly(FUEL_PTS));
+        set('p-eng-track', poly(ENG_PTS)); set('p-eng', poly(ENG_PTS));
     })();
 
-    var vehEl = byId('veh'), mapEl = byId('mapframe'), streetEl = byId('street');
+    var carEl = byId('car'), mapEl = byId('mapframe');
     var pRpm = byId('p-rpm'), pRed = byId('p-rpm-red'), pGlow = byId('p-glow');
     var pFuel = byId('p-fuel'), pEng = byId('p-eng');
-    var fuelIc = byId('i-fuel-ic'), engIc = byId('i-eng-ic'), fuelUse = byId('fuel-use');
-    var digits = byId('d-speed').children, unitEl = byId('d-unit'), gearEl = byId('d-gear');
-    var beltEl = byId('f-belt'), cruiseEl = byId('f-cruise');
-    var altEl = byId('alt'), altVal = byId('alt-val');
+    var fuelIc = byId('c-fuel-ic'), engIc = byId('c-eng-ic'), fuelUse = byId('fuel-use');
+    var fuelV = byId('c-fuel-v'), engV = byId('c-eng-v');
+    var digits = byId('c-speed').children, unitEl = byId('c-unit');
+    var gearsEl = byId('c-gears'), altEl = byId('c-alt'), altV = byId('c-alt-v');
+    var ci = {
+        left: byId('ci-left'), right: byId('ci-right'), lock: byId('ci-lock'), lights: byId('ci-lights'),
+        lightsUse: byId('ci-lights-use'), belt: byId('ci-belt'), brake: byId('ci-brake'),
+        engine: byId('ci-engine'), cruise: byId('ci-cruise')
+    };
 
     function setVehicleUi(on) {
         S.inVeh = !!on;
-        show(vehEl, on);
+        show(carEl, on);
         show(mapEl, on);
-        if (!on) show(streetEl, false);
     }
 
     var lastSpeed = -1;
@@ -236,14 +357,33 @@
         }
     }
 
+    var gearCells = {}, gearMax = 0, gearOn = null;
+    function buildGears(max) {
+        max = Math.max(1, Math.min(10, Math.round(Number(max) || 6)));
+        if (max === gearMax) return;
+        gearMax = max; gearOn = null; gearCells = {};
+        var labels = ['R', 'N'];
+        for (var g = 1; g <= max; g++) labels.push(String(g));
+        gearsEl.innerHTML = '';
+        for (var i = 0; i < labels.length; i++) {
+            var s = document.createElement('span');
+            s.textContent = labels[i];
+            gearsEl.appendChild(s);
+            gearCells[labels[i]] = s;
+        }
+        if (max > 7) { gearsEl.style.gap = '2px'; for (var k in gearCells) gearCells[k].style.width = '17px'; }
+        else gearsEl.style.gap = '';
+    }
     function gear(g, sp) {
         var txt = sp <= 0 ? 'N' : (g === 'R' || Number(g) <= 0) ? 'R' : String(g);
-        setText(gearEl, txt);
-        setCls(gearEl, 'neutral', txt === 'N');
-        setCls(gearEl, 'rev', txt === 'R');
+        if (txt === gearOn) return;
+        if (gearOn && gearCells[gearOn]) gearCells[gearOn].className = '';
+        gearOn = txt;
+        var cell = gearCells[txt];
+        if (cell) cell.className = 'on' + (txt === 'R' ? ' rev' : txt === 'N' ? ' neu' : '');
     }
 
-    // whole segments only: the arc is redrawn only when a segment lights up or goes out
+    // whole segments only: a line is redrawn only when a segment lights up or goes out
     var lastRpm = -1;
     function rpm(v) {
         var segs = Math.round(clamp(v, 0, 1) * RPM_SEGS);
@@ -256,88 +396,71 @@
         setStyle(pRed, 'strokeDashoffset', String(100 - Math.max(0, segs - normal) / RED_SEGS * 100));
     }
 
-    function sideBar(path, icon, v, warnAt, critAt) {
+    function miniBar(path, icon, label, v, warnAt, critAt) {
         v = clamp(v, 0, 100);
-        var segs = Math.ceil(v / 100 * SIDE_SEGS);               // a segment stays lit while any of it is left
-        setStyle(path, 'strokeDashoffset', String(100 - segs / SIDE_SEGS * 100));
+        var segs = Math.ceil(v / 100 * BAR_SEGS);               // a segment stays lit while any of it is left
+        setStyle(path, 'strokeDashoffset', String(100 - segs / BAR_SEGS * 100));
+        setText(label, Math.round(v));
         var crit = v <= critAt, warn = !crit && v <= warnAt;
         setCls(path, 'crit', crit); setCls(path, 'warn', warn);
         setCls(icon, 'crit', crit); setCls(icon, 'warn', warn);
+        return crit ? 'crit' : warn ? 'warn' : '';
     }
 
     function updateVehHud(d) {
-        if (!S.inVeh) setVehicleUi(true);   // the street bar follows with the next updateNav
+        if (!S.inVeh) setVehicleUi(true);
 
+        if (d.maxGear !== undefined || !gearMax) buildGears(d.maxGear);
         var sp = Math.max(0, Math.floor(Number(d.speed) || 0));
         if (d.speed !== undefined) { speed(sp); gear(d.gear, sp); }
 
         if (d.isAircraft !== undefined) {
             if (d.isAircraft) {
                 rpm(Math.min(sp, 300) / 300);
-                setText(altVal, fmt(d.altitude));
+                setText(altV, fmt(d.altitude));
             } else if (d.rpm !== undefined) {
                 rpm(Number(d.rpm) / 100);
             }
-            show(altEl, !!d.isAircraft);
+            setHidden(altEl, !d.isAircraft);
+            setHidden(gearsEl, !!d.isAircraft);
         } else if (d.rpm !== undefined) {
             rpm(Number(d.rpm) / 100);
         }
 
-        if (d.fuel !== undefined) sideBar(pFuel, fuelIc, Number(d.fuel), 25, 10);
-        if (d.engineHp !== undefined) sideBar(pEng, engIc, Number(d.engineHp) / 10, 60, 30);
+        if (d.fuel !== undefined) miniBar(pFuel, fuelIc, fuelV, Number(d.fuel), 25, 10);
+        var engState = '';
+        if (d.engineHp !== undefined) engState = miniBar(pEng, engIc, engV, Number(d.engineHp) / 10, 60, 30);
         if (d.electric !== undefined) setHref(fuelUse, d.electric ? '#i-bolt' : '#i-fuel');
+        if (d.engineOn !== undefined) setCls(carEl, 'off', !d.engineOn);
 
-        if (d.seatbelt !== undefined) {
-            setHidden(beltEl, !d.seatbelt);
-            setCls(beltEl, 'on', !!d.seatbelt);  // re-adding .on replays the short blink
+        // dashboard lights
+        if (d.ind !== undefined) {
+            setCls(ci.left, 'on', (d.ind & 1) === 1);
+            setCls(ci.right, 'on', (d.ind & 2) === 2);
         }
-        if (d.cruise !== undefined) setHidden(cruiseEl, !d.cruise);
+        if (d.locked !== undefined) setCls(ci.lock, 'on', !!d.locked);
+        if (d.lights !== undefined) {
+            setHref(ci.lightsUse, d.lights === 2 ? '#i-highbeam' : '#i-lowbeam');
+            setCls(ci.lights, 'on', d.lights === 1);
+            setCls(ci.lights, 'hi', d.lights === 2);
+        }
+        if (d.seatbelt !== undefined || d.belted !== undefined) {
+            setCls(ci.belt, 'crit', !!d.seatbelt);             // re-adding .crit replays the short blink
+            setCls(ci.belt, 'on', !d.seatbelt && !!d.belted);
+        }
+        if (d.handbrake !== undefined) setCls(ci.brake, 'crit', !!d.handbrake);
+        if (d.engineHp !== undefined || d.engineOn !== undefined) {
+            if (d.engineHp === undefined) engState = engIc._c_crit ? 'crit' : engIc._c_warn ? 'warn' : '';
+            setCls(ci.engine, 'crit', engState === 'crit');
+            setCls(ci.engine, 'warn', engState === 'warn');
+            setCls(ci.engine, 'on', !engState && d.engineOn !== false);
+        }
+        if (d.cruise !== undefined) setCls(ci.cruise, 'on', !!d.cruise);
     }
 
     function hideVehHud() {
         setVehicleUi(false);
-        show(altEl, false);
         lastSpeed = -1; lastRpm = -1;
-    }
-
-    // ══════════════════ STREET / NAVIGATION ══════════════════
-    var sArea = byId('s-area'), sName = byId('s-name'), sHead = byId('s-head'), sDist = byId('s-dist');
-    var navEl = byId('nav'), navIc = byId('nav-ic'), navUse = byId('nav-use');
-    var DIR_ANGLE = { Front: 0, Halfright: 45, Right: 90, Back: 180, Left: -90, Halfleft: -45 };
-    var navAngle = null;
-
-    function setBearing(b) {
-        if (navAngle === null) navAngle = b;
-        else navAngle += ((b - navAngle) % 360 + 540) % 360 - 180;   // shortest way round
-        // the arrow glyph points north-east, so turn it back 45°
-        setStyle(navIc, 'transform', 'rotate(' + (navAngle - 45) + 'deg)');
-    }
-
-    function updateNavigation(d) {
-        if (!S.inVeh) { show(streetEl, false); return; }
-        show(streetEl, true);
-
-        var area = String(d.area || d.zone || '');
-        setText(sArea, area.toUpperCase());
-        setText(sName, d.street || d.streetName || area || 'Unknown');
-        if (d.heading) setText(sHead, d.heading);
-
-        var dist = Number(d.waydist !== undefined ? d.waydist : d.distance);
-        var wp = isFinite(dist) && dist >= 0;
-        setCls(navEl, 'wp', wp);
-        setCls(navIc, 'arrow', wp);
-        if (wp) {
-            setHref(navUse, '#i-arrow');
-            var b = (typeof d.bearing === 'number') ? d.bearing : DIR_ANGLE[d.directions || d.direction];
-            setBearing(typeof b === 'number' ? b : 0);
-            setText(sDist, dist < 1 ? (Math.round(dist * 100) * 10) + ' M' : dist.toFixed(1) + ' KM');
-            setHidden(sDist, false);
-        } else {
-            setHref(navUse, '#i-pin');
-            setStyle(navIc, 'transform', 'none');
-            navAngle = null;
-            setHidden(sDist, true);
-        }
     }
 
     // ══════════════════ AMMO ══════════════════
@@ -393,9 +516,7 @@
         if (c.watermark !== undefined) setCls(wmEl, 'off', !c.watermark);
         if (c.watermarkText) setText(wmTxt, c.watermarkText);
         var engOn = S.bars.engineHealth !== false;
-        byId('p-eng').style.display = engOn ? '' : 'none';
-        byId('p-eng-track').style.display = engOn ? '' : 'none';
-        engIc.style.display = engOn ? '' : 'none';
+        ['p-eng', 'p-eng-track', 'c-eng-ic', 'c-eng-v'].forEach(function (id) { byId(id).style.display = engOn ? '' : 'none'; });
         if (S.last) updateHud(S.last);
     }
 
@@ -418,8 +539,14 @@
             case 'vehHideHud':
                 hideVehHud();
                 break;
+            case 'compass':
+                compassHeading(d.h);
+                break;
+            case 'compassShow':
+                show(compassEl, !!d.show);
+                break;
             case 'updateNav':
-                updateNavigation(d);
+                updateNav(d);
                 break;
             case 'setMapFrame':
                 setMapFrame(d);
@@ -450,6 +577,7 @@
     });
 
     // first paint + ask Lua for config.lua values (retries until the client script is ready)
+    buildGears(6);
     updateHud({
         voice: { talking: false, range: 3, radio: false },
         health: 100, armor: 0, playerDead: false,

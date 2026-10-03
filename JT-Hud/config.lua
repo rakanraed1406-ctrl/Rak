@@ -28,9 +28,9 @@ Config.Settings = {
         lowFuelNotify  = false,
         manualModeType = false,
     },
-    Compass = {
-        active        = true,
-        onlyInVehicle = false,
+    Compass = {                -- البوصلة واسم الشارع فوق بالنص
+        active        = true,  -- false = تنشال البوصلة نهائياً
+        onlyInVehicle = false, -- true = تطلع بالسيارة بس
         show          = true,
     },
     AccountHud = {
