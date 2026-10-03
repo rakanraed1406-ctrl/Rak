@@ -130,7 +130,20 @@ local function ChargeHospitalBill(Player)
 	local cost = HospitalHasInsurance(Player) and Config.insurancepersent or Config.BillCost
 	Player.Functions.RemoveMoney("bank", cost, "respawned-at-hospital")
 	TriggerEvent('qb-bossmenu:server:addAccountMoney', "ambulance", cost)
-	TriggerEvent("jabertestcode")
+end
+
+-- Food & water back to full after an admin heal (done here: the client used to send
+-- QBCore:Server:SetMetaData itself, an event that lets a client set any metadata).
+local function RefillNeeds(src)
+	local Player = QBCore.Functions.GetPlayer(src)
+	if not Player then return end
+	Player.Functions.SetMetaData('hunger', 100)
+	Player.Functions.SetMetaData('thirst', 100)
+	TriggerClientEvent('hud:client:UpdateNeeds', src, 100, 100)
+end
+
+local function AdminName(src)
+	return src == 0 and 'Console' or (GetPlayerName(src) or ('ID ' .. tostring(src)))
 end
 -- Events
 
@@ -156,18 +169,27 @@ end)
 -- end)
 
 local function SendToBed(src, list, bedId, isRevive, clientEvent)
+	isRevive = isRevive == true
 	local Player = QBCore.Functions.GetPlayer(src)
 	bedId = tonumber(bedId)
 	local bed = bedId and Config.Locations[list][bedId]
 	if not Player or not bed then return end
 	-- You have to actually be at the hospital (was: any client could teleport into a bed / get a free heal).
 	if not NearBed(src, bed) then return end
+	-- a downed player could "lie in bed" to teleport away from where they fell
+	if not isRevive and IsDown(Player) then return end
+	-- bed already used by another online player
+	local owner = BedOwners[list][bedId]
+	if owner and owner ~= src and QBCore.Functions.GetPlayer(owner) then
+		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.beds_taken'), 'error')
+		return
+	end
 	if isRevive and CheckInBlocked() then
 		TriggerClientEvent('QBCore:Notify', src, Lang:t('error.checkin_blocked'), 'error')
 		return
 	end
 	FreeBedsOf(src)
-	TriggerClientEvent(clientEvent, src, bedId, bed, isRevive == true)
+	TriggerClientEvent(clientEvent, src, bedId, bed, isRevive)
 	SetBedTaken(list, bedId, src)
 	-- A check-in treatment is always billed (the client used to decide that with a "bill" flag).
 	if isRevive then ChargeHospitalBill(Player) end
@@ -274,6 +296,7 @@ end)
 
 RegisterNetEvent('hospital:server:SetDeathStatus', function(isDead)
 	local src = source
+	isDead = isDead == true
 	local Player = QBCore.Functions.GetPlayer(src)
 	if Player then
 		Player.Functions.SetMetaData("isdead", isDead)
@@ -306,6 +329,7 @@ end)
 
 RegisterNetEvent('hospital:server:SetLaststandStatus', function(bool)
 	local src = source
+	bool = bool == true
 	local Player = QBCore.Functions.GetPlayer(src)
 	if Player then
 		Player.Functions.SetMetaData("inlaststand", bool)
@@ -380,7 +404,7 @@ RegisterNetEvent('hospital:server:SendDoctorAlert', function(street)
     if not Throttle('checkin', src, 30) then return end
     if EmsTabletActive() then
         -- Blue "patient waiting at check-in" call in the EMS tablet (rate limited there).
-        TriggerEvent('ems-mdt:server:HospitalAlert', src, 'checkin', { street = type(street) == 'string' and street or nil })
+        TriggerEvent('ems-mdt:server:HospitalAlert', src, 'checkin', { street = type(street) == 'string' and street:sub(1, 60) or nil })
         return
     end
     for k,v in pairs(QBCore.Functions.GetQBPlayers()) do
@@ -511,11 +535,15 @@ end)
 if not (Config.EmsTablet and Config.EmsTablet.Enabled) then
     QBCore.Commands.Add('997', Lang:t('info.ems_report'), {{name = 'message', help = Lang:t('info.message_sent')}}, false, function(source, args)
     	local src = source
-    	if args[1] then message = table.concat(args, " ") else message = Lang:t('info.civ_call') end
-        local ped = GetPlayerPed(src)
-        local coords = GetEntityCoords(ped)
     	local Player = QBCore.Functions.GetPlayer(src)
-    	local name = ''..Player.PlayerData.charinfo.firstname..' '..Player.PlayerData.charinfo.lastname..''
+    	if not Player then return end
+    	-- goes to every player: one call every 30 s, short text
+    	if not Throttle('997', src, 30) then
+    		return TriggerClientEvent('QBCore:Notify', src, 'Please wait before sending another call', 'error')
+    	end
+    	local message = args[1] and table.concat(args, " "):sub(1, 150) or Lang:t('info.civ_call')
+        local coords = GetEntityCoords(GetPlayerPed(src))
+    	local name = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
     	TriggerClientEvent('hospital:client:ambulanceAlert', -1, coords, message, name, src)
     end)
 
@@ -539,9 +567,9 @@ if not (Config.EmsTablet and Config.EmsTablet.Enabled) then
         local src = source
     	local Player = QBCore.Functions.GetPlayer(src)
         local playerId = tonumber(args[1])
-    	if Player.PlayerData.job.name == 'ambulance' then 
+    	if IsEms(Player) and playerId then
     		table.remove(args, 1)
-    		local msg = table.concat(args, ' ')
+    		local msg = table.concat(args, ' '):sub(1, 150)
     		local OtherPlayer = QBCore.Functions.GetPlayer(playerId)
     		if msg == '' then return end
     		if not OtherPlayer then return TriggerClientEvent('QBCore:Notify', src, 'Player is not online', 'error') end
@@ -591,19 +619,19 @@ QBCore.Commands.Add("revive", Lang:t('info.revive_player_a'), {{name = "id", hel
 				"revive",
 				"Admin Revive",
 				"green",
-				"**"..GetPlayerName(src) .. "** Just Revived **"..GetPlayerName(Player.PlayerData.source) .. "**",
+				"**" .. AdminName(src) .. "** Just Revived **" .. AdminName(Player.PlayerData.source) .. "**",
 				false
 			)
 		else
 			TriggerClientEvent('QBCore:Notify', src, Lang:t('error.not_online'), "error")
 		end
-	else
+	elseif src ~= 0 then
 		TriggerClientEvent('hospital:client:Revive', src)
 		QBCore.Functions.CreateLog(
 			"revive",
 			"Admin Revive",
 			"green",
-			"**"..GetPlayerName(src) .. "** Just Revived Him Self",
+			"**" .. AdminName(src) .. "** Just Revived Him Self",
 			false
 		)
 	end
@@ -623,7 +651,7 @@ QBCore.Commands.Add("setpain", Lang:t('info.pain_level'), {{name = "id", help = 
 		else
 			TriggerClientEvent('QBCore:Notify', src, Lang:t('error.not_online'), "error")
 		end
-	else
+	elseif src ~= 0 then
 		TriggerClientEvent('hospital:client:SetPain', src)
 	end
 end, "admin")
@@ -637,7 +665,7 @@ QBCore.Commands.Add("kill", Lang:t('info.kill'), {{name = "id", help = Lang:t('i
 		else
 			TriggerClientEvent('QBCore:Notify', src, Lang:t('error.not_online'), "error")
 		end
-	else
+	elseif src ~= 0 then
 		TriggerClientEvent('hospital:client:KillPlayer', src)
 	end
 end, "admin")
@@ -648,11 +676,13 @@ QBCore.Commands.Add('arevive', Lang:t('info.heal_player_a'), {{name = 'id', help
 		local Player = QBCore.Functions.GetPlayer(tonumber(args[1]))
 		if Player then
 			TriggerClientEvent('hospital:client:adminHeal', Player.PlayerData.source)
+			RefillNeeds(Player.PlayerData.source)
 		else
 			TriggerClientEvent('QBCore:Notify', src, Lang:t('error.not_online'), "error")
 		end
-	else
+	elseif src ~= 0 then
 		TriggerClientEvent('hospital:client:adminHeal', src)
+		RefillNeeds(src)
 	end
 end, {'god', 'admin'})
 

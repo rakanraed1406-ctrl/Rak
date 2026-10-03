@@ -897,8 +897,7 @@ local function AdminResetAll()
     DoBleedAlert()
 
     SyncInjuries()
-    TriggerServerEvent("QBCore:Server:SetMetaData", "hunger", 100)
-    TriggerServerEvent("QBCore:Server:SetMetaData", "thirst", 100)
+    -- food & water are refilled by the server (/arevive), not by the client
 end
 
 RegisterNetEvent('hospital:client:adminHeal', function()
