@@ -102,43 +102,46 @@
     }
     tick();
 
-    // ══════════════════ COMPASS (top centre) ══════════════════
+    // ══════════════════ COMPASS (top centre, no panel) ══════════════════
     // The ribbon is drawn once (-180°..540°) and only slides with a transform.
-    var CW = 500, PPD = 2.6, C0 = -180, C1 = 540;
+    var CW = 600, PPD = 3.0, C0 = -180, C1 = 540, CH = 40;
     var CARD = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     var compassEl = byId('compass'), strip = byId('cmp-strip');
     var cmpCard = byId('cmp-card'), cmpDeg = byId('cmp-deg'), cmpStreet = byId('cmp-street'), cmpCross = byId('cmp-cross');
-    var cmpZone = byId('cmp-zone'), cmpWpd = byId('cmp-wpd'), cmpWpdT = byId('cmp-wpd-t');
+    var cmpZone = byId('cmp-zone');
     var edgeL = byId('cmp-edge-l'), edgeR = byId('cmp-edge-r');
-    var wpMarks = [];
+    var edgeLT = edgeL.querySelector('span'), edgeRT = edgeR.querySelector('span');
+    var wpMarks = [], wpText = [];
 
     (function buildStrip() {
         var w = (C1 - C0) * PPD, o = [];
-        o.push('<svg width="' + w + '" height="36" viewBox="0 0 ' + w + ' 36">');
+        var halo = ' paint-order="stroke" stroke="rgba(0,3,14,0.75)" stroke-width="2.6" stroke-linejoin="round"';
+        o.push('<svg width="' + w + '" height="' + CH + '" viewBox="0 0 ' + w + ' ' + CH + '">');
         for (var d = C0; d <= C1; d += 5) {
-            var x = ((d - C0) * PPD).toFixed(1), n = ((d % 360) + 360) % 360;
+            var x = ((d - C0) * PPD).toFixed(1), n = ((d % 360) + 360) % 360, y1, sw, col;
+            if (n % 45 === 0) { y1 = 28; sw = 2; col = n === 0 ? '#ff6b80' : '#ffffff'; }
+            else if (n % 15 === 0) { y1 = 31; sw = 1.4; col = 'rgba(225,235,255,0.82)'; }
+            else { y1 = 34; sw = 1; col = 'rgba(200,215,255,0.5)'; }
+            o.push('<line x1="' + x + '" x2="' + x + '" y1="' + (y1 - 0.5) + '" y2="' + CH + '" stroke="rgba(0,3,14,0.55)" stroke-width="' + (sw + 2) + '"/>');
+            o.push('<line x1="' + x + '" x2="' + x + '" y1="' + y1 + '" y2="' + CH + '" stroke="' + col + '" stroke-width="' + sw + '"/>');
             if (n % 45 === 0) {
-                var north = n === 0, col = north ? '#ff5d73' : '#eef3ff';
-                o.push('<line x1="' + x + '" x2="' + x + '" y1="27" y2="36" stroke="' + col + '" stroke-width="2"/>');
-                o.push('<text x="' + x + '" y="21" text-anchor="middle" font-size="' + (n % 90 === 0 ? 13 : 11) +
-                       '" font-weight="800" fill="' + col + '">' + CARD[n / 45] + '</text>');
+                o.push('<text x="' + x + '" y="25" text-anchor="middle" font-size="' + (n % 90 === 0 ? 14 : 12) +
+                       '" font-weight="800" fill="' + col + '"' + halo + '>' + CARD[n / 45] + '</text>');
             } else if (n % 15 === 0) {
-                o.push('<line x1="' + x + '" x2="' + x + '" y1="29" y2="36" stroke="rgba(143,176,255,0.6)" stroke-width="1.3"/>');
-                o.push('<text x="' + x + '" y="20" text-anchor="middle" font-size="9" font-weight="600" fill="rgba(141,155,196,0.85)">' + n + '</text>');
-            } else {
-                o.push('<line x1="' + x + '" x2="' + x + '" y1="32" y2="36" stroke="rgba(143,176,255,0.35)" stroke-width="1"/>');
+                o.push('<text x="' + x + '" y="25" text-anchor="middle" font-size="9.5" font-weight="600" fill="rgba(225,235,255,0.8)"' + halo + '>' + n + '</text>');
             }
         }
         o.push('</svg>');
         strip.innerHTML = o.join('');
         strip.style.width = w + 'px';
         for (var i = 0; i < 3; i++) {
-            var m = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            m.setAttribute('class', 'ic cmp-wp');
-            m.innerHTML = '<use href="#i-pin"/>';
-            setHidden(m, true);
+            var m = document.createElement('div');
+            m.className = 'cmp-wp';
+            m.innerHTML = '<i></i><span></span>';
+            m.hidden = true;
             strip.appendChild(m);
             wpMarks.push(m);
+            wpText.push(m.querySelector('span'));
         }
     })();
 
@@ -155,15 +158,15 @@
         setCls(strip, 'snap', snap);
         strip.style.transform = 'translateX(' + (CW / 2 - (cmpU - C0) * PPD).toFixed(1) + 'px)';
         S.heading = h;
-        setText(cmpDeg, Math.round(h) % 360 + '°');
+        setText(cmpDeg, Math.round(h) % 360);
         setText(cmpCard, CARD[Math.round(h / 45) % 8]);
         wpEdges();
     }
 
     function wpEdges() {
         var rel = S.wp === null ? 0 : wrap180(S.wp - S.heading);
-        setCls(edgeL, 'on', S.wp !== null && rel < -62);
-        setCls(edgeR, 'on', S.wp !== null && rel > 62);
+        setCls(edgeL, 'on', S.wp !== null && rel < -55);
+        setCls(edgeR, 'on', S.wp !== null && rel > 55);
     }
 
     function updateNav(d) {
@@ -176,160 +179,131 @@
 
         var dist = Number(d.waydist);
         var has = isFinite(dist) && dist >= 0 && typeof d.wpBearing === 'number';
+        var i;
         if (has) {
+            var label = fmtDist(dist);
             if (S.wp !== d.wpBearing) {
                 S.wp = d.wpBearing;
-                for (var i = 0; i < 3; i++) {
-                    wpMarks[i].style.left = ((S.wp + (i - 1) * 360 - C0) * PPD).toFixed(1) + 'px';
-                    setHidden(wpMarks[i], false);
-                }
+                for (i = 0; i < 3; i++) wpMarks[i].style.left = ((S.wp + (i - 1) * 360 - C0) * PPD).toFixed(1) + 'px';
             }
-            setText(cmpWpdT, fmtDist(dist));
+            for (i = 0; i < 3; i++) { setText(wpText[i], label); wpMarks[i].hidden = false; }
+            setText(edgeLT, label); setText(edgeRT, label);
         } else if (S.wp !== null) {
             S.wp = null;
-            for (var j = 0; j < 3; j++) setHidden(wpMarks[j], true);
+            for (i = 0; i < 3; i++) wpMarks[i].hidden = true;
         }
-        setHidden(cmpWpd, !has);
         wpEdges();
     }
 
-    // ══════════════════ STATUS (bottom right, tilted) ══════════════════
-    var statusEl = byId('status'), sHeart = byId('s-heart'), sHpFill = byId('s-hp-fill'), sHpNum = byId('s-hp-num');
-    var stamCells = byId('s-stam').children, STAM = stamCells.length;
-    var sVoice = byId('s-voice'), sMic = byId('s-mic'), vBars = byId('s-vbars').children, VB = vBars.length;
+    // ══════════════════ STATUS (bottom right, leans in) ══════════════════
+    var statusEl = byId('status'), emblem = byId('emblem');
+    var hpFill = byId('hp-fill'), hpGhost = byId('hp-ghost'), hpHead = byId('hp-head'), hpNum = byId('hp-num');
+    var arRow = byId('st-ar'), arFill = byId('ar-fill'), arNum = byId('ar-num');
+    var stamRow = byId('st-stam-row'), stamIc = byId('st-stam-ic'), chev = byId('st-stam').children, CHEV = chev.length;
+    var voiceEl = byId('voice'), vIc = byId('v-ic'), wave = byId('wave').children, WAVE = wave.length;
 
-    function box(key) {
-        var el = byId('b-' + key);
-        return { el: el, line: el.querySelector('.s-line i'), num: el.querySelector('b'), v: -1 };
+    function scaleX(el, v) { setStyle(el, 'transform', 'scaleX(' + (v / 100).toFixed(3) + ')'); }
+    function headAt(el, v) {
+        setStyle(el, 'transform', 'translateX(' + (v - 100).toFixed(1) + '%)');
+        setStyle(el, 'opacity', v > 0.5 ? '1' : '0');
     }
-    var B = { stress: box('stress'), hunger: box('hunger'), thirst: box('thirst'), armor: box('armor') };
-    var BOX_KEYS = ['stress', 'hunger', 'thirst', 'armor'];
-    var CRIT = {
+
+    function chip(key) {
+        var el = byId('c-' + key);
+        return { el: el, ring: el.querySelector('.r-fill'), num: el.querySelector('b'), v: -1 };
+    }
+    var CHIPS = { stress: chip('stress'), hunger: chip('hunger'), thirst: chip('thirst') };
+    var CHIP_KEYS = ['stress', 'hunger', 'thirst'];
+    var CHIP_CRIT = {
         stress: function (v) { return v >= 80; },
         hunger: function (v) { return v <= 20; },
-        thirst: function (v) { return v <= 20; },
-        armor:  function () { return false; }
+        thirst: function (v) { return v <= 20; }
     };
 
-    function boxLevel(t, key, v) {
-        v = Math.round(clamp(v, 0, 100));
-        if (t.v !== v) {
-            t.v = v;
-            t.line.style.transform = 'scaleX(' + (v / 100) + ')';
-            setText(t.num, v);
-        }
-        setCls(t.el, 'crit', CRIT[key](v));
-        setHidden(t.el, !S.bars[key]);
-    }
-
-    var lastHp = -1, lastStam = -1;
+    var lastHp = -1, lastAr = -1, lastStam = -1;
     function vitals(d) {
         var hp = Math.round(clamp(num(d.health), 0, 100));
         if (hp !== lastHp) {
             lastHp = hp;
-            sHpFill.style.transform = 'scaleX(' + (hp / 100) + ')';
-            setText(sHpNum, hp);
+            scaleX(hpFill, hp); scaleX(hpGhost, hp); headAt(hpHead, hp);   // ghost trails behind on damage
+            setText(hpNum, hp);
         }
         var crit = hp <= 25 || !!d.playerDead;
         setCls(statusEl, 'crit', crit);
-        setCls(sHeart, 'crit', crit);                      // re-adding .crit replays the short heartbeat
+        setCls(emblem, 'crit', crit);                       // re-adding .crit replays the three beats
 
-        // stamina dashes on top of the bar (oxygen under water)
+        var ar = Math.round(clamp(num(d.armor), 0, 100));
+        if (ar !== lastAr) { lastAr = ar; scaleX(arFill, ar); setText(arNum, ar); }
+        setHidden(arRow, !S.bars.armor);
+
         var o = d.oxygen, water = !!(o && typeof o === 'object' && o.inwater);
         setCls(statusEl, 'water', water);
-        var lit = Math.ceil(clamp(num(o), 0, 100) / 100 * STAM);
+        setHref(stamIc, water ? '#i-lungs' : '#i-run');
+        var lit = Math.ceil(clamp(num(o), 0, 100) / 100 * CHEV);
         if (lit !== lastStam) {
             lastStam = lit;
-            for (var i = 0; i < STAM; i++) setCls(stamCells[i], 'on', i < lit);
+            for (var i = 0; i < CHEV; i++) setCls(chev[i], 'on', i < lit);
         }
-        setStyle(byId('s-stam'), 'visibility', (water ? (S.bars.oxygen || S.bars.stamina) : S.bars.stamina) ? 'visible' : 'hidden');
+        setStyle(stamRow, 'visibility', (water ? (S.bars.oxygen || S.bars.stamina) : S.bars.stamina) ? 'visible' : 'hidden');
     }
 
-    // voice: lit bars = range; they only move while you talk (or transmit on radio)
-    var voiceState = { mode: null, lvl: 0 };
+    function chipLevel(t, key, v) {
+        v = Math.round(clamp(v, 0, 100));
+        if (t.v !== v) {
+            t.v = v;
+            t.ring.style.strokeDashoffset = String(100 - v);
+            t.ring.style.opacity = v > 0 ? '1' : '0';
+            setText(t.num, v);
+        }
+        setCls(t.el, 'crit', CHIP_CRIT[key](v));
+        setHidden(t.el, !S.bars[key]);
+    }
+
+    // voice: lit bars = range, from the centre out; the waveform only moves while you talk
+    var voiceState = { mode: null, lvl: -1 };
     function voice(d) {
         if (!d || typeof d !== 'object') return;
         var mode = d.radio ? 'radio' : (d.talking ? 'talk' : 'idle');
         if (mode !== voiceState.mode) {
             voiceState.mode = mode;
-            setCls(sVoice, 'talk', mode === 'talk');
-            setCls(sVoice, 'radio', mode === 'radio');
-            setHref(sMic, mode === 'radio' ? '#i-radio' : '#i-mic');
+            setCls(voiceEl, 'talk', mode === 'talk');
+            setCls(voiceEl, 'radio', mode === 'radio');
+            setHref(vIc, mode === 'radio' ? '#i-radio' : '#i-mic');
         }
         var r = Number(d.range) || 3;
-        var lvl = r <= 1.5 ? 3 : r <= 3 ? 6 : VB;
-        if (lvl !== voiceState.lvl) {
-            voiceState.lvl = lvl;
-            for (var i = 0; i < VB; i++) setCls(vBars[i], 'on', i < lvl);
+        var half = r <= 1.5 ? 1 : r <= 3 ? 2 : 4;              // 3, 5 or 9 bars
+        if (half !== voiceState.lvl) {
+            voiceState.lvl = half;
+            var mid = (WAVE - 1) / 2;
+            for (var i = 0; i < WAVE; i++) setCls(wave[i], 'on', Math.abs(i - mid) <= half);
         }
-        setHidden(sVoice, !S.bars.voice);
+        setHidden(voiceEl, !S.bars.voice);
     }
 
     function updateHud(d) {
         S.last = d;
         vitals(d);
         voice(d.voice);
-        for (var i = 0; i < BOX_KEYS.length; i++) {
-            var k = BOX_KEYS[i];
-            var v = clamp(num(k === 'armor' ? d.armor : d[k]), 0, 100);
-            boxLevel(B[k], k, v < 1 ? 0 : v);
+        for (var i = 0; i < CHIP_KEYS.length; i++) {
+            var k = CHIP_KEYS[i], v = clamp(num(d[k]), 0, 100);
+            chipLevel(CHIPS[k], k, v < 1 ? 0 : v);
         }
     }
 
-    // ══════════════════ VEHICLE CLUSTER ══════════════════
-    // "Kick" lines: a short diagonal into a long horizontal (SVG space 340x126).
-    var RPM_PTS = [[4, 90], [32, 58], [338, 58]];
-    var FUEL_PTS = [[22, 26], [32, 16], [166, 16]];
-    var ENG_PTS = [[22, 45], [32, 35], [166, 35]];
-    var RPM_SEGS = 40, RED_SEGS = 6, BAR_SEGS = 20;   // must match the mask dash patterns in index.html
-
-    function poly(pts) {
-        var s = 'M ' + pts[0][0] + ' ' + pts[0][1];
-        for (var i = 1; i < pts.length; i++) s += ' L ' + pts[i][0].toFixed(2) + ' ' + pts[i][1].toFixed(2);
-        return s;
-    }
-    // split a polyline at fraction t of its length
-    function splitAt(pts, t) {
-        var lens = [], total = 0, i;
-        for (i = 1; i < pts.length; i++) {
-            var l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-            lens.push(l); total += l;
-        }
-        var want = total * t, acc = 0;
-        for (i = 1; i < pts.length; i++) {
-            if (acc + lens[i - 1] >= want) {
-                var f = (want - acc) / lens[i - 1];
-                var p = [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f];
-                return [pts.slice(0, i).concat([p]), [p].concat(pts.slice(i))];
-            }
-            acc += lens[i - 1];
-        }
-        return [pts, [pts[pts.length - 1]]];
-    }
-    (function buildCar() {
-        var set = function (id, d) { byId(id).setAttribute('d', d); };
-        var parts = splitAt(RPM_PTS, (RPM_SEGS - RED_SEGS) / RPM_SEGS);
-        var normal = poly(parts[0]), red = poly(parts[1]);
-        set('sh-rpm', poly(RPM_PTS)); set('sh-fuel', poly(FUEL_PTS)); set('sh-eng', poly(ENG_PTS));
-        set('m-rpm', poly(RPM_PTS)); set('m-fuel', poly(FUEL_PTS)); set('m-eng', poly(ENG_PTS));
-        set('p-track', normal); set('p-track-red', red);
-        set('p-rpm', normal); set('p-rpm-red', red); set('p-glow', normal);
-        set('p-fuel-track', poly(FUEL_PTS)); set('p-fuel', poly(FUEL_PTS));
-        set('p-eng-track', poly(ENG_PTS)); set('p-eng', poly(ENG_PTS));
-    })();
-
+    // ══════════════════ VEHICLE CLUSTER (bottom left, leans in) ══════════════════
     var carEl = byId('car'), mapEl = byId('mapframe');
-    var pRpm = byId('p-rpm'), pRed = byId('p-rpm-red'), pGlow = byId('p-glow');
-    var pFuel = byId('p-fuel'), pEng = byId('p-eng');
-    var fuelIc = byId('c-fuel-ic'), engIc = byId('c-eng-ic'), fuelUse = byId('fuel-use');
-    var fuelV = byId('c-fuel-v'), engV = byId('c-eng-v');
-    var digits = byId('c-speed').children, unitEl = byId('c-unit');
-    var gearsEl = byId('c-gears'), altEl = byId('c-alt'), altV = byId('c-alt-v');
-    var ci = {
-        left: byId('ci-left'), right: byId('ci-right'), lock: byId('ci-lock'), lights: byId('ci-lights'),
-        lightsUse: byId('ci-lights-use'), belt: byId('ci-belt'), brake: byId('ci-brake'),
-        engine: byId('ci-engine'), body: byId('ci-body'), cruise: byId('ci-cruise')
+    var digits = byId('cr-speed').children, unitEl = byId('cr-unit');
+    var gearbox = byId('gearbox'), gearEl = byId('gear');
+    var rpmWin = byId('rpm-win'), rpmGrad = byId('rpm-grad'), rpmHead = byId('rpm-head');
+    var rpmScale = byId('rpm-scale'), altEl = byId('cr-alt'), altNum = byId('alt-num');
+    var miniFuel = byId('mini-fuel'), fuelFill = byId('fuel-fill'), fuelNum = byId('fuel-num'), fuelUse = byId('fuel-use');
+    var miniEng = byId('mini-eng'), engFill = byId('eng-fill'), engNum = byId('eng-num');
+    var li = {
+        left: byId('li-left'), right: byId('li-right'), lock: byId('li-lock'), beam: byId('li-beam'),
+        beamUse: byId('li-beam-use'), belt: byId('li-belt'), brake: byId('li-brake'),
+        engine: byId('li-engine'), body: byId('li-body'), cruise: byId('li-cruise')
     };
+    var RED_AT = 86;      // % of the RPM bar where the redline starts (matches the CSS gradient)
 
     function setVehicleUi(on) {
         S.inVeh = !!on;
@@ -353,128 +327,105 @@
         }
     }
 
-    var gearCells = {}, gearMax = 0, gearOn = null, gearNext = null;
-    function buildGears(max) {
-        max = Math.max(1, Math.min(10, Math.round(Number(max) || 6)));
-        if (max === gearMax) return;
-        gearMax = max; gearOn = null; gearNext = null; gearCells = {};
-        var labels = ['R', 'N'];
-        for (var g = 1; g <= max; g++) labels.push(String(g));
-        gearsEl.innerHTML = '';
-        for (var i = 0; i < labels.length; i++) {
-            var s = document.createElement('span');
-            s.textContent = labels[i];
-            gearsEl.appendChild(s);
-            gearCells[labels[i]] = s;
-        }
-        if (max > 7) { gearsEl.style.gap = '2px'; for (var k in gearCells) gearCells[k].style.width = '17px'; }
-        else gearsEl.style.gap = '';
-    }
+    var gearTxt = null, gearMax = 6, rpmPct = 0;
     function gear(g, sp) {
         var txt = sp <= 0 ? 'N' : (g === 'R' || Number(g) <= 0) ? 'R' : String(g);
-        if (txt === gearOn) return;
-        if (gearOn && gearCells[gearOn]) { gearCells[gearOn].className = ''; gearCells[gearOn]._c_next = false; }
-        gearOn = txt;
-        var cell = gearCells[txt];
-        if (cell) { cell.className = 'on' + (txt === 'R' ? ' rev' : txt === 'N' ? ' neu' : ''); cell._c_next = false; }
-        if (gearNext === txt) gearNext = null;
+        if (txt !== gearTxt) {
+            gearTxt = txt;
+            setText(gearEl, txt);
+            setCls(gearbox, 'rev', txt === 'R');
+            setCls(gearbox, 'neu', txt === 'N');
+        }
         shiftCue();
     }
-    // when the needle is in the red zone, outline the next gear in amber
+    // in the red zone and not in top gear: the gear box turns amber with a small ▲
     function shiftCue() {
-        var n = Number(gearOn);
-        var next = (lastRpm > RPM_SEGS - RED_SEGS && n >= 1 && n < gearMax) ? String(n + 1) : null;
-        if (next === gearNext) return;
-        if (gearNext && gearCells[gearNext]) setCls(gearCells[gearNext], 'next', false);
-        gearNext = next;
-        if (next && gearCells[next]) setCls(gearCells[next], 'next', true);
+        var n = Number(gearTxt);
+        setCls(gearbox, 'shift', rpmPct >= RED_AT && n >= 1 && n < gearMax);
     }
 
-    // whole segments only: a line is redrawn only when a segment lights up or goes out
-    var lastRpm = -1;
+    // the gradient stays put and a window slides over it: smooth on the GPU, no repaint
     function rpm(v) {
-        var segs = Math.round(clamp(v, 0, 1) * RPM_SEGS);
-        if (segs === lastRpm) return;
-        lastRpm = segs;
-        var normal = RPM_SEGS - RED_SEGS;
-        var off = String(100 - Math.min(segs, normal) / normal * 100);
-        setStyle(pRpm, 'strokeDashoffset', off);
-        setStyle(pGlow, 'strokeDashoffset', off);
-        setStyle(pRed, 'strokeDashoffset', String(100 - Math.max(0, segs - normal) / RED_SEGS * 100));
+        var p = Math.round(clamp(v, 0, 1) * 200) / 2;          // 0.5 % steps
+        if (p === rpmPct) return;
+        rpmPct = p;
+        setStyle(rpmWin, 'transform', 'translateX(' + (p - 100) + '%)');
+        setStyle(rpmGrad, 'transform', 'translateX(' + (100 - p) + '%)');
+        setStyle(rpmHead, 'transform', 'translateX(' + (p - 100) + '%)');
+        setStyle(rpmHead, 'opacity', p > 0.5 ? '1' : '0');
         shiftCue();
     }
 
-    function miniBar(path, icon, label, v, warnAt, critAt) {
+    function mini(row, fill, label, v, warnAt, critAt) {
         v = clamp(v, 0, 100);
-        var segs = Math.ceil(v / 100 * BAR_SEGS);               // a segment stays lit while any of it is left
-        setStyle(path, 'strokeDashoffset', String(100 - segs / BAR_SEGS * 100));
+        scaleX(fill, v);
         setText(label, Math.round(v));
         var crit = v <= critAt, warn = !crit && v <= warnAt;
-        setCls(path, 'crit', crit); setCls(path, 'warn', warn);
-        setCls(icon, 'crit', crit); setCls(icon, 'warn', warn);
+        setCls(row, 'crit', crit); setCls(row, 'warn', warn);
         return crit ? 'crit' : warn ? 'warn' : '';
     }
 
     function updateVehHud(d) {
         if (!S.inVeh) setVehicleUi(true);
 
-        if (d.maxGear !== undefined || !gearMax) buildGears(d.maxGear);
+        if (d.maxGear !== undefined) gearMax = Math.max(1, Number(d.maxGear) || 6);
         var sp = Math.max(0, Math.floor(Number(d.speed) || 0));
-        if (d.speed !== undefined) { speed(sp); gear(d.gear, sp); }
+        if (d.speed !== undefined) speed(sp);
 
         if (d.isAircraft !== undefined) {
             if (d.isAircraft) {
                 rpm(Math.min(sp, 300) / 300);
-                setText(altV, fmt(d.altitude));
+                setText(altNum, fmt(d.altitude));
             } else if (d.rpm !== undefined) {
                 rpm(Number(d.rpm) / 100);
             }
             setHidden(altEl, !d.isAircraft);
-            setHidden(gearsEl, !!d.isAircraft);
+            setHidden(rpmScale, !!d.isAircraft);
         } else if (d.rpm !== undefined) {
             rpm(Number(d.rpm) / 100);
         }
+        if (d.speed !== undefined) gear(d.gear, sp);
 
-        if (d.fuel !== undefined) miniBar(pFuel, fuelIc, fuelV, Number(d.fuel), 25, 10);
+        if (d.fuel !== undefined) mini(miniFuel, fuelFill, fuelNum, Number(d.fuel), 25, 10);
         var engState = '';
-        if (d.engineHp !== undefined) engState = miniBar(pEng, engIc, engV, Number(d.engineHp) / 10, 60, 30);
+        if (d.engineHp !== undefined) engState = mini(miniEng, engFill, engNum, Number(d.engineHp) / 10, 60, 30);
         if (d.electric !== undefined) setHref(fuelUse, d.electric ? '#i-bolt' : '#i-fuel');
         if (d.engineOn !== undefined) setCls(carEl, 'off', !d.engineOn);
 
         // dashboard lights
         if (d.ind !== undefined) {
-            setCls(ci.left, 'on', (d.ind & 1) === 1);
-            setCls(ci.right, 'on', (d.ind & 2) === 2);
+            setCls(li.left, 'on', (d.ind & 1) === 1);
+            setCls(li.right, 'on', (d.ind & 2) === 2);
         }
-        if (d.locked !== undefined) setCls(ci.lock, 'on', !!d.locked);
+        if (d.locked !== undefined) setCls(li.lock, 'on', !!d.locked);
         if (d.lights !== undefined) {
-            setHref(ci.lightsUse, d.lights === 2 ? '#i-highbeam' : '#i-lowbeam');
-            setCls(ci.lights, 'on', d.lights === 1);
-            setCls(ci.lights, 'hi', d.lights === 2);
+            setHref(li.beamUse, d.lights === 2 ? '#i-highbeam' : '#i-lowbeam');
+            setCls(li.beam, 'on', d.lights === 1);
+            setCls(li.beam, 'hi', d.lights === 2);
         }
         if (d.seatbelt !== undefined || d.belted !== undefined) {
-            setCls(ci.belt, 'crit', !!d.seatbelt);             // re-adding .crit replays the short blink
-            setCls(ci.belt, 'on', !d.seatbelt && !!d.belted);
+            setCls(li.belt, 'crit', !!d.seatbelt);              // re-adding .crit replays the short blink
+            setCls(li.belt, 'on', !d.seatbelt && !!d.belted);
         }
-        if (d.handbrake !== undefined) setCls(ci.brake, 'crit', !!d.handbrake);
+        if (d.handbrake !== undefined) setCls(li.brake, 'crit', !!d.handbrake);
         if (d.engineHp !== undefined || d.engineOn !== undefined) {
-            if (d.engineHp === undefined) engState = engIc._c_crit ? 'crit' : engIc._c_warn ? 'warn' : '';
-            setCls(ci.engine, 'crit', engState === 'crit');
-            setCls(ci.engine, 'warn', engState === 'warn');
-            setCls(ci.engine, 'on', !engState && d.engineOn !== false);
+            if (d.engineHp === undefined) engState = miniEng._c_crit ? 'crit' : miniEng._c_warn ? 'warn' : '';
+            setCls(li.engine, 'crit', engState === 'crit');
+            setCls(li.engine, 'warn', engState === 'warn');
+            setCls(li.engine, 'on', !engState && d.engineOn !== false);
         }
         if (d.bodyHp !== undefined) {
             var body = clamp(Number(d.bodyHp) / 10, 0, 100);
-            setCls(ci.body, 'crit', body <= 30);
-            setCls(ci.body, 'warn', body > 30 && body <= 60);
-            setCls(ci.body, 'on', body > 60);
+            setCls(li.body, 'crit', body <= 30);
+            setCls(li.body, 'warn', body > 30 && body <= 60);
+            setCls(li.body, 'on', body > 60);
         }
-        if (d.cruise !== undefined) setCls(ci.cruise, 'on', !!d.cruise);
+        if (d.cruise !== undefined) setCls(li.cruise, 'on', !!d.cruise);
     }
 
     function hideVehHud() {
         setVehicleUi(false);
-        lastSpeed = -1; lastRpm = -1;
+        lastSpeed = -1;
     }
 
     // ══════════════════ AMMO ══════════════════
@@ -531,7 +482,7 @@
         if (c.watermarkText) setText(wmTxt, c.watermarkText);
         var engOn = S.bars.engineHealth !== false;
         if (c.clockSeconds !== undefined && clockSeconds !== !!c.clockSeconds) { clockSeconds = !!c.clockSeconds; tick(); }
-        ['p-eng', 'p-eng-track', 'sh-eng', 'c-eng-ic', 'c-eng-v'].forEach(function (id) { byId(id).style.display = engOn ? '' : 'none'; });
+        miniEng.style.display = engOn ? '' : 'none';
         if (S.last) updateHud(S.last);
     }
 
@@ -592,7 +543,6 @@
     });
 
     // first paint + ask Lua for config.lua values (retries until the client script is ready)
-    buildGears(6);
     updateHud({
         voice: { talking: false, range: 3, radio: false },
         health: 100, armor: 0, playerDead: false,
