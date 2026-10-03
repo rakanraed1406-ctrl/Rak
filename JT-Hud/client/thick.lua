@@ -54,6 +54,7 @@ function Koci.Client.HUD:GetNuiConfig()
         smooth        = ui.smoothAnimations ~= false,
         watermark     = ui.watermark ~= false,
         watermarkText = ui.watermarkText,
+        clockSeconds  = ui.clockSeconds ~= false,
     }
 end
 
@@ -447,6 +448,7 @@ function Koci.Client.HUD:fVehicleInfoThick(vehicle)
                 gear       = gear,
                 fuel       = math.floor(fuelLevel + 0.5),
                 engineHp   = engineHealth,
+                bodyHp     = math.max(0, math.floor(GetVehicleBodyHealth(vehicle))),
                 seatbelt   = beltWarning,
                 belted     = self.data.vehicle.isSeatbeltOn and true or false,
                 cruise     = self.data.vehicle.cruiseControlStatus and true or false,

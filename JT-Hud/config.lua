@@ -13,9 +13,9 @@ Config.Settings = {
         voice    = { active = true  },
         health   = { active = true  },
         armor    = { active = true  },
-        hunger   = { active = false  },
-        thirst   = { active = false  },
-        stress   = { active = false  },
+        hunger   = { active = true  },
+        thirst   = { active = true  },
+        stress   = { active = true  },
         oxygen   = { active = false  },
         stamina  = { active = true  },
         terminal = { active = false },
@@ -51,6 +51,7 @@ Config.Interface = {
     smoothAnimations = true,            -- false = بدون أي حركة نهائياً (أخف شي للأجهزة الضعيفة)
     watermark        = true,            -- إظهار الواتر مارك تحت (F9 يخفيه/يظهره)
     watermarkText    = "DIS.GG/JTCFW",  -- نص الواتر مارك
+    clockSeconds     = true,            -- الثواني في الساعة اللي فوق الخريطة (false = تتحدث كل دقيقة بس)
 }
 
 Config.ElectricVehicles = {

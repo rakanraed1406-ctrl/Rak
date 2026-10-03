@@ -87,18 +87,18 @@
         setCls(hudEl, 'off', !on);
     }
 
-    // ══════════════════ CLOCK (device time, redrawn once a minute) ══════════
+    // ══════════════════ DATE / TIME (device time, like "WED SEP 16, 2026 00:18:16") ══════════
     var MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
     var DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    var cTime = byId('c-time'), cAmpm = byId('c-ampm'), cDow = byId('c-dow'), cDate = byId('c-date');
+    var dtEl = byId('datetime'), dtDate = byId('dt-date'), dtTime = byId('dt-time');
+    var clockSeconds = true, clockTimer = null;
     function tick() {
         var d = new Date();
-        var h = d.getHours();
-        setText(cTime, two(h % 12 || 12) + ':' + two(d.getMinutes()));
-        setText(cAmpm, h >= 12 ? 'PM' : 'AM');
-        setText(cDow, DAYS[d.getDay()]);
-        setText(cDate, two(d.getDate()) + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear());
-        setTimeout(tick, 60050 - d.getSeconds() * 1000 - d.getMilliseconds());
+        setText(dtDate, DAYS[d.getDay()] + ' ' + MONTHS[d.getMonth()] + ' ' + two(d.getDate()) + ', ' + d.getFullYear());
+        setText(dtTime, two(d.getHours()) + ':' + two(d.getMinutes()) + (clockSeconds ? ':' + two(d.getSeconds()) : ''));
+        // next redraw exactly on the next second (or minute when seconds are off)
+        clearTimeout(clockTimer);
+        clockTimer = setTimeout(tick, clockSeconds ? 1010 - d.getMilliseconds() : 60050 - d.getSeconds() * 1000 - d.getMilliseconds());
     }
     tick();
 
@@ -193,99 +193,94 @@
         wpEdges();
     }
 
-    // ══════════════════ VITALS DOCK ══════════════════
-    var vitalEl = byId('vital'), vHp = byId('v-hp'), vAr = byId('v-ar'), vSt = byId('v-st');
-    var vHpN = byId('v-hp-n'), vArN = byId('v-ar-n'), vArRow = byId('v-ar-row'), vStRow = byId('v-st-row');
+    // ══════════════════ STATUS (bottom right, tilted) ══════════════════
+    var statusEl = byId('status'), sHeart = byId('s-heart'), sHpFill = byId('s-hp-fill'), sHpNum = byId('s-hp-num');
+    var stamCells = byId('s-stam').children, STAM = stamCells.length;
+    var sVoice = byId('s-voice'), sMic = byId('s-mic'), vBars = byId('s-vbars').children, VB = vBars.length;
 
-    function scaleX(el, v) { setStyle(el, 'transform', 'scaleX(' + (v / 100).toFixed(3) + ')'); }
+    function box(key) {
+        var el = byId('b-' + key);
+        return { el: el, line: el.querySelector('.s-line i'), num: el.querySelector('b'), v: -1 };
+    }
+    var B = { stress: box('stress'), hunger: box('hunger'), thirst: box('thirst'), armor: box('armor') };
+    var BOX_KEYS = ['stress', 'hunger', 'thirst', 'armor'];
+    var CRIT = {
+        stress: function (v) { return v >= 80; },
+        hunger: function (v) { return v <= 20; },
+        thirst: function (v) { return v <= 20; },
+        armor:  function () { return false; }
+    };
 
+    function boxLevel(t, key, v) {
+        v = Math.round(clamp(v, 0, 100));
+        if (t.v !== v) {
+            t.v = v;
+            t.line.style.transform = 'scaleX(' + (v / 100) + ')';
+            setText(t.num, v);
+        }
+        setCls(t.el, 'crit', CRIT[key](v));
+        setHidden(t.el, !S.bars[key]);
+    }
+
+    var lastHp = -1, lastStam = -1;
     function vitals(d) {
         var hp = Math.round(clamp(num(d.health), 0, 100));
-        scaleX(vHp, hp);
-        setText(vHpN, hp);
-        setCls(vitalEl, 'crit', hp <= 25 || !!d.playerDead);
+        if (hp !== lastHp) {
+            lastHp = hp;
+            sHpFill.style.transform = 'scaleX(' + (hp / 100) + ')';
+            setText(sHpNum, hp);
+        }
+        var crit = hp <= 25 || !!d.playerDead;
+        setCls(statusEl, 'crit', crit);
+        setCls(sHeart, 'crit', crit);                      // re-adding .crit replays the short heartbeat
 
-        var ar = Math.round(clamp(num(d.armor), 0, 100));
-        scaleX(vAr, ar);
-        setText(vArN, ar);
-        setHidden(vArN, ar <= 0 || !S.bars.armor);
-        setHidden(vArRow, !S.bars.armor);
-
+        // stamina dashes on top of the bar (oxygen under water)
         var o = d.oxygen, water = !!(o && typeof o === 'object' && o.inwater);
-        setCls(vitalEl, 'water', water);
-        scaleX(vSt, clamp(num(o), 0, 100));
-        setHidden(vStRow, !(water ? (S.bars.oxygen || S.bars.stamina) : S.bars.stamina));
-
-        show(vitalEl, S.bars.health !== false);
+        setCls(statusEl, 'water', water);
+        var lit = Math.ceil(clamp(num(o), 0, 100) / 100 * STAM);
+        if (lit !== lastStam) {
+            lastStam = lit;
+            for (var i = 0; i < STAM; i++) setCls(stamCells[i], 'on', i < lit);
+        }
+        setStyle(byId('s-stam'), 'visibility', (water ? (S.bars.oxygen || S.bars.stamina) : S.bars.stamina) ? 'visible' : 'hidden');
     }
 
-    // ══════════════════ NEED TILES ══════════════════
-    var TRAVEL = 40; // px the level line travels (tile inner height - line height)
-    function tile(key) {
-        var el = byId('st-' + key);
-        return { el: el, fill: el.querySelector('.stat-fill'), lvl: el.querySelector('.stat-lvl'), num: el.querySelector('.stat-num'), v: -1 };
-    }
-    var T = { voice: tile('voice'), hunger: tile('hunger'), thirst: tile('thirst'), stress: tile('stress') };
-    var vUse = byId('v-use');
-    var vBars = T.voice.el.querySelectorAll('.vbars i');
-
-    function level(t, v) {
-        v = Math.round(clamp(v, 0, 100));
-        if (t.v === v) return;
-        t.v = v;
-        t.fill.style.transform = 'scaleY(' + (v / 100) + ')';
-        t.lvl.style.transform = 'translateY(' + ((1 - v / 100) * TRAVEL).toFixed(1) + 'px)';
-        if (t.num) setText(t.num, v);
-    }
-
-    // when each tile is worth showing, and when it turns critical
-    var RULES = {
-        hunger: { show: function (v) { return v < 80; }, crit: function (v) { return v <= 20; } },
-        thirst: { show: function (v) { return v < 80; }, crit: function (v) { return v <= 20; } },
-        stress: { show: function (v) { return v > 0; },  crit: function (v) { return v >= 80; } }
-    };
-    var RULE_KEYS = ['hunger', 'thirst', 'stress'];
-
-    function need(key, d) {
-        var t = T[key], rule = RULES[key];
-        var v = clamp(num(d[key]), 0, 100);
-        if (v < 1) v = 0;
-        level(t, v);
-        setCls(t.el, 'crit', rule.crit(v));
-        show(t.el, S.bars[key] && (S.forceAll || rule.show(v)));
-    }
-
+    // voice: lit bars = range; they only move while you talk (or transmit on radio)
     var voiceState = { mode: null, lvl: 0 };
     function voice(d) {
         if (!d || typeof d !== 'object') return;
         var mode = d.radio ? 'radio' : (d.talking ? 'talk' : 'idle');
         if (mode !== voiceState.mode) {
             voiceState.mode = mode;
-            setCls(T.voice.el, 'talk', mode === 'talk');
-            setCls(T.voice.el, 'radio', mode === 'radio');
-            setHref(vUse, mode === 'radio' ? '#i-radio' : mode === 'talk' ? '#i-mic' : '#i-mic-off');
+            setCls(sVoice, 'talk', mode === 'talk');
+            setCls(sVoice, 'radio', mode === 'radio');
+            setHref(sMic, mode === 'radio' ? '#i-radio' : '#i-mic');
         }
         var r = Number(d.range) || 3;
-        var lvl = r <= 1.5 ? 1 : r <= 3 ? 2 : 3;
+        var lvl = r <= 1.5 ? 3 : r <= 3 ? 6 : VB;
         if (lvl !== voiceState.lvl) {
             voiceState.lvl = lvl;
-            for (var i = 0; i < 3; i++) setCls(vBars[i], 'on', i < lvl);
+            for (var i = 0; i < VB; i++) setCls(vBars[i], 'on', i < lvl);
         }
-        show(T.voice.el, S.bars.voice);
+        setHidden(sVoice, !S.bars.voice);
     }
 
     function updateHud(d) {
         S.last = d;
         vitals(d);
         voice(d.voice);
-        for (var i = 0; i < RULE_KEYS.length; i++) need(RULE_KEYS[i], d);
+        for (var i = 0; i < BOX_KEYS.length; i++) {
+            var k = BOX_KEYS[i];
+            var v = clamp(num(k === 'armor' ? d.armor : d[k]), 0, 100);
+            boxLevel(B[k], k, v < 1 ? 0 : v);
+        }
     }
 
     // ══════════════════ VEHICLE CLUSTER ══════════════════
     // "Kick" lines: a short diagonal into a long horizontal (SVG space 340x126).
-    var RPM_PTS = [[12, 96], [38, 62], [326, 62]];
-    var FUEL_PTS = [[42, 26], [50, 18], [170, 18]];
-    var ENG_PTS = [[42, 44], [50, 36], [170, 36]];
+    var RPM_PTS = [[4, 90], [32, 58], [338, 58]];
+    var FUEL_PTS = [[22, 26], [32, 16], [166, 16]];
+    var ENG_PTS = [[22, 45], [32, 35], [166, 35]];
     var RPM_SEGS = 40, RED_SEGS = 6, BAR_SEGS = 20;   // must match the mask dash patterns in index.html
 
     function poly(pts) {
@@ -315,7 +310,7 @@
         var set = function (id, d) { byId(id).setAttribute('d', d); };
         var parts = splitAt(RPM_PTS, (RPM_SEGS - RED_SEGS) / RPM_SEGS);
         var normal = poly(parts[0]), red = poly(parts[1]);
-        set('p-plate', 'M 26 0 H 336 Q 340 0 340 4 V 112 Q 340 126 326 126 H 4 Q 0 126 0 122 V 30 Z');
+        set('sh-rpm', poly(RPM_PTS)); set('sh-fuel', poly(FUEL_PTS)); set('sh-eng', poly(ENG_PTS));
         set('m-rpm', poly(RPM_PTS)); set('m-fuel', poly(FUEL_PTS)); set('m-eng', poly(ENG_PTS));
         set('p-track', normal); set('p-track-red', red);
         set('p-rpm', normal); set('p-rpm-red', red); set('p-glow', normal);
@@ -333,13 +328,14 @@
     var ci = {
         left: byId('ci-left'), right: byId('ci-right'), lock: byId('ci-lock'), lights: byId('ci-lights'),
         lightsUse: byId('ci-lights-use'), belt: byId('ci-belt'), brake: byId('ci-brake'),
-        engine: byId('ci-engine'), cruise: byId('ci-cruise')
+        engine: byId('ci-engine'), body: byId('ci-body'), cruise: byId('ci-cruise')
     };
 
     function setVehicleUi(on) {
         S.inVeh = !!on;
         show(carEl, on);
         show(mapEl, on);
+        setCls(dtEl, 'veh', on);                        // date/time moves up onto the minimap
     }
 
     var lastSpeed = -1;
@@ -357,11 +353,11 @@
         }
     }
 
-    var gearCells = {}, gearMax = 0, gearOn = null;
+    var gearCells = {}, gearMax = 0, gearOn = null, gearNext = null;
     function buildGears(max) {
         max = Math.max(1, Math.min(10, Math.round(Number(max) || 6)));
         if (max === gearMax) return;
-        gearMax = max; gearOn = null; gearCells = {};
+        gearMax = max; gearOn = null; gearNext = null; gearCells = {};
         var labels = ['R', 'N'];
         for (var g = 1; g <= max; g++) labels.push(String(g));
         gearsEl.innerHTML = '';
@@ -377,10 +373,21 @@
     function gear(g, sp) {
         var txt = sp <= 0 ? 'N' : (g === 'R' || Number(g) <= 0) ? 'R' : String(g);
         if (txt === gearOn) return;
-        if (gearOn && gearCells[gearOn]) gearCells[gearOn].className = '';
+        if (gearOn && gearCells[gearOn]) { gearCells[gearOn].className = ''; gearCells[gearOn]._c_next = false; }
         gearOn = txt;
         var cell = gearCells[txt];
-        if (cell) cell.className = 'on' + (txt === 'R' ? ' rev' : txt === 'N' ? ' neu' : '');
+        if (cell) { cell.className = 'on' + (txt === 'R' ? ' rev' : txt === 'N' ? ' neu' : ''); cell._c_next = false; }
+        if (gearNext === txt) gearNext = null;
+        shiftCue();
+    }
+    // when the needle is in the red zone, outline the next gear in amber
+    function shiftCue() {
+        var n = Number(gearOn);
+        var next = (lastRpm > RPM_SEGS - RED_SEGS && n >= 1 && n < gearMax) ? String(n + 1) : null;
+        if (next === gearNext) return;
+        if (gearNext && gearCells[gearNext]) setCls(gearCells[gearNext], 'next', false);
+        gearNext = next;
+        if (next && gearCells[next]) setCls(gearCells[next], 'next', true);
     }
 
     // whole segments only: a line is redrawn only when a segment lights up or goes out
@@ -394,6 +401,7 @@
         setStyle(pRpm, 'strokeDashoffset', off);
         setStyle(pGlow, 'strokeDashoffset', off);
         setStyle(pRed, 'strokeDashoffset', String(100 - Math.max(0, segs - normal) / RED_SEGS * 100));
+        shiftCue();
     }
 
     function miniBar(path, icon, label, v, warnAt, critAt) {
@@ -454,6 +462,12 @@
             setCls(ci.engine, 'crit', engState === 'crit');
             setCls(ci.engine, 'warn', engState === 'warn');
             setCls(ci.engine, 'on', !engState && d.engineOn !== false);
+        }
+        if (d.bodyHp !== undefined) {
+            var body = clamp(Number(d.bodyHp) / 10, 0, 100);
+            setCls(ci.body, 'crit', body <= 30);
+            setCls(ci.body, 'warn', body > 30 && body <= 60);
+            setCls(ci.body, 'on', body > 60);
         }
         if (d.cruise !== undefined) setCls(ci.cruise, 'on', !!d.cruise);
     }
@@ -516,7 +530,8 @@
         if (c.watermark !== undefined) setCls(wmEl, 'off', !c.watermark);
         if (c.watermarkText) setText(wmTxt, c.watermarkText);
         var engOn = S.bars.engineHealth !== false;
-        ['p-eng', 'p-eng-track', 'c-eng-ic', 'c-eng-v'].forEach(function (id) { byId(id).style.display = engOn ? '' : 'none'; });
+        if (c.clockSeconds !== undefined && clockSeconds !== !!c.clockSeconds) { clockSeconds = !!c.clockSeconds; tick(); }
+        ['p-eng', 'p-eng-track', 'sh-eng', 'c-eng-ic', 'c-eng-v'].forEach(function (id) { byId(id).style.display = engOn ? '' : 'none'; });
         if (S.last) updateHud(S.last);
     }
 
