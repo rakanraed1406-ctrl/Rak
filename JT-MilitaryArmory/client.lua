@@ -470,19 +470,26 @@ end)
 
 -- ---------------------------------------------------------------------------
 -- Photo studio (/logisticsphotos, admin): every vehicle from the same angle,
--- same light, same framing. Two shots per vehicle (with / without it) over a
--- flat backdrop; the NUI cuts the vehicle out (difference matte) and the
--- server saves html/img/vehicles/<model>.webp. Restart the resource after.
+-- same light, same framing (Config.Photo).
+--   * the vehicle is turned so the camera stands on the sun side (lit, not in
+--     its own shadow), with a soft fill light from the camera;
+--   * four lossless shots: with / without the vehicle, over two flat backdrops
+--     of equal brightness but different colour (green / magenta). From those
+--     the NUI works out how see-through each pixel is (triangulation matting),
+--     so edges, glass and rotor discs keep no trace of the backdrop colour;
+--   * the server saves html/img/vehicles/<model>.webp. Restart the resource after.
 -- ---------------------------------------------------------------------------
 local STUDIO = vector3(-1800.0, -4800.0, 900.0) -- over the ocean, nothing around
+local BACKDROPS = { { 0, 170, 0 }, { 255, 0, 255 } } -- about the same luminance → same exposure
 local studio = nil
 local photoWaits = {}
 
 local function screenshot()
     local p, settled = promise.new(), false
     local function finish(v) if not settled then settled = true p:resolve(v) end end
-    exports['screenshot-basic']:requestScreenshot({ encoding = 'jpg', quality = 0.97 }, finish)
-    SetTimeout(10000, function() finish(nil) end)
+    -- PNG: JPEG/WebP blur colour at the edges (chroma subsampling) and break the matte
+    exports['screenshot-basic']:requestScreenshot({ encoding = 'png' }, finish)
+    SetTimeout(15000, function() finish(nil) end)
     return Citizen.Await(p)
 end
 
@@ -498,7 +505,7 @@ end)
 local function normalize(v) local l = #v return vector3(v.x / l, v.y / l, v.z / l) end
 local function cross(a, b) return vector3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x) end
 
-local function drawBackdrop()
+local function drawStudio()
     local s = studio
     local f = normalize(s.target - s.camPos)
     local r = normalize(cross(f, vector3(0.0, 0.0, 1.0)))
@@ -507,52 +514,75 @@ local function drawBackdrop()
     local k = s.radius * 25.0
     local a, b = c + r * k + u * k, c - r * k + u * k
     local d, e = c - r * k - u * k, c + r * k - u * k
+    local col = BACKDROPS[s.backdrop or 1]
     for _, t in ipairs({ { a, b, d }, { a, d, e }, { d, b, a }, { e, d, a } }) do -- both windings
-        DrawPoly(t[1].x, t[1].y, t[1].z, t[2].x, t[2].y, t[2].z, t[3].x, t[3].y, t[3].z, 255, 0, 255, 255)
+        DrawPoly(t[1].x, t[1].y, t[1].z, t[2].x, t[2].y, t[2].z, t[3].x, t[3].y, t[3].z, col[1], col[2], col[3], 255)
+    end
+    if s.fill > 0 then -- soft light from just above the camera
+        local l = s.camPos + u * (s.radius * 0.5)
+        DrawLightWithRange(l.x, l.y, l.z, 255, 250, 240, s.dist * 2.0, s.fill)
     end
 end
 
 local function shoot(model, index)
+    local cfg = Config.Photo or {}
     local hash = loadModel(model)
     if not hash or not IsModelAVehicle(hash) then return nil end
-    local veh = CreateVehicle(hash, STUDIO.x, STUDIO.y, STUDIO.z, 0.0, false, false)
+    local yaw, pitch = math.rad(cfg.yaw or 35.0), math.rad(cfg.pitch or 12.0)
+    -- turn the vehicle so the camera ends up on the sun side (cfg.sun = where the sun is)
+    local heading = ((cfg.sun or 180.0) - (cfg.yaw or 35.0)) % 360.0
+    local veh = CreateVehicle(hash, STUDIO.x, STUDIO.y, STUDIO.z, heading, false, false)
     SetModelAsNoLongerNeeded(hash)
     FreezeEntityPosition(veh, true)
-    SetEntityRotation(veh, 0.0, 0.0, 0.0, 2, true)
+    SetEntityRotation(veh, 0.0, 0.0, heading, 2, true)
     SetVehicleDirtLevel(veh, 0.0)
     SetVehicleEngineOn(veh, false, true, true)
+    SetVehicleLights(veh, 1)
+    if IsThisModelAPlane(hash) then ControlLandingGear(veh, 0) end -- wheels down
 
     local min, max = GetModelDimensions(hash)
     local cx, cy, cz = (min.x + max.x) / 2, (min.y + max.y) / 2, (min.z + max.z) / 2
     local radius = #(max - min) / 2
-    local fov = 30.0
+    local fov = cfg.fov or 28.0
     local dist = radius / math.sin(math.rad(fov / 2)) * 1.02
-    local dir = normalize(vector3(0.78, 1.0, 0.36)) -- front-right, a little above: the same for every vehicle
+    -- the same direction for every vehicle: yaw from the nose (+ = its left side), pitch above
+    local dir = vector3(-math.sin(yaw) * math.cos(pitch), math.cos(yaw) * math.cos(pitch), math.sin(pitch))
     local target = GetOffsetFromEntityInWorldCoords(veh, cx, cy, cz)
     local camPos = GetOffsetFromEntityInWorldCoords(veh, cx + dir.x * dist, cy + dir.y * dist, cz + dir.z * dist)
     local cam = CreateCamWithParams('DEFAULT_SCRIPTED_CAMERA', camPos.x, camPos.y, camPos.z, 0.0, 0.0, 0.0, fov, false, 0)
     PointCamAtCoord(cam, target.x, target.y, target.z)
+    SetCamUseShallowDofMode(cam, false)
     SetCamActive(cam, true)
     RenderScriptCams(true, false, 0, true, true)
     SetFocusPosAndVel(target.x, target.y, target.z, 0.0, 0.0, 0.0)
-    studio.target, studio.camPos, studio.radius = target, camPos, radius
+    studio.target, studio.camPos, studio.radius, studio.dist = target, camPos, radius, dist
+    studio.fill = (cfg.fill or 1.0) * 1.5
 
-    Wait(1800) -- textures / LODs
-    local a = screenshot()
+    -- with the vehicle on both backdrops, then the empty backdrops (same order back)
+    studio.backdrop = 1
+    Wait(2200) -- textures / LODs / exposure
+    local a1 = screenshot()
+    studio.backdrop = 2
+    Wait(900)
+    local a2 = screenshot()
     SetEntityVisible(veh, false, false)
-    Wait(300)
-    local b = screenshot()
+    Wait(700)
+    local b2 = screenshot()
+    studio.backdrop = 1
+    Wait(900)
+    local b1 = screenshot()
 
     SetEntityAsMissionEntity(veh, true, true)
     DeleteVehicle(veh)
     RenderScriptCams(false, false, 0, true, true)
     DestroyCam(cam, false)
-    if not a or not b then return nil end
+    studio.target = nil
+    if not (a1 and a2 and b1 and b2) then return nil end
 
     local p = promise.new()
     photoWaits[index] = p
-    SendNUIMessage({ action = 'photoProcess', id = index, a = a, b = b })
-    SetTimeout(20000, function() if photoWaits[index] then photoWaits[index] = nil p:resolve(nil) end end)
+    SendNUIMessage({ action = 'photoProcess', id = index, a1 = a1, a2 = a2, b1 = b1, b2 = b2 })
+    SetTimeout(30000, function() if photoWaits[index] then photoWaits[index] = nil p:resolve(nil) end end)
     return Citizen.Await(p)
 end
 
@@ -560,19 +590,22 @@ RegisterNetEvent('jt-logistics:client:photos', function(models, token)
     if studio or type(models) ~= 'table' then return end
     if GetResourceState('screenshot-basic') ~= 'started' then return QBCore.Functions.Notify(L.photos_missing, 'error', 8000) end
     if isOpen then close() SendNUIMessage({ action = 'hide' }) end
-    studio = { on = true }
+    studio = { on = true, fill = 0, backdrop = 1 }
     QBCore.Functions.Notify(L.photos_start:format(#models), 'primary', 6000)
 
     CreateThread(function()
         while studio do
             HideHudAndRadarThisFrame()
-            if studio.target then drawBackdrop() end
+            if studio.target then drawStudio() end
             Wait(0)
         end
     end)
 
-    NetworkOverrideClockTime(13, 0, 0)
+    local cfg = Config.Photo or {}
+    NetworkOverrideClockTime(cfg.hour or 12, 0, 0)
     SetWeatherTypeNowPersist('EXTRASUNNY')
+    ClearTimecycleModifier()
+    ClearExtraTimecycleModifier()
     DisplayRadar(false)
     local done = 0
     for i, model in ipairs(models) do

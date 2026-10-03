@@ -695,11 +695,14 @@ async function confirmPickup() {
 }
 
 // ---------------------------------------------------------------------------
-// Vehicle photos (/logisticsphotos): cut the vehicle out of the two studio
-// shots (with / without it) and frame every vehicle the same way.
+// Vehicle photos (/logisticsphotos): four lossless studio shots per vehicle —
+// with (a1, a2) and without (b1, b2) it, over two backdrops of different
+// colour. Triangulation matting: a pixel C = α·F + (1-α)·B on both backdrops,
+// so α comes from how much it changed between them and F from what is left
+// once the backdrop share is removed. Edges, glass and rotor blur get their
+// real transparency and none of the backdrop colour. Then every vehicle is
+// framed the same way in a 640×360 transparent WebP.
 // ---------------------------------------------------------------------------
-const rowOf = (p, w) => (p / w) | 0;
-
 function loadImage(src) {
     return new Promise((resolve, reject) => {
         const im = new Image();
@@ -709,76 +712,89 @@ function loadImage(src) {
     });
 }
 
+// per-channel gain from the left / right bands (the vehicle never reaches them):
+// how much brighter shot `a` came out than shot `b` (auto exposure)
+function bandGain(a, b, w, h) {
+    const band = Math.max(4, Math.round(w * 0.08));
+    const sa = [0, 0, 0], sb = [0, 0, 0];
+    for (let y = 0; y < h; y += 2) {
+        for (let x = 0; x < w; x += 2) {
+            if (x >= band && x < w - band) { x = w - band - 1; continue; }
+            const i = (y * w + x) * 4;
+            for (let c = 0; c < 3; c++) { sa[c] += a[i + c]; sb[c] += b[i + c]; }
+        }
+    }
+    return sa.map((v, c) => (sb[c] > 2000 ? Math.min(1.4, Math.max(0.7, v / sb[c])) : 1));
+}
+
+function matte(a1, a2, b1, b2, n, k1, k2, g) {
+    const alpha = new Float32Array(n);
+    const color = new Float32Array(n * 3);
+    const clash = new Uint8Array(n); // the two shots disagree here (edge moved a pixel between them)
+    const q0 = k2[0] * g[0], q1 = k2[1] * g[1], q2 = k2[2] * g[2];
+    for (let p = 0, i = 0; p < n; p++, i += 4) {
+        // the two backdrops at this pixel (exposure-matched to shot 1)
+        const B10 = b1[i] * k1[0], B11 = b1[i + 1] * k1[1], B12 = b1[i + 2] * k1[2];
+        const B20 = b2[i] * q0, B21 = b2[i + 1] * q1, B22 = b2[i + 2] * q2;
+        const A20 = a2[i] * g[0], A21 = a2[i + 1] * g[1], A22 = a2[i + 2] * g[2];
+        const D0 = B10 - B20, D1 = B11 - B21, D2 = B12 - B22;
+        const dd = D0 * D0 + D1 * D1 + D2 * D2;
+        let al;
+        if (dd > 900) {
+            al = 1 - ((a1[i] - A20) * D0 + (a1[i + 1] - A21) * D1 + (a1[i + 2] - A22) * D2) / dd;
+        } else { // backdrops look the same here (shouldn't happen): "changed or not"
+            al = Math.max(Math.abs(a1[i] - B10), Math.abs(a1[i + 1] - B11), Math.abs(a1[i + 2] - B12)) > 24 ? 1 : 0;
+        }
+        al = al < 0.04 ? 0 : al > 0.96 ? 1 : al;
+        alpha[p] = al;
+        if (al > 0) {
+            const inv = 1 - al, k = 1 / (2 * al), j = p * 3;
+            // foreground from each backdrop; they should agree
+            const p0 = a1[i] - inv * B10, r0 = A20 - inv * B20;
+            const p1 = a1[i + 1] - inv * B11, r1 = A21 - inv * B21;
+            const p2 = a1[i + 2] - inv * B12, r2 = A22 - inv * B22;
+            if (Math.max(Math.abs(p0 - r0), Math.abs(p1 - r1), Math.abs(p2 - r2)) > 40 * al) clash[p] = 1;
+            let f = (p0 + r0) * k;
+            color[j] = f < 0 ? 0 : f > 255 ? 255 : f;
+            f = (p1 + r1) * k;
+            color[j + 1] = f < 0 ? 0 : f > 255 ? 255 : f;
+            f = (p2 + r2) * k;
+            color[j + 2] = f < 0 ? 0 : f > 255 ? 255 : f;
+        }
+    }
+    return { alpha, color, clash };
+}
+
 async function processPhoto(msg) {
     try {
-        const [A, B] = await Promise.all([loadImage(msg.a), loadImage(msg.b)]);
-        const k = Math.min(1, 900 / A.height);
-        const w = Math.round(A.width * k), h = Math.round(A.height * k);
+        const imgs = await Promise.all([msg.a1, msg.a2, msg.b1, msg.b2].map(loadImage));
+        const k = Math.min(1, 1080 / imgs[0].height);
+        const w = Math.round(imgs[0].width * k), h = Math.round(imgs[0].height * k);
         const c = document.createElement('canvas');
         c.width = w; c.height = h;
         const ctx = c.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(A, 0, 0, w, h);
-        const a = ctx.getImageData(0, 0, w, h).data;
-        ctx.drawImage(B, 0, 0, w, h);
-        const b = ctx.getImageData(0, 0, w, h).data;
-        const out = ctx.createImageData(w, h);
-        const o = out.data;
+        const px = imgs.map((im) => { ctx.clearRect(0, 0, w, h); ctx.drawImage(im, 0, 0, w, h); return ctx.getImageData(0, 0, w, h).data; });
+        const [a1, a2, b1, b2] = px;
         const n = w * h;
-        const alpha = new Float32Array(n);
-        for (let i = 0, p = 0; p < n; i += 4, p++) {
-            const d = Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2]));
-            const al = (d - 16) / 48;
-            alpha[p] = al <= 0 ? 0 : al > 1 ? 1 : al;
-        }
-        // distance (in px, up to 3) from the background, for the edge pass
-        const dist = new Uint8Array(n).fill(255);
-        for (let p = 0; p < n; p++) if (alpha[p] === 0) dist[p] = 0;
-        for (let r = 1; r <= 3; r++) {
-            for (let p = 0; p < n; p++) {
-                if (dist[p] !== 255) continue;
-                const x = p % w;
-                if ((x > 0 && dist[p - 1] === r - 1) || (x < w - 1 && dist[p + 1] === r - 1) ||
-                    (p >= w && dist[p - w] === r - 1) || (p < n - w && dist[p + w] === r - 1)) dist[p] = r;
-            }
-        }
-        const cols = new Uint32Array(w), rows = new Uint32Array(h);
+
+        // exposure: each "with" shot vs. its empty backdrop (from the edges of the frame)
+        const k1 = bandGain(a1, b1, w, h), k2 = bandGain(a2, b2, w, h);
+        // and shot 2 vs. shot 1 on the vehicle itself (solid pixels from a first pass)
+        let g = [1, 1, 1];
+        let m = matte(a1, a2, b1, b2, n, k1, k2, g);
+        const s1 = [0, 0, 0], s2 = [0, 0, 0];
         for (let p = 0, i = 0; p < n; p++, i += 4) {
-            let al = alpha[p];
-            if (al === 0) continue;
-            let fr = a[i], fg = a[i + 1], fb = a[i + 2];
-            if (dist[p] <= 2) {
-                // edge pixel: take the vehicle colour from the nearest inner pixel and
-                // work out how much of this pixel is vehicle vs. the known background
-                const x = p % w, y = (p / w) | 0;
-                let best = -1, bd = 99;
-                for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
-                    const xx = x + dx, yy = y + dy;
-                    if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-                    const q = yy * w + xx;
-                    const dd = dx * dx + dy * dy;
-                    if (dist[q] === 255 && dd < bd) { bd = dd; best = q; }
-                }
-                if (best >= 0) {
-                    const j = best * 4;
-                    const vr = a[j] - b[i], vg = a[j + 1] - b[i + 1], vb = a[j + 2] - b[i + 2];
-                    const len = vr * vr + vg * vg + vb * vb;
-                    if (len > 300) {
-                        al = ((a[i] - b[i]) * vr + (a[i + 1] - b[i + 1]) * vg + (a[i + 2] - b[i + 2]) * vb) / len;
-                        al = al < 0 ? 0 : al > 1 ? 1 : al;
-                        fr = a[j]; fg = a[j + 1]; fb = a[j + 2];
-                    }
-                }
-            } else if (al < 1) {
-                const inv = 1 - al; // remove the known background
-                fr = (a[i] - inv * b[i]) / al; fg = (a[i + 1] - inv * b[i + 1]) / al; fb = (a[i + 2] - inv * b[i + 2]) / al;
-            }
-            o[i] = fr < 0 ? 0 : fr > 255 ? 255 : fr;
-            o[i + 1] = fg < 0 ? 0 : fg > 255 ? 255 : fg;
-            o[i + 2] = fb < 0 ? 0 : fb > 255 ? 255 : fb;
-            o[i + 3] = Math.round(al * 255);
-            if (al > 0.6) { cols[p % w]++; rows[rowOf(p, w)]++; }
+            if (m.alpha[p] < 0.9) continue;
+            for (let ch = 0; ch < 3; ch++) { s1[ch] += a1[i + ch]; s2[ch] += a2[i + ch]; }
         }
-        // the vehicle's box: rows / columns with enough solid pixels (ignores sky noise)
+        g = s1.map((v, ch) => (s2[ch] > 5000 ? Math.min(1.25, Math.max(0.8, v / s2[ch])) : 1));
+        if (g.some((v) => Math.abs(v - 1) > 0.004)) m = matte(a1, a2, b1, b2, n, k1, k2, g);
+        const { alpha, color, clash } = m;
+
+        // the vehicle's box: rows / columns with enough visible pixels (ignores specks;
+        // see-through parts like glass or a rotor disc count too)
+        const cols = new Uint32Array(w), rows = new Uint32Array(h);
+        for (let p = 0; p < n; p++) if (alpha[p] > 0.1) { cols[p % w]++; rows[(p / w) | 0]++; }
         const minC = Math.max(3, h * 0.006), minR = Math.max(3, w * 0.006);
         let x0 = 0, x1 = w - 1, y0 = 0, y1 = h - 1;
         while (x0 < w && cols[x0] < minC) x0++;
@@ -786,17 +802,40 @@ async function processPhoto(msg) {
         while (y0 < h && rows[y0] < minR) y0++;
         while (y1 > y0 && rows[y1] < minR) y1--;
         if (x1 - x0 < 20 || y1 - y0 < 10) throw new Error('empty');
+        const pad = Math.round(Math.max(w, h) * 0.004); // keep soft edges just outside the box
+        x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad);
+        x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+
+        const out = ctx.createImageData(w, h);
+        const o = out.data;
+        for (let y = y0; y <= y1; y++) {
+            for (let x = x0; x <= x1; x++) {
+                const p = y * w + x, i = p * 4;
+                const al = alpha[p];
+                if (al === 0) continue;
+                let r = color[p * 3], gr = color[p * 3 + 1], b = color[p * 3 + 2];
+                if (al < 0.3 || clash[p]) {
+                    // faint pixels (soft edges, rotor blur) and pixels where the shots disagree:
+                    // an α error there shows up as a backdrop tint, so take green / magenta excess out
+                    const mx = Math.max(r, b), mn = Math.min(r, b);
+                    if (gr > mx) gr = mx;
+                    else if (mn > gr) { r -= mn - gr; b -= mn - gr; }
+                }
+                o[i] = r; o[i + 1] = gr; o[i + 2] = b;
+                o[i + 3] = Math.round(al * 255);
+            }
+        }
         ctx.putImageData(out, 0, 0);
 
         const W = 640, H = 360, M = 0.07;
         const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
-        const s = Math.min(W * (1 - 2 * M) / bw, H * (1 - 2 * M) / bh);
+        const sc = Math.min(W * (1 - 2 * M) / bw, H * (1 - 2 * M) / bh);
         const oc = document.createElement('canvas');
         oc.width = W; oc.height = H;
         const octx = oc.getContext('2d');
         octx.imageSmoothingQuality = 'high';
-        octx.drawImage(c, x0, y0, bw, bh, (W - bw * s) / 2, (H - bh * s) / 2, bw * s, bh * s);
-        post('photoResult', { id: msg.id, image: oc.toDataURL('image/webp', 0.9) });
+        octx.drawImage(c, x0, y0, bw, bh, (W - bw * sc) / 2, (H - bh * sc) / 2, bw * sc, bh * sc);
+        post('photoResult', { id: msg.id, image: oc.toDataURL('image/webp', 0.92) });
     } catch (e) {
         post('photoResult', { id: msg.id, image: null });
     }
