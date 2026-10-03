@@ -119,8 +119,8 @@ local function openMenu()
         local pd = QBCore.Functions.GetPlayerData()
         isLoggedIn = pd ~= nil and pd.citizenid ~= nil
     end
-    if menuOpen then return closeMenu() end -- F1 again = close (escape hatch)
-    if not isLoggedIn or IsPauseMenuActive() or IsNuiFocused() then return end
+    -- the key press can arrive twice when the NUI takes focus: an open wheel just ignores it
+    if menuOpen or not isLoggedIn or IsPauseMenuActive() or IsNuiFocused() then return end
     menuOpen = true
     SendNUIMessage({
         state = "show",
