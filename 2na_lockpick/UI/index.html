@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="styles/style.css" />
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+      integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script src="scripts/script.js"></script>
+    <title>2na_lockpick</title>
+  </head>
+  <body>
+    <div style="display: none" class="container">
+      <div class="background">
+        <div class="background-wallpaper"></div>
+        <div class="background-shapes"></div>
+        <div class="background-lights">
+          <div
+            style="
+              left: -40%;
+              top: -40%;
+              background: radial-gradient(
+                circle at center,
+                #14439b38,
+                transparent 40%
+              );
+            "
+            class="background-light"
+          ></div>
+
+          <div
+            style="
+              right: -40%;
+              bottom: -40%;
+              background: radial-gradient(
+                circle at center,
+                #0a3b7c28,
+                transparent 40%
+              );
+            "
+            class="background-light"
+          ></div>
+        </div>
+      </div>
+
+      <div class="wrapper">
+        <div class="instructions">
+          <div class="instruction">
+            <img src="images/icons/mouse.svg" alt="Mouse" /> Left click on your
+            mouse then rotate the handle
+          </div>
+          <div class="instruction-seperator">
+            <hr />
+            <span
+              style="
+                color: rgb(60, 94, 204);
+                text-shadow: 0 0 40px rgb(21, 36, 172);
+                font-weight: bold;
+              "
+              >OR</span
+            >
+          </div>
+          <div class="instruction">
+            <div class="key-icons">
+              <div class="key-icon">W</div>
+              <div class="key-icon">S</div>
+            </div>
+            Press, to rotate hanndle
+          </div>
+          <div class="instruction-seperator">
+            <hr />
+            <span
+              style="
+                color: rgb(23, 54, 139);
+                text-shadow: 0 0 40px rgb(38, 101, 182);
+                font-weight: bold;
+              "
+              >AND</span
+            >
+          </div>
+          <div class="instruction">
+            <div class="key-icons">
+              <div class="key-icon">ENTER&nbsp;</div>
+            </div>
+            Press, enter to try
+          </div>
+        </div>
+
+        <div class="lockpick">
+          <div
+            class="lockpick-outer"
+            onmouseenter="updateRedzoneState(true)"
+            onmouseleave="updateRedzoneState(false)"
+          >
+            <div id="lockpick-handle" class="lockpick-handle"></div>
+          </div>
+          <div class="lockpick-inner">
+            <div class="lock-icon">
+              <div class="lock-icon-top"></div>
+              <div class="lock-icon-bottom"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stages"></div>
+      </div>
+    </div>
+  </body>
+</html>
